@@ -1,0 +1,13 @@
+node_modules/
+.venv/
+__pycache__/
+frontend/dist/
+*.tsbuildinfo
+# dati scaricati/calcolati e file utente (regole, diario): si rigenerano al primo avvio
+backend/data/*
+!backend/data/.gitkeep
+# screenshot locali dell'interfaccia
+screenshots/
+logs/
+.btc.pids
+.env

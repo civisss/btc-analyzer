@@ -1,0 +1,25 @@
+// Toasts + notifications bell (components/Notifications.tsx, lib/alertPrefs.ts).
+const en: Record<string, string> = {
+  Adesso: 'Just now',
+  Info: 'Info',
+  Posizionamento: 'Positioning',
+  Apri: 'Open',
+  Attenzione: 'Warning',
+  Critico: 'Critical',
+  '+{n} in coda': '+{n} queued',
+  Oggi: 'Today',
+  Ieri: 'Yesterday',
+  'Impostazioni notifiche': 'Notification settings',
+  '{n} nuove': '{n} new',
+  'Segna tutte come lette': 'Mark all as read',
+  'Le categorie silenziate non mostrano avvisi a comparsa ma restano nello storico.': 'Muted categories don’t show pop-up alerts but stay in the history.',
+  'Caricamento…': 'Loading…',
+  'Storico avvisi non disponibile.': 'Alert history unavailable.',
+  'Solo storico': 'History only',
+  Silenziata: 'Muted',
+  'Non letta': 'Unread',
+  Livelli: 'Levels',
+  Stablecoin: 'Stablecoins',
+  Macro: 'Macro',
+}
+export default en

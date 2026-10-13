@@ -1,0 +1,19 @@
+services:
+  btc-analyzer:
+    build: .
+    image: btc-analyzer:latest
+    container_name: btc-analyzer
+    ports:
+      - "8000:8000"
+    environment:
+      # LM Studio in esecuzione sull'host (Server locale attivo sulla porta 1234)
+      LLM_BASE_URL: http://host.docker.internal:1234/v1
+      # LLM_MODEL: openai/gpt-oss-20b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - btc-data:/app/backend/data
+    restart: unless-stopped
+
+volumes:
+  btc-data:

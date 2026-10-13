@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { color-scheme: dark; }
+  body {
+    @apply bg-bg text-slate-200 antialiased;
+    font-family: 'Geist Variable', Geist, 'Inter Variable', system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+    font-size: 13px;
+    line-height: 20px;
+    overflow-x: clip; /* guard against sub-pixel overflow from off-canvas drawers */
+    min-height: 100vh;
+    background-color: #060912;
+  }
+  /* v3 depth: two very soft colour washes far behind the content (fixed, non-interactive) */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(900px 600px at 12% -8%, rgba(247, 147, 26, 0.07), transparent 65%),
+      radial-gradient(1100px 700px at 92% 4%, rgba(70, 110, 255, 0.075), transparent 62%),
+      radial-gradient(1400px 900px at 50% 120%, rgba(60, 90, 200, 0.05), transparent 60%),
+      linear-gradient(180deg, #070B16 0%, #060912 40%, #05080F 100%);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+  /* grid/flex children must be allowed to shrink so wide content (tabs, charts) never overflows the page */
+  .grid > * { min-width: 0; }
+  ::selection { background: rgba(91, 141, 239, 0.35); }
+  :focus { outline: none; }
+  :focus-visible { outline: 2px solid #5B8DEF; outline-offset: 2px; border-radius: 4px; }
+  * { scrollbar-width: thin; scrollbar-color: #26304A transparent; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-thumb { background: #26304A; border-radius: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  /* horizontal scrollers (tab bars, segmented, chip rows): never show scrollbar chrome */
+  .no-scrollbar, [class*='scrollbar-width:none'] { scrollbar-width: none; overflow-y: hidden; }
+  .no-scrollbar::-webkit-scrollbar, [class*='scrollbar-width:none']::-webkit-scrollbar { display: none; }
+  summary { cursor: pointer; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+}
+
+@layer components {
+  /* numbers: tabular + slashed zero */
+  .tnum { font-variant-numeric: tabular-nums slashed-zero; font-feature-settings: 'tnum', 'zero'; }
+
+  /* ---- v3 surfaces ------------------------------------------------------------------------------------------------ */
+  /* card: top-lit gradient fill + 1px gradient hairline (border-box trick) + soft layered shadow */
+  .card {
+    border: 1px solid transparent;
+    border-radius: 16px;
+    background:
+      linear-gradient(180deg, rgba(23, 31, 52, 0.92) 0%, rgba(14, 20, 36, 0.94) 38%, rgba(12, 17, 31, 0.96) 100%) padding-box,
+      linear-gradient(180deg, rgba(170, 185, 230, 0.16) 0%, rgba(150, 165, 210, 0.07) 30%, rgba(150, 165, 210, 0.05) 100%) border-box;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px rgba(0, 0, 0, 0.35), 0 22px 44px -26px rgba(0, 0, 0, 0.9);
+  }
+  .card-hover { transition: box-shadow 150ms, transform 150ms; }
+  .card-hover:hover {
+    background:
+      linear-gradient(180deg, rgba(25, 34, 57, 0.94) 0%, rgba(15, 21, 38, 0.95) 38%, rgba(12, 17, 31, 0.96) 100%) padding-box,
+      linear-gradient(180deg, rgba(190, 205, 250, 0.26) 0%, rgba(150, 165, 210, 0.10) 40%, rgba(150, 165, 210, 0.07) 100%) border-box;
+  }
+  /* KPI card: a faint wash in the top-right corner */
+  .kpi { overflow: hidden; }
+  /* segmented track + active pill */
+  .seg { background: rgba(255, 255, 255, 0.025); box-shadow: inset 0 0 0 1px rgba(148, 163, 210, 0.10); }
+  .seg-pill {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.05));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 2px 8px -2px rgba(0, 0, 0, 0.5);
+  }
+  /* popovers / dropdowns / tooltips */
+  .pop {
+    background: linear-gradient(180deg, rgba(30, 40, 66, 0.98), rgba(20, 27, 46, 0.98));
+    border: 1px solid rgba(160, 175, 225, 0.16);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 48px -12px rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(12px);
+  }
+
+  /* ---- controls ------------------------------------------------------------------------------------------------- */
+  .btn-ghost {
+    @apply inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-white/[0.03] px-2.5 sm:h-7 text-xs font-medium text-slate-300 transition-colors hover:border-white/15 hover:bg-white/[0.06] hover:text-white active:translate-y-px;
+  }
+  .btn-primary {
+    @apply inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-semibold text-[#1A0F02] transition-[filter] hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+    background: linear-gradient(180deg, #FFA93B, #F7931A 55%, #E5820C);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 6px 18px -8px rgba(247, 147, 26, 0.6);
+  }
+  /* tables: 34px rows, numbers right-aligned by the call site with text-right + tnum */
+  .tbl { @apply w-full text-sm; }
+  .tbl th { @apply h-8 whitespace-nowrap px-3 align-middle text-2xs font-medium uppercase tracking-[0.06em] text-slate-500; }
+  /* zero-specificity default so `text-right` on a header cell wins */
+  :where(.tbl th) { text-align: left; }
+  .tbl td { @apply tnum h-[34px] whitespace-nowrap border-t border-white/[0.05] px-3 py-1 align-middle text-slate-200; }
+  .tbl tbody tr:hover td { background: rgba(120, 150, 255, 0.035); }
+  .tbl tbody tr td { transition: background-color 120ms; }
+  .range { @apply h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-slate-300; }
+  .label { @apply text-2xs font-medium uppercase tracking-[0.07em] text-slate-400; }
+  .link { @apply inline-flex h-8 sm:h-7 items-center gap-1 whitespace-nowrap text-xs font-medium text-slate-300 hover:text-white; }
+  /* chips: filters / row state — pill, neutral */
+  .chip { @apply inline-flex h-8 sm:h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-xs font-medium transition-colors; }
+  .chip-on { @apply border-accent-blue/40 bg-accent-blue/[0.12] text-white; }
+  .chip-off { @apply border-line bg-white/[0.02] text-slate-400 hover:text-white; }
+  .md p { @apply my-2 leading-relaxed; }
+  .md ul { @apply my-2 list-disc pl-5; }
+  .md ol { @apply my-2 list-decimal pl-5; }
+  .md li { @apply my-0.5; }
+  .md strong { @apply font-semibold text-white; }
+  .md code { @apply rounded bg-white/10 px-1 py-0.5 text-xs; }
+  .md pre { @apply my-2 overflow-x-auto rounded-lg bg-black/30 p-3; }
+  .md table { @apply my-2 w-full text-xs; }
+  .md th, .md td { @apply border border-line px-2 py-1 text-left; }
+  .md blockquote { @apply my-2 border-l-2 border-line pl-3 text-slate-400; }
+  .md h1, .md h2, .md h3 { @apply mb-1 mt-3 font-semibold text-white; }
+  .md a { @apply text-accent-blue underline; }
+}
+
+@keyframes popIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+.pop-in { animation: popIn 120ms ease-out; transform-origin: top left; }
+
+@keyframes bubbleIn {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* subtle 300ms fade for freshly arrived rows / digits (no colour flash) */
+@keyframes flashIn {
+  0% { opacity: 0.55; }
+  100% { opacity: 1; }
+}
+.flash-in { animation: flashIn 300ms ease-out; }
+
+/* TradingView attribution (required by the lightweight-charts licence): keep it, but small and dim */
+#tv-attr-logo { opacity: 0.25; transform: scale(0.8); transform-origin: bottom left; }
+#tv-attr-logo:hover { opacity: 0.6; }
+
+/* an x-scroller must never grow a vertical scrollbar from 1px rounding */
+.overflow-x-auto { overflow-y: hidden; }
+
+/* sidebar active item glow */
+.nav-active {
+  background: linear-gradient(90deg, rgba(247, 147, 26, 0.14), rgba(247, 147, 26, 0.04) 60%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(247, 147, 26, 0.16);
+}
+@keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(46, 189, 133, 0.55); } 70% { box-shadow: 0 0 0 6px rgba(46, 189, 133, 0); } 100% { box-shadow: 0 0 0 0 rgba(46, 189, 133, 0); } }
+.live-dot { animation: livePulse 2s infinite; }
+
+/* toasts: slide in from the right, fade out; timer bar shrinks over the auto-dismiss delay */
+@keyframes toastIn { from { opacity: 0; transform: translateX(24px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes toastOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(16px) scale(0.98); } }
+@keyframes toastTimer { from { width: 100%; } to { width: 0%; } }
+.toast-in { animation: toastIn 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.toast-out { animation: toastOut 200ms ease-in forwards; }
+.toast-timer { animation-name: toastTimer; animation-timing-function: linear; animation-fill-mode: forwards; }
+
+/* divider grid: cells separated by 1px hairlines only (no nested filled/bordered boxes inside cards).
+   Usage: <div className="dgrid grid-cols-2 sm:grid-cols-3"> <div className="px-3 py-2.5">…</div> … </div> */
+.dgrid { display: grid; overflow: hidden; }
+.dgrid > * { box-shadow: -1px 0 0 rgba(148, 163, 210, 0.10), 0 -1px 0 rgba(148, 163, 210, 0.10); }
