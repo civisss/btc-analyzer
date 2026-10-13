@@ -181,5 +181,6 @@ const en: Record<string, string> = {
   'Confl. {n}': 'Conf. {n}',
   '{n} fonti': '{n} sources',
   '1 fonte': '1 source',
+  'Nessuna finestra temporale rilevante per questo scenario': 'No relevant time window for this scenario',
 }
 export default en

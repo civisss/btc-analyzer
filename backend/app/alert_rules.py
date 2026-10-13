@@ -394,6 +394,12 @@ LEVEL_IDS = (
     "piv_d_P", "piv_d_R1", "piv_d_S1", "piv_w_P", "piv_w_R1", "piv_w_R2", "piv_w_S1", "piv_w_S2", "piv_m_P", "piv_m_R1", "piv_m_S1",
     "weekly_open", "monthly_open", "quarterly_open", "yearly_open", "prev_week_high", "prev_week_low", "prev_month_high", "prev_month_low",
     "monday_high", "monday_low", "monday_mid", "range_high", "range_mid", "range_low", "ath",
+    # VWAP ancorati (Kraken Futures PF_XBTUSD, candele 1m chiuse — app/analysis/vwap.py)
+    "vwap_w", "vwap_w_up1", "vwap_w_dn1", "vwap_m", "vwap_m_up1", "vwap_m_dn1",
+    "vwap_q", "vwap_q_up1", "vwap_q_dn1", "vwap_y", "vwap_y_up1", "vwap_y_dn1",
+    "vwap_pw", "vwap_pm", "vwap_pq", "vwap_py",
+    # volume profile della settimana precedente (POC e value area 70%)
+    "vp_pw_poc", "vp_pw_vah", "vp_pw_val",
 )
 
 
@@ -437,6 +443,21 @@ def named_levels() -> dict[str, dict]:
             out["ath"] = {"price": float(store.get("k_1d")["high"].max())}
         except Exception:  # noqa: BLE001
             pass
+        try:
+            from .analysis import vwap
+            pdat = vwap.build("kraken", "fine").get("periods_data") or {}
+            for per, d in pdat.items():
+                for k, lid in (("vwap", f"vwap_{per}"), ("up1", f"vwap_{per}_up1"), ("dn1", f"vwap_{per}_dn1")):
+                    if d.get(k):
+                        out[lid] = {"price": float(d[k])}
+                if (d.get("prev") or {}).get("vwap"):
+                    out[f"vwap_p{per}"] = {"price": float(d["prev"]["vwap"])}
+            vp = vwap.prev_week_profile("kraken")
+            if vp:
+                for k in ("poc", "vah", "val"):
+                    out[f"vp_pw_{k}"] = {"price": float(vp[k])}
+        except Exception as e:  # noqa: BLE001
+            log.info("livelli vwap: %s", e)
         return out
     return _cached("levels", 60, fn)
 
@@ -594,7 +615,15 @@ LEVEL_IT = {"key_r1": "R1 chiave", "key_r2": "R2 chiave", "key_r3": "R3 chiave",
             "prev_week_high": "massimo settimana precedente", "prev_week_low": "minimo settimana precedente",
             "prev_month_high": "massimo mese precedente", "prev_month_low": "minimo mese precedente", "monday_high": "massimo del lunedì",
             "monday_low": "minimo del lunedì", "monday_mid": "metà del lunedì", "range_high": "massimo del range", "range_mid": "metà range",
-            "range_low": "minimo del range", "ath": "massimo storico"}
+            "range_low": "minimo del range", "ath": "massimo storico",
+            "vwap_w": "VWAP settimanale", "vwap_w_up1": "VWAP settimanale +1σ", "vwap_w_dn1": "VWAP settimanale −1σ",
+            "vwap_m": "VWAP mensile", "vwap_m_up1": "VWAP mensile +1σ", "vwap_m_dn1": "VWAP mensile −1σ",
+            "vwap_q": "VWAP trimestrale", "vwap_q_up1": "VWAP trimestrale +1σ", "vwap_q_dn1": "VWAP trimestrale −1σ",
+            "vwap_y": "VWAP annuale", "vwap_y_up1": "VWAP annuale +1σ", "vwap_y_dn1": "VWAP annuale −1σ",
+            "vwap_pw": "VWAP della settimana precedente", "vwap_pm": "VWAP del mese precedente",
+            "vwap_pq": "VWAP del trimestre precedente", "vwap_py": "VWAP dell'anno precedente",
+            "vp_pw_poc": "POC della settimana precedente", "vp_pw_vah": "VAH (value area) della settimana precedente",
+            "vp_pw_val": "VAL (value area) della settimana precedente"}
 METRIC_IT = {"rsi_1h": "RSI 1h", "rsi_4h": "RSI 4h", "rsi_1d": "RSI 1G", "funding": "Funding", "oi_change_1h": "Variazione OI 1h",
              "oi_change_4h": "Variazione OI 4h", "oi_change_24h": "Variazione OI 24h", "fng": "Fear & Greed", "cycle_score": "Cycle Score",
              "usdt_d": "USDT dominance", "usdt_d_change_7d": "Variazione USDT.D 7g"}

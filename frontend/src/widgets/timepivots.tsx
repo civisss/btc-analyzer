@@ -6,7 +6,7 @@ import type { CalendarItem, Expected, PivotWindow, SourceType, TimePivots } from
 import EChart from '../components/charts/EChart'
 import { C, DIVERGING, FONT, axisLabel, dataZoomInside, hexA, legendBase, timeAxis, tooltipBase, usdAxisFmt, valueAxis } from '../components/charts/theme'
 import { Card, CardBody, CardHeader, EmptyState, KpiCell, KpiStrip, MethodNote as SharedMethodNote, ProgressBar, Segmented, clsx } from '../components/ui'
-import { date, dayUnit, int, pct, usd } from '../lib/format'
+import { date, dayUnit, int, ordinal, pct, usd } from '../lib/format'
 import { cap, months, monthsLong, t, tfLabel, tr, weekdays } from '../i18n'
 
 // ------------------------------------------------------------------ meta
@@ -225,8 +225,11 @@ export function PivotPriceChart({ d }: { d: TimePivots }) {
     const end = (d.today + d.horizon * DAY_S) * 1000
     // label only the strongest windows, at least ~1/16 of the visible span apart so "Confl. 74" labels never collide
     const span = cs.length ? end / 1000 - cs[0].time : (d.horizon + 180) * DAY_S
-    const narrow = typeof window !== 'undefined' && window.innerWidth < 640
-    const gap = span / (narrow ? 5 : 16)
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1920
+    const narrow = vw < 640
+    // ~80 px per label on the plot (≈ 2/3 of the content width beside the sidebar on desktop)
+    const plotPx = narrow ? vw - 64 : (vw - 330) * 0.66
+    const gap = span / Math.max(3, Math.floor(plotPx / 80))
     const top: string[] = []
     const picked: number[] = []
     for (const c of [...d.calendar].sort((a, b) => (b.confluence ?? 0) - (a.confluence ?? 0))) {
@@ -289,7 +292,7 @@ function AvgPathChart({ w, height = 220 }: { w: PivotWindow; height?: number }) 
       yAxis: valueAxis({ axisLabel: { ...axisLabel, formatter: (v: number) => `${v}%` } }),
       series: [
         { name: '_lo', type: 'line', data: lo, stack: 'b', stackStrategy: 'all', symbol: 'none', lineStyle: { width: 0 }, silent: true },
-        { name: '25°–75°', type: 'line', data: band, stack: 'b', stackStrategy: 'all', symbol: 'none', lineStyle: { width: 0 }, areaStyle: { color: hexA(col, 0.14) }, silent: true },
+        { name: `${ordinal(25)}–${ordinal(75)}`, type: 'line', data: band, stack: 'b', stackStrategy: 'all', symbol: 'none', lineStyle: { width: 0 }, areaStyle: { color: hexA(col, 0.14) }, silent: true },
         { name: t('Mediana'), type: 'line', data: p.median, symbol: 'none', lineStyle: { width: 1.4, color: hexA(col, 0.7), type: 'dashed' } },
         { name: t('Media'), type: 'line', data: p.mean, symbol: 'none', lineStyle: { width: 2.2, color: col },
           markLine: { symbol: 'none', silent: true, lineStyle: { color: 'rgba(148,163,184,0.4)', type: 'dashed' }, label: { show: false }, data: [{ xAxis: '0' }, { yAxis: 0 }] } },
@@ -319,7 +322,7 @@ export function WindowDetail({ w }: { w: PivotWindow }) {
                   <td className={y.match ? 'text-white' : 'text-slate-400'}>{y.match && <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-slate-300 align-middle" />}{y.year}</td>
                   <td className={clsx('text-right', signCls(y.pre))}>{pct(y.pre, 1)}</td>
                   <td className={clsx('text-right font-medium', signCls(y.post))}>{pct(y.post, 1)}</td>
-                  <td className="text-slate-300">{cap(y.type)}</td>
+                  <td className="text-slate-300">{cap(t(y.type))}</td>
                   <td className="text-xs text-slate-400">{y.pivot ? <span title={t('Swing {l}', { l: t(y.pivot.level) })}><KindTag k={y.pivot.kind} />{y.pivot.level === 'forte' ? ' ★' : ''} · {date(y.pivot.time, false)}</span> : '—'}</td>
                 </tr>
               ))}

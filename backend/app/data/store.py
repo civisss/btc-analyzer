@@ -43,9 +43,25 @@ def _norm(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def write_parquet(df: pd.DataFrame, path) -> None:
+    """Scrittura atomica: file temporaneo + os.replace, così chi legge (o una build Docker) non vede mai un file a metà."""
+    path = Path(path)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    df.to_parquet(tmp, index=False)
+    os.replace(tmp, path)
+
+
+def write_text(path, text: str) -> None:
+    """Come write_parquet, per JSON e testo."""
+    path = Path(path)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def _save(name: str, df: pd.DataFrame) -> None:
     df = _norm(df)
-    df.to_parquet(_path(name), index=False)
+    write_parquet(df, _path(name))
     _mem[name] = df
     _stamp[name] = time.time()
 
@@ -240,7 +256,7 @@ def flush_liquidations() -> pd.DataFrame:
             cutoff = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=60)
             old = old[pd.to_datetime(old["time"], utc=True) >= cutoff]
             old = old.drop_duplicates(["time", "exchange", "symbol", "side", "price", "qty"]).reset_index(drop=True)
-            old.to_parquet(LIQ_FILE, index=False)
+            write_parquet(old, LIQ_FILE)
     return old
 
 

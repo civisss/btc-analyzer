@@ -114,7 +114,8 @@ export function DxyBtcChart({ d, inverted, height = 380 }: { d: Macro['dollar_ra
     xAxis: timeAxis(),
     yAxis: [
       valueAxis({ type: 'log', position: 'right', axisLabel: { ...axisLabel, formatter: usdAxisFmt } }),
-      valueAxis({ position: 'left', inverse: inverted, name: inverted ? t('↓ invertito') : undefined, nameLocation: 'start', nameGap: 10, nameTextStyle: { color: C.muted, fontSize: 10, align: 'left' }, splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: (v: number) => v.toFixed(0) } }),
+      // the legend and subtitle already say the axis is inverted (an axis name here collided with the legend)
+      valueAxis({ position: 'left', inverse: inverted, splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: (v: number) => v.toFixed(0) } }),
     ],
     series: [
       lineSeries('BTC (USD)', toXY(d.btc_series), C.btc, { yAxisIndex: 0 }),

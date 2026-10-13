@@ -16,6 +16,9 @@ const SUGGESTIONS = [
   'In che fase del ciclo siamo?',
   'Quali sono i livelli chiave da monitorare?',
   'Dove sono i cluster di liquidazione più vicini?',
+  'Come si stanno muovendo funding e open interest?',
+  'Cosa dicono le metriche on-chain?',
+  'Quali eventi macro sono in arrivo?',
 ]
 
 const STORE_KEY = 'chat-history'
@@ -111,12 +114,19 @@ export default function ChatPanel({ className }: { className?: string }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {exchanges.length === 0 ? (
-          <div className="flex flex-col items-start">
-            {SUGGESTIONS.map((s) => t(s)).map((s) => (
-              <button key={s} onClick={() => send(s)} className="flex min-h-8 items-center gap-2 text-left text-sm text-slate-400 hover:text-white">
-                <span aria-hidden className="font-mono">›</span>{s}
-              </button>
-            ))}
+          // empty conversation: suggestions as a list + what the answers are based on (fills the panel instead of a blank area)
+          <div className="flex h-full min-h-full flex-col">
+            <div className="label mb-1">{t('Domande suggerite')}</div>
+            <div className="flex flex-col">
+              {SUGGESTIONS.map((s) => t(s)).map((s) => (
+                <button key={s} onClick={() => send(s)} className="flex min-h-9 items-center gap-2 border-t border-line text-left text-sm text-slate-400 transition-colors first:border-t-0 hover:text-white">
+                  <span aria-hidden className="font-mono">›</span>{s}
+                </button>
+              ))}
+            </div>
+            <p className="mt-auto pt-4 text-xs leading-relaxed text-slate-500">
+              {t("Le risposte usano i dati live dell'app: prezzo, cicli, on-chain, derivati, liquidazioni e macro. Non è consulenza finanziaria.")}
+            </p>
           </div>
         ) : (
           <div className="flex flex-col">

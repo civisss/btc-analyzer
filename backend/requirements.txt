@@ -2,6 +2,7 @@ alembic==1.20.0
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
+astronomy-engine==2.1.19
 APScheduler==3.11.3
 certifi==2026.7.22
 click==8.5.0

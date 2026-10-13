@@ -3,7 +3,7 @@ import {
   Activity, Bot, BrainCircuit, Blocks, Flame, GitCompareArrows, Layers, Orbit, Shapes, Target, Telescope, LineChart, Gauge,
   Radar, Network, Coins, CircleDollarSign, Waves, Sparkles, Zap, ArrowLeftRight, BadgeCheck, Bell, BellRing, CalendarClock,
   CalendarDays, CalendarRange, Clock, ImageUp, NotebookPen, Pickaxe, RefreshCcw, Route, Scale, ScanLine, ScanSearch, Sigma,
-  SquareDashed, Thermometer, TrendingUp, Users, type LucideProps,
+  SquareDashed, Thermometer, TrendingUp, Users, MoonStar, Anchor, type LucideProps,
 } from 'lucide-react'
 import { useAgentMessages, useAgents } from '../api/client'
 import { live, useLive } from '../api/live'
@@ -17,7 +17,7 @@ const ICONS: Record<string, ComponentType<LucideProps>> = {
   Activity, Bot, BrainCircuit, Blocks, Flame, GitCompareArrows, Layers, Orbit, Shapes, Target, Telescope, LineChart, Gauge, Radar,
   Network, Coins, CircleDollarSign, Waves, Sparkles, Zap, ArrowLeftRight, BadgeCheck, Bell, BellRing, CalendarClock, CalendarDays,
   CalendarRange, Clock, ImageUp, NotebookPen, Pickaxe, RefreshCcw, Route, Scale, ScanLine, ScanSearch, Sigma, SquareDashed,
-  Thermometer, TrendingUp, Users,
+  Thermometer, TrendingUp, Users, MoonStar, Anchor,
 }
 export function AgentIcon({ name, ...p }: { name: string } & LucideProps) {
   const I = ICONS[name] ?? Bot
@@ -381,7 +381,7 @@ function fitLayout(agents: Agent[], edges: AgentEdge[], cw: number, ch: number):
   if (s >= 0.9) return n
   // tight: dense modules, enlarged until labels read at >= ~12px
   let best = n, bestEff = s
-  for (const k of [1, 1.1, 1.2, 1.32, 1.45]) {
+  for (const k of [1, 1.1, 1.2, 1.32, 1.45, 1.6, 1.75, 1.9]) {
     const L = tight(k, true)
     const eff = k * scaleOf(L)
     if (eff > bestEff) { best = L; bestEff = eff }
@@ -426,7 +426,9 @@ export function AgentNetwork({
     if (!el) return
     const upd = () => {
       const w = Math.floor(el.clientWidth / 8) * 8
-      const h = Math.floor((window.innerHeight * maxVh) / 8) * 8
+      // a large team needs more height for readable labels (≥ ~12px): let the map use almost the full viewport
+      const vh = agents.length > 30 ? Math.max(maxVh, 0.92) : maxVh
+      const h = Math.floor((window.innerHeight * vh) / 8) * 8
       setSize((s) => (s.w === w && s.h === h ? s : { w, h }))
     }
     upd()
@@ -434,7 +436,7 @@ export function AgentNetwork({
     ro.observe(el)
     window.addEventListener('resize', upd)
     return () => { ro.disconnect(); window.removeEventListener('resize', upd) }
-  }, [maxVh])
+  }, [maxVh, agents.length])
   return (
     <div ref={wrap} className={clsx('w-full', className)}>
       {size.w === 0 ? <div style={{ height: 200 }} /> : size.w < compactBelow

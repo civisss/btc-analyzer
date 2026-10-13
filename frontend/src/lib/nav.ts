@@ -2,7 +2,8 @@ import type { ComponentType } from 'react'
 import {
   LayoutDashboard, CandlestickChart, Orbit, CalendarClock, Shapes, Flame, Layers, Blocks, CircleDollarSign, Telescope, Sparkles,
   Network, ScanSearch, Globe2, Waypoints, CalendarDays, ShieldCheck, Target, Scale, type LucideProps,
-  BellRing, NotebookPen,
+  BellRing, NotebookPen, Anchor,
+  MoonStar,
 } from 'lucide-react'
 
 /** Accent hues (muted, used sparingly: icon badges, section kickers, sparklines). Never for up/down. */
@@ -22,11 +23,13 @@ export const GROUP_ACCENT: Record<NavGroup, Accent> = {
 export const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'Mercato', keywords: 'panoramica kpi prezzo market cap overview price' },
   { to: '/grafici', label: 'Grafici', icon: CandlestickChart, group: 'Mercato', keywords: 'candele ema sma bollinger vwap pivot rsi macd fibonacci charts candles' },
+  { to: '/vwap', label: 'VWAP', icon: Anchor, group: 'Mercato', keywords: 'vwap ancorato settimanale mensile trimestrale annuale bande deviazione standard sigma periodo precedente livelli kraken binance anchored weekly monthly quarterly yearly bands previous period' },
   { to: '/struttura', label: 'Struttura', icon: Waypoints, group: 'Mercato', keywords: 'struttura range lunedì pivot settimanali scenari swing trend structure monday range weekly pivots scenarios' },
   { to: '/insights', label: 'Sintesi', icon: Sparkles, group: 'Mercato', keywords: 'sintesi segnali chat assistente domande insights signals summary' },
   { to: '/cicli', label: 'Cicli', icon: Orbit, group: 'Cicli e tempo', keywords: 'halving bottom top power law rainbow pi cycle mayer cycles clock' },
   { to: '/pivot-temporali', label: 'Pivot temporali', icon: CalendarClock, group: 'Cicli e tempo', keywords: 'pivot date stagionalità mesi inversioni calendario fomc fibonacci tempo seasonality calendar time' },
   { to: '/eventi', label: 'Eventi', icon: CalendarDays, group: 'Cicli e tempo', keywords: 'eventi fomc cpi nfp scadenze opzioni macro calendario events expiries calendar' },
+  { to: '/astronomia', label: 'Astronomia e numeri', icon: MoonStar, group: 'Cicli e tempo', keywords: 'astronomia luna piena nuova eclissi luna rossa superluna mercurio retrogrado equinozio solstizio sole macchie solari tempesta geomagnetica kp numeri tondi fibonacci gann quadrato del 9 venerdì 13 numerologia astronomy moon full new eclipse blood moon supermoon mercury retrograde equinox solstice sunspots geomagnetic storm round numbers numerology friday 13th' },
   { to: '/frattali', label: 'Frattali', icon: Shapes, group: 'Cicli e tempo', keywords: 'pattern analoghi similarità proiezione fractals similarity projection' },
   { to: '/analoghi', label: 'Analoghi', icon: ScanSearch, group: 'Cicli e tempo', keywords: 'analoghi storici confronto perché somiglia periodo spiegazione analogs historical' },
   { to: '/liquidazioni', label: 'Liquidazioni', icon: Flame, group: 'Flussi e derivati', keywords: 'heatmap cluster liquidità magnete liquidations liquidity magnet' },

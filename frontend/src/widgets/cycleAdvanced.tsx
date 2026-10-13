@@ -15,7 +15,7 @@ import {
   C, FONT, SERIES_COLORS, axisLabel, dataZoomInside, dataZoomSlider, dateFmt, hexA, legendBase, lineSeries, timeAxis, toXY, tooltipBase, usdAxisFmt, valueAxis, axisNum,
 } from '../components/charts/theme'
 import { Card, CardBody, CardHeader, Fill, IconBox, KpiCell, KpiStrip, MethodNote as SharedMethodNote, ProgressBar, Q, Segmented, Skeleton, Toggle, clsx } from '../components/ui'
-import { date, dayUnit, int, monthYear, num, pct, usd, usdCompact } from '../lib/format'
+import { date, dayUnit, int, monthYear, num, pct, usd, usdCompact, zoneName } from '../lib/format'
 import { getLang, t, tr } from '../i18n'
 
 // ------------------------------------------------------------------ helpers
@@ -154,7 +154,7 @@ export function CycleClockMini({ className }: { className?: string }) {
               : q.isError ? <span className="text-sm text-slate-400">—</span> : <Skeleton className="h-7 w-14" />}
           </div>
           <div className="mt-1 flex h-5 items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm">
-            {c && <><span className="truncate font-medium" style={{ color: col }}>{cap(c.zone_label)}</span>
+            {c && <><span className="truncate font-medium" style={{ color: col }}>{zoneName(c.zone, c.zone_label)}</span>
               {ok(c.change_30d) && <span className={clsx('tnum text-xs', signCls(c.change_30d))}>{c.change_30d > 0 ? '+' : ''}{c.change_30d.toFixed(0)} pt (30{dayUnit()})</span>}</>}
           </div>
           <div className="pointer-events-none mt-2 h-10">{c && <Sparkline data={c.spark} color={col} height={40} />}</div>
@@ -176,7 +176,7 @@ function ClockCard({ d, updatedAt }: { d: CycleClock; updatedAt?: number }) {
       <CardBody className="flex flex-col items-center gap-4">
         <div className="flex w-full flex-col items-center">
           <CycleClockGauge score={c.score} zones={d.zones} size={220} />
-          <span className="-mt-1 text-lg font-semibold text-white">{cap(c.zone_label)}</span>
+          <span className="-mt-1 text-lg font-semibold text-white">{zoneName(c.zone, c.zone_label)}</span>
         </div>
         <div className="grid w-full grid-cols-3 gap-2 text-center">
           {([[7, c.change_7d], [30, c.change_30d], [90, c.change_90d]] as const).map(([n, v]) => (
@@ -191,7 +191,7 @@ function ClockCard({ d, updatedAt }: { d: CycleClock; updatedAt?: number }) {
             {rampZones(d.zones).map((z) => <div key={z.key} style={{ width: `${z.to - z.from}%`, background: z.color }} />)}
           </div>
           <div className="mt-1.5 grid grid-cols-5 text-center text-2xs leading-3 text-slate-400">
-            {d.zones.map((z) => <span key={z.key}>{cap(z.label)}</span>)}
+            {d.zones.map((z) => <span key={z.key}>{zoneName(z.key, z.label)}</span>)}
           </div>
         </div>
         <div className="w-full"><Bullets items={c.text} /></div>
@@ -248,10 +248,10 @@ function ComponentsCard({ d }: { d: CycleClock }) {
                 </div>
                 <div className="order-3 col-span-2 sm:order-none sm:col-span-1"><PctTrack v={c.pct} zones={zones} /></div>
                 <span className="tnum text-right text-sm font-semibold text-white">{ok(c.pct) ? c.pct.toFixed(0) : '—'}</span>
-                <span className="hidden min-w-0 truncate text-xs text-slate-300 2xl:block">{z ? cap(z.label) : '—'}</span>
+                <span className="hidden min-w-0 truncate text-xs text-slate-300 2xl:block">{z ? zoneName(z.key, z.label) : '—'}</span>
                 <span className="tnum order-4 col-span-2 text-xs text-slate-400 sm:order-none sm:col-span-1 sm:text-right">
                   <span className="sm:hidden">{t('Peso')} </span><b className="font-medium text-slate-200">{c.weight.toFixed(1)}%</b>
-                  {contrib != null && <span className="sm:hidden"> · {t('Contributo')} <b className="font-medium text-slate-200">{contrib.toFixed(1)} pt</b>{z ? ` · ${cap(z.label)}` : ''}</span>}
+                  {contrib != null && <span className="sm:hidden"> · {t('Contributo')} <b className="font-medium text-slate-200">{contrib.toFixed(1)} pt</b>{z ? ` · ${zoneName(z.key, z.label)}` : ''}</span>}
                 </span>
                 <span className="hidden items-center justify-end gap-2 2xl:flex">
                   <span className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.05]"><span className="block h-full rounded-full" style={{ width: `${((contrib ?? 0) / maxContrib) * 100}%`, background: C.grey2 }} /></span>

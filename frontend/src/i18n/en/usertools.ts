@@ -41,6 +41,8 @@ const en: Record<string, string> = {
     'No custom alerts. Create one from a template above, from the chart or from the levels table.',
   'Avvisi personali e revisioni del diario': 'Custom alerts and journal reviews',
   'Ancora nessun avviso personale.': 'No custom alerts yet.',
+  'Qui compaiono gli avvisi scattati e le revisioni del diario, dal più recente.': 'Triggered alerts and journal reviews appear here, newest first.',
+  adesso: 'just now',
   'Valore attuale': 'Current value',
   'Prossimo controllo': 'Next check',
   'Tra {s} s': 'In {s} s',
@@ -145,6 +147,7 @@ const en: Record<string, string> = {
   // zones / statuses / severities
   'Zona di minimo': 'Bottom zone',
   'Metà ciclo': 'Mid-cycle',
+  Accumulo: 'Accumulation',
   'Zona di massimo': 'Top zone',
   Attiva: 'Active',
   'In pausa': 'Paused',

@@ -183,5 +183,12 @@ const en: Record<string, string> = {
   'Mediana {n}{u}': 'Median {n}{u}',
   'Ultimo {k}': 'Last {k}',
   Prossimi: 'Next',
+  // year types in the window table (API field "type" is not translated server side)
+  'Ribasso → rialzo': 'Down → up',
+  'Rialzo → ribasso': 'Up → down',
+  'Continuazione rialzista': 'Bullish continuation',
+  'Continuazione ribassista': 'Bearish continuation',
+  Salita: 'Rise',
+  Discesa: 'Decline',
 }
 export default en

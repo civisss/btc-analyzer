@@ -97,19 +97,22 @@ function ZonesCard({ metrics, active, onSelect }: { metrics: OnChainMetric[]; ac
           const on = m.key === active
           return (
             <button key={m.key} onClick={() => onSelect(m.key)} aria-pressed={on}
-              className={clsx('-mx-2 flex flex-col gap-1.5 rounded-lg border-t border-line px-2 py-2.5 text-left transition-colors first:border-t-0 hover:bg-white/[0.03]', on && 'bg-white/[0.04]')}>
+              className={clsx('-mx-2 flex min-w-0 flex-col gap-1.5 rounded-lg border-t border-line px-2 py-2.5 text-left transition-colors first:border-t-0 hover:bg-white/[0.03]', on && 'bg-white/[0.04]')}>
               <span className="flex items-baseline justify-between gap-2 text-sm">
-                <span className={clsx('truncate', on ? 'text-white' : 'text-slate-300')}>{LABEL[m.key] ? t(LABEL[m.key]) : m.label}</span>
-                <span className="tnum whitespace-nowrap font-medium text-white">{z.fmt(m.value)}</span>
+                <span className={clsx('min-w-0 truncate', on ? 'text-white' : 'text-slate-300')}>{LABEL[m.key] ? t(LABEL[m.key]) : m.label}</span>
+                <span className="flex shrink-0 items-baseline gap-2 whitespace-nowrap">
+                  <span className="text-2xs text-slate-400">{t(zoneOf(m.key, m.value))}</span>
+                  <span className="tnum font-medium text-white">{z.fmt(m.value)}</span>
+                </span>
               </span>
               <span className="relative block h-1.5 w-full rounded-full bg-white/[0.06]">
                 <span className="absolute inset-y-0 rounded-full bg-white/[0.10]" style={{ left: `${pos(z.lo)}%`, width: `${pos(z.hi) - pos(z.lo)}%` }} />
                 <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-bg bg-white" style={{ left: `${pos(m.value)}%` }} />
               </span>
-              <span className="tnum flex justify-between gap-2 whitespace-nowrap text-2xs text-slate-400">
-                <span>{t('{l} < {v}', { l: t(z.loLabel), v: z.fmt(z.lo) })}</span>
-                <span className="text-slate-300">{t(zoneOf(m.key, m.value))}</span>
-                <span>{t('{l} > {v}', { l: t(z.hiLabel), v: z.fmt(z.hi) })}</span>
+              {/* thresholds only (the current zone sits next to the value): fits the narrow 1440 column without overflowing */}
+              <span className="tnum flex min-w-0 justify-between gap-2 whitespace-nowrap text-2xs text-slate-400">
+                <span className="min-w-0 truncate">{t('{l} < {v}', { l: t(z.loLabel), v: z.fmt(z.lo) })}</span>
+                <span className="min-w-0 truncate text-right">{t('{l} > {v}', { l: t(z.hiLabel), v: z.fmt(z.hi) })}</span>
               </span>
             </button>
           )
@@ -202,7 +205,7 @@ export default function OnChainPage() {
                       y2Fmt={(v) => compact(v, 2)} /></Fill>
                   </CardBody>
                 </Card>
-                <div className="flex flex-col gap-3 xl:col-span-3">
+                <div className="flex min-w-0 flex-col gap-3 xl:col-span-3">
                 <ZonesCard metrics={d.metrics} active={key} onSelect={setSel} />
                 <Card>
                   <CardHeader title={t('Rete Bitcoin')} icon={<Blocks />} />

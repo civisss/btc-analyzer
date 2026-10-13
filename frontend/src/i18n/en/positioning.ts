@@ -16,7 +16,7 @@ const en: Record<string, string> = {
   '{d} · {p} dal prezzo': '{d} · {p} from price',
   'Skew 25Δ 30 giorni': '30-day 25Δ skew',
   'IV ATM 30 giorni': '30-day ATM IV',
-  '{n}° percentile a 1 anno': '{n}th percentile over 1 year',
+  '{o} percentile a 1 anno': '{o} percentile over 1 year',
   'Open interest per strike': 'Open interest by strike',
   'Scadenza {d}': 'Expiry {d}',
   'Tutte le scadenze': 'All expiries',
@@ -114,7 +114,7 @@ const en: Record<string, string> = {
   "Media dei punteggi delle componenti (percentile storico senza lookahead). In chiave contrarian la paura estrema è storicamente un'opportunità, l'euforia un rischio.":
     'Average of component scores (historical percentile, no lookahead). From a contrarian view, extreme fear has historically been an opportunity and euphoria a risk.',
   'Al {d}': 'As of {d}',
-  '{n}° percentile storico': '{n}th historical percentile',
+  '{o} percentile storico': '{o} historical percentile',
   'Componenti · punteggio 0–100': 'Components · score 0–100',
   'Paura estrema': 'Extreme fear',
   Paura: 'Fear',

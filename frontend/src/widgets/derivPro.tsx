@@ -431,7 +431,7 @@ function ExchangeTable({ d }: { d: AggregateData }) {
   return (
     <>
       <div className={TW}>
-        <table className="tbl min-w-[760px]">
+        <table className="tbl min-w-[680px]">
           <thead>
             <tr>
               <th className={TL}>Exchange</th><th className="text-right">{t('OI (USD)')}</th><th className="text-right">{t('OI (BTC)')}</th>

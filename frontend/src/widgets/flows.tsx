@@ -100,7 +100,8 @@ export function FlowsCard() {
                 <p className="text-sm text-slate-300">{flowSummary(w.label, spotDelta, perpDelta)}</p>
                 <PressureBar label="Spot" buyPct={spotBuy} delta={spotDelta} />
                 <PressureBar label={t('Futures (perp)')} buyPct={perpBuy} delta={perpDelta} />
-                <div className="flex flex-col">
+                {/* rows stretch to the card height so the card matches its row neighbours without a blank bottom */}
+                <div className="flex flex-1 flex-col [&>*]:flex-1">
                   <KV k="Perp / spot">{ratio.toFixed(1)}×</KV>
                   <KV k={t('Prezzo {w}', { w: winLabel(w.label) })}><Change value={w.price_change} digits={2} /></KV>
                   <KV k={t('Bias spot')}>{TONE_LABEL[d.current.bias] ?? d.current.bias}</KV>

@@ -13,12 +13,15 @@ export type LiveLiq = { time: T; side: 'long' | 'short'; price: number; qty: num
 export type KlineMsg = { type: 'kline'; tf: LiveTf; closed: boolean; candle: Candle }
 /** Binance USDⓈ-M perpetual 1m candle (with taker_buy) */
 export type PerpKlineMsg = { type: 'perp_kline'; tf: LiveTf; closed: boolean; candle: Candle }
+/** Kraken Futures PF_XBTUSD trades (≤2/s): last price + high/low of the trades since the previous tick (VWAP page) */
+export type VwapTickMsg = { type: 'vwap_tick'; source: 'kraken'; time: T; price: number; high: number; low: number }
 export type LiveMsg =
   | ({ type: 'ticker' } & Ticker)
   | ({ type: 'mark' } & Mark)
   | ({ type: 'liquidation' } & LiveLiq)
   | KlineMsg
   | PerpKlineMsg
+  | VwapTickMsg
   | ({ type: 'agent_message' } & AgentMessage)
   | ({ type: 'agent_status' } & AgentStatusMsg)
   | { type: 'invalidate'; source?: string; keys: string[]; time?: T }
@@ -46,6 +49,7 @@ class LiveStore {
   private klineListeners = new Set<(m: KlineMsg) => void>()
   private liqListeners = new Set<(l: LiveLiq) => void>()
   private perpKlineListeners = new Set<(m: PerpKlineMsg) => void>()
+  private vwapTickListeners = new Set<(m: VwapTickMsg) => void>()
   private agentListeners = new Set<(m: AgentMessage) => void>()
   private invalidateListeners = new Set<(keys: string[]) => void>()
   private toastListeners = new Set<(a: Alert) => void>()
@@ -130,6 +134,10 @@ class LiveStore {
         this.perpKlineListeners.forEach((l) => l(m))
         break
       }
+      case 'vwap_tick': {
+        this.vwapTickListeners.forEach((l) => l(m))
+        break
+      }
       case 'liquidation': {
         const { type: _t, ...l } = m
         void _t
@@ -203,6 +211,12 @@ class LiveStore {
     this.perpKlineListeners.add(fn)
     return () => {
       this.perpKlineListeners.delete(fn)
+    }
+  }
+  onVwapTick(fn: (m: VwapTickMsg) => void) {
+    this.vwapTickListeners.add(fn)
+    return () => {
+      this.vwapTickListeners.delete(fn)
     }
   }
   onLiquidation(fn: (l: LiveLiq) => void) {

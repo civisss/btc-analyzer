@@ -258,6 +258,7 @@ INVALIDATES: dict[str, list[str]] = {
     "opening": ["/structure"],
     "scenarios": ["/structure"],
     "events": ["/events"],
+    "astro": ["/astro"],
     "verifier": ["/tracking"],
     "alerts": ["/alerts"],
     "options": ["/positioning"],
@@ -270,6 +271,7 @@ INVALIDATES: dict[str, list[str]] = {
     "cme": ["/derivatives/cme"],
     "agg_leverage": ["/derivatives/aggregate"],
     "analyst": ["/insights", "/agents"],
+    "vwap": ["/vwap"],
 }
 
 
@@ -940,6 +942,49 @@ class EventsAgent(Agent):
             self.finding(Finding("Ciclo politico", txt, "neutral", 50))
 
 
+ASTRO_EVENT_IT = {
+    "full": "Luna piena", "new": "Luna nuova", "supermoon": "Superluna", "lunar_eclipse_total": "Eclissi lunare totale (luna rossa)",
+    "lunar_eclipse": "Eclissi lunare", "solar_eclipse": "Eclissi solare", "mercury_retro_start": "Inizio di Mercurio retrogrado",
+    "mercury_retro_end": "Fine di Mercurio retrogrado", "mar_equinox": "Equinozio di marzo", "jun_solstice": "Solstizio di giugno",
+    "sep_equinox": "Equinozio di settembre", "dec_solstice": "Solstizio di dicembre", "friday13": "Venerdì 13",
+    "geomag_storm": "Tempesta geomagnetica prevista (Kp ≥ 5)",
+}
+ASTRO_VERDICT_IT = {"none": "nessun effetto distinguibile dal caso", "weak": "effetto debole (non regge alla correzione per test multipli o è instabile nel tempo)",
+                    "strong": "effetto significativo e stabile", "anecdotal": "troppo pochi casi per giudicare (aneddotico)"}
+
+
+class AstroAgent(Agent):
+    """Astronomia e numeri: annuncia gli eventi astronomici imminenti insieme al verdetto statistico storico (studio, non segnale)."""
+
+    def compute(self):
+        return {"a": _call("astro", "build", horizon=30)}
+
+    async def act(self, r):
+        a = r["a"]
+        now = _now()
+        hyps = a.get("hypotheses") or []
+        sig = [h for h in hyps if h.get("verdict") == "strong"]
+        text = (f"Studio astronomia e numeri: {len(hyps)} ipotesi testate sullo storico di BTC contro il caso (placebo e correzione Benjamini-Hochberg); "
+                + (f"{len(sig)} con effetto significativo e stabile." if sig else "nessuna mostra un effetto significativo e stabile."))
+        self.finding(Finding("Verdetti dello studio", text, "neutral", 70))
+        await self.say("astro.summary", text, data={"significant": [h["id"] for h in sig]})
+        soon = [u for u in (a.get("upcoming") or []) if 0 <= (u.get("time", 0) - now) <= 3 * 86400]
+        for u in soon[:3]:
+            label = ASTRO_EVENT_IT.get(u.get("key"), u.get("key"))
+            days = max(0, round((u["time"] - now) / 86400))
+            when = "oggi" if days == 0 else "domani" if days == 1 else f"tra {days} giorni"
+            v = u.get("verdict") or "none"
+            msg = f"{label} {when} ({util_data(u['time'])}): storicamente {ASTRO_VERDICT_IT.get(v, v)} (n={u.get('n')}"
+            msg += f", p corretto {u['p_bh']:.2f})." if isinstance(u.get("p_bh"), (int, float)) else ")."
+            if v == "strong" and isinstance(u.get("effect"), (int, float)):
+                msg += f" Scarto medio rispetto al normale {u['effect']:+.2f}{'%' if u.get('unit') == '%' else ' pp'}."
+            await self.say("astro.soon", msg, data={"id": u.get("id"), "verdict": v})
+        if soon:
+            u = soon[0]
+            self.finding(Finding("Prossimo evento astronomico", f"{ASTRO_EVENT_IT.get(u.get('key'), u.get('key'))} il {util_data(u['time'])}: "
+                                 f"{ASTRO_VERDICT_IT.get(u.get('verdict') or 'none')}.", "neutral", 50))
+
+
 class VerifierAgent(Agent):
     """Track record: confronta le previsioni degli agenti con la realtà e calcola l'affidabilità di ciascuno."""
 
@@ -1196,6 +1241,137 @@ class DerivSignalsAgent(Agent):
         await self.say(f"{self.id}.state", text, to="derivatives", tone=tone)
 
 
+VWAP_NAME = {"w": "settimanale", "m": "mensile", "q": "trimestrale", "y": "annuale"}
+VWAP_TAG = {"w": "W", "m": "M", "q": "Q", "y": "Y"}
+VWAP_LVL = {"vwap": "VWAP", "up1": "+1σ", "dn1": "−1σ"}
+
+
+def _vwap_member(m: str) -> str:
+    """'pw_up1' -> 'pW +1σ', 'm_vwap' -> 'M VWAP'."""
+    per, lvl = m.rsplit("_", 1)
+    tag = f"p{VWAP_TAG[per[1]]}" if per.startswith("p") else VWAP_TAG[per]
+    return f"{tag} {VWAP_LVL[lvl]}"
+
+
+class VwapAgent(Agent):
+    """VWAP ancorati W/M/Q/Y (Kraken Futures PF_XBTUSD, candele 1m chiuse): posizione del prezzo, cross, livelli precedenti."""
+
+    HYST = 0.05          # % oltre il VWAP per considerare il lato cambiato (evita i falsi cross quando il prezzo ci gira attorno)
+    TOUCH = 0.10         # % di distanza per il "tocco" di un livello del periodo precedente
+    CROSS_COOLDOWN = 1800
+    TOUCH_COOLDOWN = 4 * 3600
+
+    def finding(self, f: Finding) -> None:
+        """Una sola voce per titolo (i numeri cambiano ogni minuto: si aggiorna la voce invece di accodarne di nuove)."""
+        for i, x in enumerate(list(self.findings)):
+            if x["title"] == f.title:
+                del self.findings[i]
+                break
+        self.findings.appendleft(f.as_dict())
+
+    def compute(self):
+        from ..analysis import vwap as vw
+        a = vw.ensure("kraken", budget_s=200)
+        try:  # seconda fonte per la verifica incrociata: bootstrap progressivo, poi solo l'ultimo minuto
+            vw.ensure("binance", budget_s=40)
+        except Exception as e:  # noqa: BLE001
+            log.info("vwap binance: %s", e)
+        if not a["ready"]:
+            return {"ready": False, "progress": a["progress"], "s": None}
+        return {"ready": True, "progress": 1.0, "s": vw.build("kraken", "fine"), "vp": vw.prev_week_profile("kraken")}
+
+    async def loop(self, delay: float) -> None:
+        """Gira 4 s dopo la chiusura di ogni minuto (le candele 1m chiuse sono già pubblicate dall'exchange)."""
+        await asyncio.sleep(delay)
+        while True:
+            await self.run_once()
+            self._wake.clear()
+            try:
+                await asyncio.wait_for(self._wake.wait(), timeout=60 - time.time() % 60 + 4)
+            except asyncio.TimeoutError:
+                pass
+
+    async def act(self, r):
+        if not r.get("ready"):
+            self.finding(Finding("VWAP in preparazione", f"Download dello storico 1m Kraken in corso ({r.get('progress', 0) * 100:.0f}%).", "neutral", 30))
+            return
+        s = r["s"]
+        P, px = s["periods_data"] or {}, s["price"]
+        now = time.time()
+        sides: dict = self.state.setdefault("sides", {})
+        last_cross: dict = self.state.setdefault("last_cross", {})
+        parts, above, sig = [], 0, []
+        for p in ("w", "m", "q", "y"):
+            d = P.get(p) or {}
+            if d.get("vwap") is None or d.get("dist_pct") is None:
+                continue
+            dist, z = d["dist_pct"], d.get("z")
+            above += dist > 0
+            zs = f", {z:+.1f}σ" if z is not None else ""
+            parts.append(f"{'sopra' if dist > 0 else 'sotto'} il VWAP {VWAP_NAME[p]} ${d['vwap']:,.0f} ({dist:+.2f}%{zs})")
+            sig.append((p, dist > 0, round((z or 0) * 2) / 2))
+            # cross con isteresi
+            new = "above" if dist > self.HYST else "below" if dist < -self.HYST else sides.get(p)
+            old = sides.get(p)
+            sides[p] = new
+            if old and new and new != old and now - last_cross.get(p, 0) > self.CROSS_COOLDOWN:
+                last_cross[p] = now
+                up = new == "above"
+                await self.say(f"vwap.cross.{p}", f"Il prezzo ha incrociato {'al rialzo' if up else 'al ribasso'} il VWAP {VWAP_NAME[p]} "
+                               f"(${d['vwap']:,.0f}, ancorato al {util_data(d['anchor'])}).", kind="alert",
+                               tone="bullish" if up else "bearish", data={"period": p, "vwap": d["vwap"], "price": px}, dedupe=False)
+        if not parts:
+            return
+        tone = "bullish" if above >= 3 else "bearish" if above <= 1 else "neutral"
+        text = "Prezzo " + "; ".join(parts) + "."
+        self.finding(Finding("Posizione rispetto ai VWAP", text, tone, 80))
+        if tuple(sig) != self.state.get("sig"):
+            self.state["sig"] = tuple(sig)
+            await self.say("vwap.position", text, tone=tone, data={p: {"vwap": (P.get(p) or {}).get("vwap"), "dist_pct": (P.get(p) or {}).get("dist_pct"),
+                                                                     "z": (P.get(p) or {}).get("z")} for p in ("w", "m", "q", "y")})
+        # tocchi dei livelli del periodo precedente (estesi nel periodo corrente)
+        touched: dict = self.state.setdefault("touched", {})
+        prev_txt = []
+        for p in ("w", "m", "q", "y"):
+            pv = (P.get(p) or {}).get("prev") or {}
+            if pv.get("vwap"):
+                prev_txt.append(f"p{VWAP_TAG[p]} ${pv['vwap']:,.0f}")
+            for k in ("vwap", "up1", "dn1"):
+                lvl = pv.get(k)
+                if not lvl:
+                    continue
+                d = (px / lvl - 1) * 100
+                key = f"p{p}_{k}"
+                if abs(d) <= self.TOUCH and now - touched.get(key, 0) > self.TOUCH_COOLDOWN:
+                    touched[key] = now
+                    await self.say("vwap.touch", f"Prezzo sul livello p{VWAP_TAG[p]} {VWAP_LVL[k]} ${lvl:,.0f} del periodo precedente "
+                                   f"({d:+.2f}%): livello esteso nel periodo corrente.", tone="neutral",
+                                   data={"period": p, "level": k, "price": lvl}, dedupe=False)
+        if prev_txt:
+            self.finding(Finding("VWAP dei periodi precedenti", " · ".join(prev_txt) + ".", "neutral", 70))
+        vp = r.get("vp")
+        if vp:
+            self.finding(Finding("Profilo volume settimana precedente",
+                                 f"POC ${vp['poc']:,.0f} · value area 70% ${vp['val']:,.0f}–${vp['vah']:,.0f} (bin ${vp['bin']:,.0f}).", "neutral", 65))
+            for k, nm in (("poc", "POC"), ("vah", "VAH"), ("val", "VAL")):
+                d = (px / vp[k] - 1) * 100
+                key = f"vp_pw_{k}"
+                if abs(d) <= self.TOUCH and now - touched.get(key, 0) > self.TOUCH_COOLDOWN:
+                    touched[key] = now
+                    await self.say("vwap.touch", f"Prezzo sul {nm} del profilo di volume della settimana precedente ${vp[k]:,.0f} ({d:+.2f}%).",
+                                   tone="neutral", data={"level": key, "price": vp[k]}, dedupe=False)
+        cf = [c for c in (s.get("confluence") or []) if c.get("distance_pct") is not None and abs(c["distance_pct"]) <= 1.0]
+        if cf:
+            c = cf[0]
+            names = ", ".join(_vwap_member(m) for m in c["members"])
+            text = f"Confluenza di livelli VWAP a ${c['mid']:,.0f} ({c['distance_pct']:+.2f}% dal prezzo): {names}."
+            self.finding(Finding("Confluenza VWAP", text, "neutral", 65))
+            key = ",".join(c["members"])
+            if key != self.state.get("cf_key"):   # al team solo quando cambia il gruppo di livelli
+                self.state["cf_key"] = key
+                await self.say("vwap.confluence", text, data={"mid": c["mid"], "members": c["members"]})
+
+
 class ForecastAgent(Agent):
     def compute(self):
         return {"f": _call("forecast", "get_forecast", horizon=90)}
@@ -1278,7 +1454,7 @@ class AnalystAgent(Agent):
 def build_team() -> list[Agent]:
     return [
         AnalystAgent("analyst", "Analista AI", "Orchestratore: raccoglie i report di tutti gli agenti, calcola il consenso e scrive la sintesi (LLM locale).",
-                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
+                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "vwap.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
         MarketAgent("market", "Market Data", "Monitora prezzo, range 24h e sentiment in tempo reale e avvisa gli altri agenti dei movimenti.",
                     "Activity", "#f7931a", 5, subscribes=[], publishes=["market.price", "market.alert"]),
         LevelsAgent("levels", "Pivot & Livelli", "Calcola pivot (classici, Fibonacci, Camarilla), swing e zone di supporto/resistenza; verifica confluenze su richiesta.",
@@ -1304,7 +1480,7 @@ def build_team() -> list[Agent]:
         TimePivotsAgent("timepivots", "Pivot temporali", "Individua le date in cui BTC ha reagito in modo ricorrente (stagionalità, tempi di ciclo, Fibonacci temporali, eventi) e avvisa quando si avvicinano.",
                         "CalendarClock", "#facc15", 600, subscribes=["cycle.phase"],
                         publishes=["timepivot.next", "timepivot.alert", "timepivot.check"]),
-        MacroAgent("macro", "Macro & Rotazione", "Segue dollaro, tassi, volatilità, liquidità e rotazione BTC/altcoin; segnala i cambi di regime risk-on/risk-off.",
+        MacroAgent("macro", "Macro e rotazione", "Segue dollaro, tassi, volatilità, liquidità e rotazione BTC/altcoin; segnala i cambi di regime risk-on/risk-off.",
                    "Globe2", "#94a3b8", 300, subscribes=["correlation.usdt"],
                    publishes=["macro.context", "macro.rotation", "macro.alert", "macro.riskoff", "macro.riskon"]),
         CycleClockAgent("clock", "Orologio del ciclo", "Calcola lo score di ciclo 0-100 (Pi Cycle, MVRV-Z, NUPL, Puell, Mayer, power law...) e confronta oggi con lo stesso giorno dei cicli passati.",
@@ -1326,6 +1502,8 @@ def build_team() -> list[Agent]:
                       publishes=["scenario.plan"]),
         EventsAgent("events", "Eventi macro", "Segue FOMC, CPI, dati sul lavoro, scadenze opzioni, CME e ciclo politico (midterm) con la reazione storica di BTC.",
                     "CalendarDays", "#94a3b8", 600, subscribes=[], publishes=["events.next", "events.soon"]),
+        AstroAgent("astro", "Astronomia e numeri", "Calcola fasi lunari, eclissi, Mercurio retrogrado, ciclo solare e livelli numerici, li testa sullo storico di BTC contro il caso e annuncia gli eventi imminenti con il verdetto statistico.",
+                   "MoonStar", "#9B87F5", 1800, subscribes=[], publishes=["astro.summary", "astro.soon"]),
         VerifierAgent("verifier", "Verifica", "Registra le previsioni di ogni agente, le confronta con la realtà e calcola l'affidabilità usata dall'Analista per pesare i pareri.",
                       "BadgeCheck", "#4c8dff", 1800, subscribes=[], publishes=["verifier.summary"]),
         AlertsAgent("alerts", "Avvisi", "Motore delle notifiche: valuta soglie e cooldown, evita lo spam e invia i toast per gli eventi importanti.",
@@ -1350,6 +1528,8 @@ def build_team() -> list[Agent]:
                           "Scale", "#818cf8", 3600, subscribes=[], publishes=["cme.state"]),
         DerivSignalsAgent("agg_leverage", "Leva aggregata", "Somma open interest, funding e long/short di Binance, Bybit e OKX in un'unica misura della leva sul mercato perpetual.",
                           "Layers", "#f97316", 300, subscribes=[], publishes=["agg_leverage.state"]),
+        VwapAgent("vwap", "VWAP ancorati", "Calcola i VWAP settimanale, mensile, trimestrale e annuale (ancore UTC, bande ±σ) e i livelli del periodo precedente; segnala posizione del prezzo, cross e tocchi.",
+                  "Anchor", "#3CC6B0", 60, subscribes=[], publishes=["vwap.position", "vwap.cross", "vwap.touch", "vwap.confluence"]),
         ForecastAgent("forecast", "Previsioni ML", "Posizione nel ciclo + LightGBM + Monte Carlo, calibrati fuori campione: bande di probabilità da 7 a 365 giorni.",
                       "TrendingUp", "#60a5fa", 600, subscribes=["pattern.projection.d1"], publishes=["forecast.targets", "forecast.check"]),
     ]
@@ -1368,7 +1548,7 @@ async def start() -> None:
         bus.agents[a.id] = a
     # avvio scaglionato: prima i produttori di dati, l'analista per ultimo
     order = {"market": 1, "derivatives": 3, "levels": 5, "liquidity": 8, "correlation": 11, "cycles": 14,
-             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "analyst": 66}
+             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "vwap": 4, "analyst": 66}
     loop = asyncio.get_running_loop()
     for a in team:
         loop.create_task(a.inbox_loop())

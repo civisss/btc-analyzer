@@ -37,11 +37,13 @@ const PATH_KEYS: [string, string[]][] = [
   ['/positioning', ['positioning']],
   ['/supply-demand', ['supplyDemand']],
   ['/events', ['events']],
+  ['/astro', ['astro']],
   ['/tracking', ['tracking']],
   ['/alerts/rules', ['alertRules']],
   ['/journal', ['journal']],
   ['/alerts', ['alerts']],
   ['/status', ['status']],
+  ['/vwap', ['vwap']],
 ]
 
 /** Query-key roots touched by a list of API path prefixes (unknown paths fall back to their first segment). */

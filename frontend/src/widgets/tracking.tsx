@@ -204,7 +204,7 @@ export function WeightsList({ weights, labels, className }: { weights: Record<st
     // bottom borders + -mb-px: the last row's border is clipped, so dividers work for any column count
     <ul className={clsx('-mt-2.5 grid content-start gap-x-8 overflow-hidden', className)}>
       {rows.map(([k, w]) => (
-        <li key={k} className="-mb-px flex flex-col gap-1.5 border-b border-line py-2.5">
+        <li key={k} className="-mb-px flex flex-col justify-center gap-1.5 border-b border-line py-2.5">
           <div className="flex items-center justify-between text-sm">
             <span className="text-slate-200">{labels[k] ?? k}</span>
             <span className={clsx('tnum font-medium', w > 0.52 ? 'text-up' : w < 0.48 ? 'text-down' : 'text-slate-400')}>{w.toFixed(2)}</span>

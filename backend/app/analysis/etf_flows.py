@@ -168,7 +168,8 @@ def _validate_full(df: pd.DataFrame) -> None:
 
 def _save_meta(meta: dict) -> None:
     try:
-        META_FILE.write_text(json.dumps(meta), encoding="utf-8")
+        from ..data import store
+        store.write_text(META_FILE, json.dumps(meta))
     except Exception as e:  # noqa: BLE001
         log.warning("meta ETF non salvati: %s", e)
 

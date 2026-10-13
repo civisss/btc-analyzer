@@ -136,6 +136,25 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   // the rail mode applies to the desktop sidebar only; the mobile drawer is always expanded
   const rail = collapsed && !sidebarOpen
   const groups = useMemo(() => NAV_GROUPS.map((g) => ({ name: g, items: NAV.filter((n) => n.group === g) })).filter((g) => g.items.length), [])
+  // on short screens the nav scrolls (no scrollbar): fade the edge that hides more items
+  const navRef = useRef<HTMLElement>(null)
+  const [fade, setFade] = useState({ top: false, bottom: false })
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    const upd = () => setFade((f) => {
+      const top = el.scrollTop > 4, bottom = el.scrollHeight - el.scrollTop - el.clientHeight > 4
+      return f.top === top && f.bottom === bottom ? f : { top, bottom }
+    })
+    upd()
+    el.addEventListener('scroll', upd, { passive: true })
+    const ro = new ResizeObserver(upd)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', upd); ro.disconnect() }
+  }, [])
+  const mask = fade.top || fade.bottom
+    ? `linear-gradient(180deg, ${fade.top ? 'transparent 0, #000 28px' : '#000 0'}, ${fade.bottom ? '#000 calc(100% - 40px), transparent 100%' : '#000 100%'})`
+    : undefined
   return (
     <>
       <div className={clsx('fixed inset-0 z-30 bg-black/60 backdrop-blur-[2px] transition-opacity lg:hidden', sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0')}
@@ -163,7 +182,8 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
             </button>
           )}
         </div>
-        <nav className="no-scrollbar relative mt-4 flex flex-1 flex-col overflow-y-auto pl-3 -ml-3 pr-0.5">
+        <nav ref={navRef} className="no-scrollbar relative mt-4 flex flex-1 flex-col overflow-y-auto pl-3 -ml-3 pr-0.5"
+          style={mask ? { maskImage: mask, WebkitMaskImage: mask } : undefined}>
           {groups.map((g) => (
             <div key={g.name} className="pt-4 first:pt-0 [@media(max-height:1100px)]:pt-2.5">
               {rail
@@ -274,7 +294,8 @@ function LiveStatus() {
     <div className="tnum flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 text-xs text-slate-400"
       title={last ? t('Ultimo aggiornamento {ago}', { ago: agoSeconds((Date.now() - last) / 1000) }) : undefined}>
       <span className={clsx('h-2 w-2 rounded-full', color, ok && 'live-dot')} />
-      <span className="font-medium text-slate-100">{label}</span>
+      {/* phones: dot only, so the page name in the top bar is not truncated */}
+      <span className="sr-only font-medium text-slate-100 min-[420px]:not-sr-only">{label}</span>
       <span className="hidden text-slate-400 md:inline">{ok || last == null ? <Clock /> : agoSeconds((Date.now() - last) / 1000)}</span>
     </div>
   )
@@ -398,7 +419,8 @@ export default function Layout() {
       <div className={clsx('transition-[padding] duration-200', collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
         <main className="w-full px-4 pb-10 md:px-6 2xl:px-8">
           <TopBar />
-          <Outlet />
+          {/* keyed by page: an error boundary tripped on one page does not stay up after navigating to another */}
+          <Outlet key={loc.pathname} />
         </main>
       </div>
       <ChatDrawer />

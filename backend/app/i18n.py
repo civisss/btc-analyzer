@@ -40,7 +40,8 @@ def _load() -> None:
 
 def _save() -> None:
     try:
-        CACHE_FILE.write_text(json.dumps(_cache, ensure_ascii=False), encoding="utf-8")
+        from .data import store  # import pigro: i18n è caricato prima dello store
+        store.write_text(CACHE_FILE, json.dumps(_cache, ensure_ascii=False))
     except Exception as e:  # noqa: BLE001
         log.warning("salvataggio cache i18n fallito: %s", e)
 

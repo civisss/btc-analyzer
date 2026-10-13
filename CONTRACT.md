@@ -1590,6 +1590,92 @@ interface Annotation extends AnnotationInput { id: string; symbol: string; creat
 // Realtime keys: "/alerts/rules" → ['alertRules'], "/journal" → ['journal'].
 ```
 
+## ASTRO (router: astro.py, engines: app/analysis/astro.py + astro_calendar.py, agent: astro)
+Studio "Astronomia e numeri": calendari astronomici (astronomy-engine, verificati contro USNO / NASA GSFC / JPL Horizons /
+SILSO in `app/analysis/astro_verification.json`, rigenerabile con lo script di verifica) e 17 ipotesi testate sullo storico di BTC.
+Dataset registrato: `astro_gfz` (GFZ Potsdam, giornaliero dal 2009: time, kp_max, kp_sum, ap, sn, f107, definitive; TTL 6 h).
+Parte pesante in cache per giorno (6 h); fase lunare, Mercurio, Kp NOAA (cache 15 min) e prossimi eventi ricalcolati a ogni richiesta.
+I testi sono composti dal frontend (chiavi + numeri): l'API non contiene frasi da tradurre, salvo `verification.checks[].source/note`.
+Campione dei test: rendimenti log giornalieri dal 2012-01-01 a ieri. p = placebo a traslazione circolare (≥ 30 g), p_bh = Benjamini-Hochberg.
+Verdetto: n < 12 → anecdotal · p_bh < 0.05 e stable → strong · p < 0.05 o p_bh < 0.05 → weak · altrimenti none.
+
+```ts
+// GET /api/astro?horizon=90   (14..365)
+type HypId = 'moon_full' | 'moon_new' | 'moon_halves' | 'supermoon' | 'lunar_eclipse_total' | 'lunar_eclipse_all' | 'solar_eclipse'
+  | 'mercury_retro' | 'seasons' | 'friday13' | 'geomag_storm' | 'solar_cycle' | 'round_major' | 'round_minor' | 'gann_sq9' | 'fib_price' | 'fib_time';
+type Verdict = 'none' | 'weak' | 'strong' | 'anecdotal';
+type HypUnit = '%' | 'pp/g' | 'pp' | 'r';      // % = rendimento cumulato della finestra · pp/g = punti % al giorno · pp = punti di frequenza · r = correlazione
+type EclipseKind = 'penumbral' | 'partial' | 'annular' | 'total' | 'hybrid';
+type AstroEventKey = 'full' | 'new' | 'supermoon' | 'lunar_eclipse_total' | 'lunar_eclipse' | 'solar_eclipse' | 'mercury_retro_start'
+  | 'mercury_retro_end' | 'mar_equinox' | 'jun_solstice' | 'sep_equinox' | 'dec_solstice' | 'friday13' | 'geomag_storm';
+type N = number | null;
+interface SubEffect { effect: N; n: number }
+interface Hypothesis {
+  id: HypId; group: 'luna' | 'eclissi' | 'pianeti' | 'sole' | 'numeri';
+  metric: 'window_ret' | 'daily_diff' | 'corr' | 'reject_rate' | 'hit_rate'; unit: HypUnit;
+  window: [number, number] | null;   // [a, b] giorni rispetto all'evento
+  n: number; n_events?: number;      // n = eventi / giorni nel periodo / tocchi / mesi; n_events = episodi indipendenti (test a periodi)
+  observed: N; baseline: N; effect: N; ci: [N, N];   // effect = observed − baseline (corr: r); ci = IC 95% bootstrap
+  p: N; p_bh: N; naive_p?: N;                        // naive_p solo solar_cycle (t-test classico)
+  null: { q05: N; q95: N };                          // banda 90% dell'effetto sotto placebo
+  vol_ratio?: N; vol_p?: N; up_rate?: N; up_base?: N; dd?: N; dd_base?: N; median?: N;
+  halves: SubEffect[]; cycles: (SubEffect & { label: string })[];   // label = anno di inizio del ciclo dell'halving ("2012"…)
+  stable: boolean; verdict: Verdict;
+  values?: { time: T; ret: N }[];                    // studi di evento: rendimento della finestra per evento
+  control_hist?: { x: N; n: number }[]; touch_days?: number;   // livelli: tasso nelle griglie di controllo, centrato sulla media
+  ratios_hist?: { x: N; n: number }[]; levels?: number[]; tolerance?: N;   // Fibonacci
+  solar_cycles_in_sample?: N;
+}
+interface EventRow { time: T; ret7: N; ret30: N }   // ret7 = log % da d−4 a d+3 · ret30 = log % dei 30 giorni successivi
+interface AstroUpcoming {
+  id: string; key: AstroEventKey; time: T; hyp: HypId | null;
+  n: N; observed: N; baseline: N; effect: N; up_rate: N; up_base: N; unit: HypUnit | null;
+  p: N; p_bh: N; verdict: Verdict | null; window: [number, number] | null;
+  kind?: EclipseKind; distance_km?: N; kp?: N;
+}
+interface AstroResponse {
+  generated_at: T; today: T; price: number; horizon: number;
+  sample: { start: T; end: T; days: number; cycles: { label: string; start: T; end: T }[] };
+  hypotheses: Hypothesis[];
+  moon: {
+    now: { time: T; illum: number /*0..1*/; phase_angle: number; elongation: number /*0..360*/; age_days: number; distance_km: number; waxing: boolean;
+           phase: 'new' | 'waxing_crescent' | 'first_quarter' | 'waxing_gibbous' | 'full' | 'waning_gibbous' | 'last_quarter' | 'waning_crescent' };
+    prev_new: T | null;
+    next: { key: 'new' | 'first_quarter' | 'full' | 'last_quarter'; time: T; supermoon: boolean; distance_km: N }[];   // prossime 8 fasi
+    profile: { day: number; deg: number; mean: N; lo: N; hi: N; placebo_lo: N; placebo_hi: N; n: number }[];      // 30 classi di 12°
+    paths: Record<'full' | 'new', { day: number; mean: N; placebo_lo: N; placebo_hi: N; placebo_mid: N }[]>;      // −7..+7, %
+    events: { time: T; key: 'full' | 'new'; supermoon: boolean }[];
+  };
+  eclipses: { lunar: (EventRow & { kind: EclipseKind; obscuration: N; total_min: N })[];
+              solar: (EventRow & { kind: EclipseKind; obscuration: N; lat: N; lon: N })[] };   // 2010 → anno prossimo
+  supermoons: (EventRow & { distance_km: N })[];
+  mercury: { periods: { start: T; end: T; ret: N; days: N }[];
+             now: { retro: boolean; start: T | null; end: T | null; next_start: T | null; next_end: T | null } };
+  seasons: (EventRow & { key: 'mar_equinox' | 'jun_solstice' | 'sep_equinox' | 'dec_solstice' })[];
+  solar: { monthly: { time: T; ssn: N; smooth: N; close: N; ret12: N }[]; predicted: { time: T; ssn: N; lo: N; hi: N }[];
+           solar_extrema?: { kind: 'min' | 'max'; time: T; ssn: N }[]; btc_peaks?: { time: T; price: N }[] };   // picco = max close entro 600 g dall'halving
+  geomag: { now: { time: T; kp: N } | null; recent: { time: T; kp: N }[]; forecast: { time: T; kp: N }[];
+            storms: { time: T; kp: N; ap: N; ret6: N }[]; storms_year: { year: number; days_g1: number; days_g3: number }[]; threshold: number };
+  numbers: {
+    milestones: { powers: { level: number; time: T | null; days_from_prev: number | null }[];
+                  repdigits: { level: number; time: T | null }[];
+                  palindromes: { time: T; price: N; ret30: N; future: boolean }[] };
+    bitcoin: { max_supply: number; halving_interval: number; block_target_s: number; retarget_blocks: number; sats_per_btc: number;
+               genesis: T; pizza_day: T; pizza_btc: number; halvings: { n: number; time: T; block: number; subsidy_after: number }[];
+               next_halving_block: number; next_halving_eta: T; height: N; blocks_left: N; sats_per_usd: N; pizza_usd: N;
+               issued?: number; issued_pct?: number; subsidy?: number; epoch?: number };
+  };
+  upcoming: AstroUpcoming[];          // prossimi `horizon` giorni, ordinati per tempo
+  candles: Candle[];                  // ultime 1100 candele giornaliere Binance
+  verification: { generated_at: T; range: [number, number]; checks: { id: string; source: string; url: string; range: string; n: number;
+    mean_abs_min?: number; median_abs_min?: number; max_abs_min?: number; missing?: number; extra?: number; type_match?: number; n_ref?: number;
+    mean_abs_km?: number; max_abs_km?: number; classification_flips?: number; mean_abs_ssn?: number; max_abs_ssn?: number; note?: string }[] } | null;
+  constants: { supermoon_km: number; synodic_days: number; alpha: number; min_n: number; min_shift: number; n_boot: number; n_ctrl: number };
+}
+```
+Agente `astro` (MoonStar, 30 min): pubblica `astro.summary` (quante ipotesi sono significative) e `astro.soon` (eventi entro 3 giorni con
+il verdetto storico, senza toni predittivi); invalida `/astro` → query react-query `['astro', horizon]`.
+
 ## DERIVATIVES PRO (router: derivatives.py, engines: app/analysis/basis.py + cme.py + aggregate.py, liquidations.py; collectors: app/live.py + app/liq_collectors.py)
 
 Existing `GET /api/derivatives` is unchanged. New endpoints (all percent values are already ×100; `Pt`/`T` as in Global conventions):
@@ -1686,3 +1772,78 @@ New persistent datasets (store.register): `basis_coinm_1d`, `basis_usdm_1d`, `ba
 Frontend: `src/api/derivPro.ts` (hooks `useBasis`/`useCme`/`useAggregate`), `src/widgets/derivPro.tsx` (`BasisTab`, `CmeTab`, `LeverageTab`,
 `ExchangeBadge`), Derivati tabs `?tab=basis|cme|leverage`. Realtime keys: "/derivatives/basis" → ['deriv-basis'], "/derivatives/cme" → ['deriv-cme'],
 "/derivatives/aggregate" → ['deriv-agg'] (also refreshed by "/derivatives").
+
+## VWAP (router: vwap.py, engine: app/analysis/vwap.py, agent: vwap)
+
+VWAP ancorati al calendario UTC. Formula (validata replicando al centesimo i 24 valori di uno screenshot Kraken PF_XBTUSD):
+tp = (H+L+C)/3 su candele CHIUSE dall'ancora; VWAP = Σ(tp·v)/Σv; σ = sqrt(Σ(v·tp²)/Σv − VWAP²) (pesata per volume); bande VWAP ± kσ.
+Ancore: lunedì 00:00 · giorno 1 del mese · 1 gen/apr/lug/ott · 1 gennaio. Livelli p* = valori finali del periodo completo precedente.
+Dataset (candele 1m dal 1° gennaio dell'anno precedente, bootstrap a tranche da 25 s, poi incrementale):
+`vwap_kraken_hist` / `vwap_binance_hist` (fino alle 00:00 UTC di oggi, TTL 1 h) + `vwap_kraken_live` / `vwap_binance_live` (da ieri 00:00, TTL 45 s).
+Le richieste HTTP non scaricano mai: aggiorna l'agente `vwap` (4 s dopo ogni minuto chiuso → WS invalidate `"/vwap"`) e il refresher generale.
+WS: `{"type":"vwap_tick","source":"kraken",time,price,high,low}` ≤2/s dai trade Kraken Futures (Binance: si usa `perp_kline` 1m).
+Avvisi personali: livelli nominati `vwap_{w|m|q|y}`, `vwap_{w|m|q|y}_up1|_dn1`, `vwap_p{w|m|q|y}` (Kraken, calcolo 1m).
+
+```ts
+type N = number | null
+type VwapSource = 'kraken' | 'binance'          // Kraken Futures PF_XBTUSD (USD, default) | Binance USDⓈ-M BTCUSDT (USDT)
+type VwapCalc = 'fine' | 'chart'                // candele 1m (default) | candele del timeframe del grafico (W 5m · M 30m · Q 1h · Y 4h)
+type VwapPeriod = 'w' | 'm' | 'q' | 'y'
+interface VwapStatus { ready: boolean; progress: number /* 0..1 minuti presenti / attesi */; first: T|null; last: T|null /* inizio ultima 1m chiusa */
+                       last_closed_end: T|null; rows: number; missing_min: number; big_gaps: number /* buchi > 30 min */; history_start: T }
+interface VwapLevels { id: VwapPeriod; tf: number /* s */; anchor: T; prev_anchor: T; prev_end: T
+                       vwap: N; sd: N; up1: N; dn1: N; up2: N; dn2: N; prev: { vwap: N; sd: N; up1: N; dn1: N }; rows: number; prev_rows: number }
+type VwapSix = [N, N, N, N, N, N]               // [vwap, +1σ, −1σ, prev vwap, prev +1σ, prev −1σ]
+
+// GET /api/vwap?source=kraken|binance&calc=fine|chart
+interface VwapSummary {
+  source: VwapSource; calc: VwapCalc; periods: VwapPeriod[]; tf: Record<VwapPeriod, number>
+  sources: Record<VwapSource, { ready: boolean; progress: number }>
+  status: VwapStatus
+  periods_data: Record<VwapPeriod, VwapLevels & { dist_pct: N; z: N /* (prezzo−vwap)/σ */; prev_dist_pct: N }> | null   // null finché lo storico non è completo
+  price?: number; price_time?: T; price_live?: boolean; close?: number; time?: T
+  confluence?: { low: number; high: number; mid: number; width_pct: number; n: number; members: string[] /* 'w_vwap' | 'pm_up1' … */; distance_pct: N }[]
+  confluence_pct?: number                        // 0.5: ampiezza massima di un gruppo; servono ≥2 serie diverse; ancore coincidenti (M=Q a ottobre) non contano
+  resolution_check?: Record<VwapPeriod, { diff_bp: VwapSix; tf: number }>     // altra modalità di calcolo vs questa (punti base)
+  crosscheck?: { other: VwapSource; price_basis_bp_24h: N; periods: Record<VwapPeriod, { other: VwapSix; diff_bp: VwapSix }> } | null
+}
+
+// GET /api/vwap/panel?p=w|m|q|y&source=…&calc=…   (array colonnari allineati a candles.t; null prima dell'ancora)
+interface VwapPanel {
+  id: VwapPeriod; source: VwapSource; calc: VwapCalc; tf: number; status: VwapStatus
+  anchor: T; prev_anchor: T; prev_end: T; last_closed_end: T; forming: boolean   // ultima candela in formazione (solo minuti chiusi)
+  candles: { t: T[]; o: number[]; h: number[]; l: number[]; c: number[] } | null  // dal prev_anchor a ora, timeframe del pannello
+  lines: { vwap: N[]; up1: N[]; dn1: N[]          // periodo corrente, valore cumulativo a fine candela (±2σ derivate nel frontend)
+           pvwap: N[]; pup1: N[]; pdn1: N[] }     // periodo precedente: crescente nel suo periodo, poi piatto (livello esteso)
+  levels: VwapLevels
+}
+```
+
+### VWAP — grafico unico e volume profile per sessione
+Pagina `/vwap` a schede: `?tab=` assente = "Grafico unico" (default), `?tab=panels` = griglia 2×2.
+Volume profile: il volume di ogni candela 1m è distribuito uniformemente tra low e high (calcolo esatto con somme cumulative);
+bin = valore tondo più vicino a prezzo·0,06% (settimana, $50 a 83k) o prezzo·0,12% (mese, $100). POC = bin a volume massimo
+(prezzo = centro del bin). Value area 70%: dal POC si aggiunge ogni volta il bin adiacente con più volume (a parità, quello sopra).
+VAH/VAL del profilo ≠ VAH/VAL VWAP del grafico unico (= VWAP ±1σ). Robustezza = max |Δ| (bp) di POC/VAH/VAL con bin ×½ e ×2.
+Avvisi personali: livelli `vp_pw_poc`, `vp_pw_vah`, `vp_pw_val` (settimana precedente completa, Kraken).
+
+```ts
+// GET /api/vwap/overview?source=kraken|binance&calc=fine|chart&tf=30m|1h|2h|4h&profile=week|month|off
+type VwapOverviewTf = '30m' | '1h' | '2h' | '4h'
+type VwapProfileMode = 'week' | 'month' | 'off'
+interface VwapProfileSession {
+  start: T; end: T; complete: boolean                 // sessione UTC (lunedì 00:00 / giorno 1)
+  bin: number; lo: number; vols: number[]             // volume (BTC) per bin [lo + i·bin, lo + (i+1)·bin)
+  volume: number; poc: number; vah: number; val: number
+  va_bins: [number, number]; poc_bin: number
+  robust_bp: { poc: number; vah: number; val: number }
+}
+interface VwapOverview {
+  source: VwapSource; calc: VwapCalc; tf: VwapOverviewTf; step: number /* s */; status: VwapStatus
+  from: T /* inizio del mese di (ora − 35 g) */; last_closed_end: T; forming: boolean
+  candles: { t: T[]; o: number[]; h: number[]; l: number[]; c: number[] } | null
+  lines: Record<VwapPeriod, { vwap: N[]; up1: N[]; dn1: N[] }>   // periodo corrente dall'ancora, allineate a candles.t
+  levels: Record<VwapPeriod, VwapLevels>                        // livelli correnti e prev (estesi orizzontalmente nel frontend)
+  profile: { mode: VwapProfileMode; va_pct: 70; sessions: VwapProfileSession[] }
+}
+```

@@ -93,10 +93,10 @@
   }
   /* tables: 34px rows, numbers right-aligned by the call site with text-right + tnum */
   .tbl { @apply w-full text-sm; }
-  .tbl th { @apply h-8 whitespace-nowrap px-3 align-middle text-2xs font-medium uppercase tracking-[0.06em] text-slate-500; }
+  .tbl th { @apply h-8 whitespace-nowrap px-2 align-middle sm:px-3 text-2xs font-medium uppercase tracking-[0.06em] text-slate-500; }
   /* zero-specificity default so `text-right` on a header cell wins */
   :where(.tbl th) { text-align: left; }
-  .tbl td { @apply tnum h-[34px] whitespace-nowrap border-t border-white/[0.05] px-3 py-1 align-middle text-slate-200; }
+  .tbl td { @apply tnum h-[34px] whitespace-nowrap border-t border-white/[0.05] px-2 py-1 sm:px-3 align-middle text-slate-200; }
   .tbl tbody tr:hover td { background: rgba(120, 150, 255, 0.035); }
   .tbl tbody tr td { transition: background-color 120ms; }
   .range { @apply h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-slate-300; }
@@ -163,3 +163,10 @@
    Usage: <div className="dgrid grid-cols-2 sm:grid-cols-3"> <div className="px-3 py-2.5">…</div> … </div> */
 .dgrid { display: grid; overflow: hidden; }
 .dgrid > * { box-shadow: -1px 0 0 rgba(148, 163, 210, 0.10), 0 -1px 0 rgba(148, 163, 210, 0.10); }
+
+/* KPI tiles: in narrow tiles (2 columns on phones) the 28px value steps down so "−34.3K BTC" is not cut with an ellipsis */
+.kpi-row { container-type: inline-size; }
+@container (max-width: 200px) {
+  .kpi-value { font-size: 1.375rem; line-height: 2rem; }
+  .kpi-icon { display: none; }  /* the label gets the room instead of being truncated */
+}

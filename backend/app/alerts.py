@@ -102,7 +102,7 @@ def _persist(alert: dict) -> None:
         old = pd.read_parquet(HISTORY_FILE) if HISTORY_FILE.exists() else None
         new = pd.DataFrame([row])
         df = pd.concat([old, new], ignore_index=True) if old is not None and len(old) else new
-        df.tail(MAX_HISTORY).to_parquet(HISTORY_FILE, index=False)
+        store.write_parquet(df.tail(MAX_HISTORY), HISTORY_FILE)
     except Exception as e:  # noqa: BLE001
         log.warning("salvataggio avviso fallito: %s", e)
 

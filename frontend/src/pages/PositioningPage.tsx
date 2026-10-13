@@ -16,7 +16,7 @@ import { TimeLinesChart } from '../widgets/charts'
 import {
   ComponentBacktestTable, ExpiryTable, GammaChart, OiStrikeChart, ScoreTrack, SentimentTrack, SmileChart, TL, TR, TW, TermChart, ZoneBacktestTable, fin, fx, sfx,
 } from '../widgets/positioning'
-import { DASH, date, dayUnit, pct, usd, usdCompact } from '../lib/format'
+import { DASH, date, dayUnit, ordinal, pct, usd, usdCompact } from '../lib/format'
 
 const GRID0 = hexA(C.grey, 0.5)
 const toneDot = { bullish: 'bg-up', bearish: 'bg-down', neutral: 'bg-slate-400' } as const
@@ -68,14 +68,14 @@ function OptionsKpis({ d }: { d: OptionsData }) {
   const k = d.kpi
   const du = dayUnit()
   return (
-    <KpiStrip cols="grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+    <KpiStrip cols="grid-cols-2 md:grid-cols-3 min-[1700px]:grid-cols-6">
       <KpiCell icon={<Layers />} label={t('Open interest opzioni')} value={usdCompact(k.oi_usd, 2)} foot={`${Math.round(k.oi_btc).toLocaleString('en-US')} BTC · Deribit`} />
       <KpiCell icon={<Scale />} label="Put/Call (OI)" value={fx(k.pc_oi)} foot={t('Volume 24h: {a} · {b}', { a: fx(k.pc_vol), b: usdCompact(k.volume_usd_24h, 1) })} />
       <KpiCell icon={<Target />} label={t('Prossimo max pain')} value={usd(k.next_max_pain)}
         foot={k.next_expiry ? t('{d} · {p} dal prezzo', { d: date(k.next_expiry, false), p: pct(k.next_max_pain_dist, 1) }) : undefined} />
       <KpiCell icon={<Spline />} label={t('Skew 25Δ 30 giorni')} value={<>{sfx(k.skew_30d)}{unit('pt')}</>} foot={`7${du} ${sfx(k.skew_7d)} · 90${du} ${sfx(k.skew_90d)} pt`} />
       <KpiCell icon={<Percent />} label={t('IV ATM 30 giorni')} value={fin(k.atm_30d) ? `${k.atm_30d.toFixed(1)}%` : DASH} foot={`7${du} ${fx(k.atm_7d, 1)}% · 90${du} ${fx(k.atm_90d, 1)}%`} />
-      <KpiCell icon={<Activity />} label="DVOL" value={fx(k.dvol, 1)} foot={fin(d.dvol.pct_1y) ? t('{n}° percentile a 1 anno', { n: d.dvol.pct_1y.toFixed(0) }) : undefined} />
+      <KpiCell icon={<Activity />} label="DVOL" value={fx(k.dvol, 1)} foot={fin(d.dvol.pct_1y) ? t('{o} percentile a 1 anno', { o: ordinal(d.dvol.pct_1y) }) : undefined} />
     </KpiStrip>
   )
 }
@@ -247,14 +247,14 @@ function OptionsTab() {
                 </div>
                 <div>
                   <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
-                    <span>{t('Percentile 1 anno')}</span><span className="tnum font-medium text-white">{fx(d.dvol.pct_1y, 0)}°</span>
+                    <span>{t('Percentile 1 anno')}</span><span className="tnum font-medium text-white">{ordinal(d.dvol.pct_1y)}</span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
                     <div className="h-full rounded-full" style={{ width: `${fin(d.dvol.pct_1y) ? d.dvol.pct_1y : 0}%`, background: `linear-gradient(90deg, ${hexA(C.blue, 0.35)}, ${C.blue})` }} />
                   </div>
                 </div>
                 <div>
-                  <KV k={t('Percentile dal 2021')}>{fx(d.dvol.pct_all, 0)}°</KV>
+                  <KV k={t('Percentile dal 2021')}>{ordinal(d.dvol.pct_all)}</KV>
                   <KV k={t('Minimo / massimo 1 anno')}>{fx(d.dvol.min_1y, 1)} / {fx(d.dvol.max_1y, 1)}</KV>
                   <KV k={t('Volatilità realizzata 30 giorni')}>{fin(d.dvol.rv_30d) ? `${d.dvol.rv_30d.toFixed(1)}%` : DASH}</KV>
                   <KV k={t('Spread implicita − realizzata')}>{fin(d.dvol.iv_rv_spread) ? `${sfx(d.dvol.iv_rv_spread)} pt` : DASH}</KV>
@@ -279,7 +279,7 @@ function OptionsTab() {
 function HoldersKpis({ d }: { d: HoldersData }) {
   const k = d.kpi
   return (
-    <KpiStrip cols="grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+    <KpiStrip cols="grid-cols-2 md:grid-cols-3 min-[1700px]:grid-cols-6">
       <KpiCell icon={<Coins />} label={t('Costo medio STH')} value={usd(k.sth_realized_price)} foot={t('Prezzo {p} dal costo medio', { p: pct(k.dist_sth, 1) })} />
       <KpiCell icon={<Gauge />} label="STH-MVRV" value={<>{fx(k.sth_mvrv)}{unit('×')}</>} foot={cap(t('Zona {z}', { z: holderZone(k.zone).toLowerCase() }))} />
       <KpiCell icon={<Coins />} label={t('Costo medio LTH')} value={usd(k.lth_realized_price)} foot={t('Prezzo {p} dal costo medio', { p: pct(k.dist_lth, 1) })} />
@@ -414,7 +414,7 @@ function SentimentHero({ d, updatedAt }: { d: SentimentData; updatedAt: number }
             <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
               <div className="tnum text-4xl font-semibold tracking-[-0.02em] text-white">{c.value.toFixed(0)}<span className="ml-1 text-sm font-normal text-slate-400">/ 100</span></div>
               <Badge color="blue" className="mb-1.5">{t(c.zone)}</Badge>
-              <div className="tnum pb-1.5 text-xs text-slate-400">{`7${dayUnit()}`} {fin(c.change_7d) ? `${sfx(c.change_7d, 0)} pt` : DASH} · {t('{n}° percentile storico', { n: c.percentile.toFixed(0) })}</div>
+              <div className="tnum pb-1.5 text-xs text-slate-400">{`7${dayUnit()}`} {fin(c.change_7d) ? `${sfx(c.change_7d, 0)} pt` : DASH} · {t('{o} percentile storico', { o: ordinal(c.percentile) })}</div>
             </div>
             <SentimentTrack value={c.value} />
           </div>
@@ -464,7 +464,7 @@ function PremiumCard({ d }: { d: SentimentData }) {
           <Stat k={t('Premio attuale')} v={<Change value={p.live} digits={3} />}
             sub={fin(p.live_usd) ? t('{v} per BTC', { v: `${p.live_usd < 0 ? '−' : '+'}$${Math.abs(p.live_usd).toFixed(0)}` }) : undefined} />
           <Stat k={t('Media 7 giorni')} v={<Change value={p.avg_7d} digits={3} />} />
-          <Stat k={t('Percentile 4 anni')} v={fin(p.percentile_4y) ? `${p.percentile_4y.toFixed(0)}°` : DASH} />
+          <Stat k={t('Percentile 4 anni')} v={ordinal(p.percentile_4y)} />
           <Stat k="Coinbase / Binance" v={usd(p.coinbase)} sub={`Binance ${usd(p.binance)}`} />
         </div>
         <TimeLinesChart height={260} zoom={v === 'daily'} legend={false} compactTip={v === 'hourly'} yFmt={(x) => `${x.toFixed(2)}%`} markLines={[{ y: 0, color: GRID0 }]}

@@ -534,7 +534,7 @@ function StreaksCard({ d }: { d: EtfData }) {
           <Stat k={t('Serie record di deflussi')} v={s.longest_out ? `${s.longest_out.days} ${tr('sedute', 'sessions')}` : DASH} sub={line(s.longest_out)} />
         </div>
         <div className={clsx(TW, 'flex-1')}>
-          <table className="tbl min-w-[460px] xl:h-full">
+          <table className="tbl min-w-[460px] min-[1700px]:h-full">
             <thead><tr>
               <th className={TL}>{t('Dopo sedute con')}</th><th className="text-right">{tr('Sedute', 'Sessions')}</th>
               <th className="text-right">{`7${du()}`}</th><th className="text-right">{`30${du()}`}</th><th className={TR}>{`90${du()}`}</th>
@@ -621,7 +621,8 @@ function EtfTab() {
                 <CardBody className="flex flex-col"><Bullets items={etfReading(d)} /></CardBody>
               </Card>
             </div>
-            <div className="grid gap-3 xl:grid-cols-2">
+            {/* side by side only from 1700px: at half width the stat labels and dates were cut with an ellipsis */}
+            <div className="grid gap-3 min-[1700px]:grid-cols-2">
               <AbsorptionCard d={d} />
               <StreaksCard d={d} />
             </div>

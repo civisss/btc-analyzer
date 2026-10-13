@@ -47,7 +47,7 @@ function RangeKpis({ d }: { d: StructureRanges }) {
   const r = x.range
   const st = x.structure
   return (
-    <KpiStrip cols="grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+    <KpiStrip cols="grid-cols-2 md:grid-cols-3 min-[1700px]:grid-cols-6">
       <KpiCell accent icon={<DollarSign />} label={t('Prezzo BTC')} value={usd(d.price)} foot={tfIn(`ATR 1D ${usd(x.atr)}`)} />
       <KpiCell icon={<MoveHorizontal />} label={tfIn(t('Range 1D'))} value={r ? rt(r.width_pct) : '—'}
         foot={r ? `${usd(r.low)}–${usd(r.high)} · ${t('{n} giorni', { n: r.bars })}` : t('Nessun range riconosciuto')} />
@@ -222,7 +222,7 @@ function PivotKpis({ p }: { p: StructurePivots }) {
   const mo = o.levels.find((l) => l.key === 'monthly_open')
   const prov = m && !m.monday_complete ? t('Provvisorio') : ''
   return (
-    <KpiStrip cols="grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+    <KpiStrip cols="grid-cols-2 md:grid-cols-3 min-[1700px]:grid-cols-6">
       <KpiCell accent icon={<DollarSign />} label={t('Prezzo BTC')} value={usd(p.price)} foot={m ? posText(m) : undefined} />
       <KpiCell icon={<ArrowUpToLine />} label={t('Massimo del lunedì')} value={usd(m?.high)} delta={m ? dist(m.dist_high) : undefined} foot={prov} />
       <KpiCell icon={<ArrowDownToLine />} label={t('Minimo del lunedì')} value={usd(m?.low)} delta={m ? dist(m.dist_low) : undefined} foot={prov} />
@@ -337,8 +337,9 @@ function PivotTab() {
                 </CardBody>
               </Card>
             </div>
-            <div className="grid items-start gap-3 xl:grid-cols-3">
-              <Card className="xl:col-span-2">
+            {/* side by side only when the 9-column table fits without horizontal scrolling */}
+            <div className="grid items-start gap-3 min-[1700px]:grid-cols-3">
+              <Card className="min-[1700px]:col-span-2">
                 <CardHeader icon={<BarChart3 />} title={t('Chiusure settimanali')} subtitle={t('Rendimenti mediani dopo la chiusura · {n} settimane dal 2012', { n: wc.weeks })}
                   info={t('Settimane lunedì–domenica (UTC). «Sweep del minimo precedente e chiusura sopra» = la settimana scende sotto il minimo (wick) della precedente ma chiude sopra: la lettura di KillaXBT delle chiusure sopra i minimi precedenti.')} />
                 <CardBody className="pt-0"><WeeklyCloseTable w={wc} /></CardBody>
@@ -405,14 +406,13 @@ function ScenarioCard({ s, history }: { s: Scenario; history: Candle[] }) {
           </div>
         </div>
         {s.probability?.text && <MoreList items={sentences(s.probability.text)} max={2} />}
-        {s.timing.length > 0 && (
-          <div>
-            <Sub>{t('Finestre temporali')}</Sub>
-            {s.timing.map((x) => (
-              <KV key={x.time} k={cap(x.title)}>{x.label} <span className="ml-1 text-xs font-normal text-slate-400">{fin(x.confluence) ? t('Confl. {n}', { n: x.confluence.toFixed(0) }) : ''}</span></KV>
-            ))}
-          </div>
-        )}
+        {/* always shown (also when empty) so the scenario cards keep the same sections and no blank block opens up beside a taller card */}
+        <div>
+          <Sub>{t('Finestre temporali')}</Sub>
+          {s.timing.length ? s.timing.map((x) => (
+            <KV key={x.time} k={cap(x.title)}>{x.label} <span className="ml-1 text-xs font-normal text-slate-400">{fin(x.confluence) ? t('Confl. {n}', { n: x.confluence.toFixed(0) }) : ''}</span></KV>
+          )) : <p className="text-sm text-slate-400">{t('Nessuna finestra temporale rilevante per questo scenario')}</p>}
+        </div>
         {(s.supports.length > 0 || s.against.length > 0) && (
           <div className="grid gap-3 sm:grid-cols-2">
             <div>

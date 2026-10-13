@@ -89,7 +89,8 @@ export function GammaChart({ profile, price, height = 260 }: { profile: OptionsD
 }
 
 // ------------------------------------------------------------------ smile IV
-const SMILE_COLORS = [C.blue, C.purple, C.teal]
+// nearest expiries overlap the most: blue and teal for them, violet for the far one
+const SMILE_COLORS = [C.blue, C.teal, C.purple]
 export function SmileChart({ smiles, height = 280 }: { smiles: OptionsData['smiles']; height?: number | string }) {
   const option = useMemo(() => {
     const names = smiles.map((s) => `${date(s.expiry, false)} · ${Math.round(s.days)}${dayUnit()}`)

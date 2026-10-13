@@ -17,7 +17,7 @@ const AGENT_LABEL: Record<string, string> = {
 function Kpis({ d }: { d: Tracking }) {
   const o = d.overall
   return (
-    <KpiStrip cols="grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">
+    <KpiStrip cols="grid-cols-2 md:grid-cols-3 min-[1700px]:grid-cols-6">
       <KpiCell icon={<Target />} label={t('Direzione corretta')} value={pctU(o.hit_rate)}
         foot={t('{n} previsioni direzionali · 50% = moneta', { n: o.n_dir.toLocaleString('en-US') })} />
       <KpiCell icon={<Gauge />} label="Brier score" value={fin(o.brier) ? o.brier.toFixed(3) : '—'}
@@ -55,7 +55,8 @@ function Body({ d, updatedAt }: { d: Tracking; updatedAt: number }) {
         <Card>
           <CardHeader icon={<Weight />} title={t("Pesi per l'Analista")} subtitle={t('0.50 = neutro · più previsioni, più il peso si allontana')}
             info={t('Peso = 0.5 + skill (hit rate e Brier, live pesato 2× rispetto al backtest), ridotto verso 0.5 quando le previsioni verificate sono poche: w = 0.5 + (raw − 0.5)·n/(n+50).')} />
-          <CardBody><WeightsList weights={d.weights} labels={agentLabels} className="sm:grid-cols-2 lg:grid-cols-4 min-[1800px]:grid-cols-2" /></CardBody>
+          {/* side column (≥1800): the rows share the card height, matching the source table next to it */}
+          <CardBody className="flex flex-col"><WeightsList weights={d.weights} labels={agentLabels} className="sm:grid-cols-2 lg:grid-cols-4 min-[1800px]:flex-1 min-[1800px]:auto-rows-fr min-[1800px]:grid-cols-2 min-[1800px]:content-stretch" /></CardBody>
         </Card>
       </div>
       <Card>

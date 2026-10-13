@@ -4,6 +4,7 @@ Un'unica connessione upstream (hub) condivisa da tutti i client. Messaggi inviat
   {"type":"ticker", time, price, change_24h, high_24h, low_24h, volume_24h_usd}   ~1/s
   {"type":"kline", tf, closed, candle:{time,open,high,low,close,volume}}        per ogni tf sottoscritto
   {"type":"mark", time, mark, index, funding_rate, next_funding}                 ~1/s (futures)
+  {"type":"vwap_tick", source:"kraken", time, price, high, low}                  ≤2/s (trade Kraken Futures PF_XBTUSD, per la pagina VWAP)
   {"type":"liquidation", time, side, price, qty, usd, exchange, symbol}          ad evento (Binance qui; Bybit/OKX/
                                                                                   Binance COIN-M/USDC da app/liq_collectors.py)
 Il client può inviare {"tf": "4h"} (o {"tfs": ["1h","4h"]}) per scegliere le candele ricevute
@@ -26,6 +27,7 @@ SPOT_URL = "wss://stream.binance.com:9443/stream?streams=" + "/".join(
     ["btcusdt@ticker", *[f"btcusdt@kline_{tf}" for tf in TFS]]
 )
 FUT_URL = "wss://fstream.binance.com/market/stream?streams=btcusdt@markPrice@1s/btcusdt@forceOrder/btcusdt@kline_1m"
+KRAKEN_URL = "wss://futures.kraken.com/ws/v1"   # feed pubblico "trade" di PF_XBTUSD: prezzo live della pagina VWAP
 
 
 class Hub:
@@ -34,14 +36,15 @@ class Hub:
         self.lang: dict[WebSocket, str] = {}  # lingua del client (it/en) per i testi di agenti e notifiche
         self.last: dict[str, dict] = {}  # ultimo messaggio per chiave (snapshot per nuovi client)
         self.tasks: list[asyncio.Task] = []
-        self.connected = {"spot": False, "futures": False}
+        self.connected = {"spot": False, "futures": False, "kraken": False}
         self.loop: asyncio.AbstractEventLoop | None = None
 
     def ensure_started(self) -> None:
         if not self.tasks or all(t.done() for t in self.tasks):
             loop = asyncio.get_running_loop()
             self.loop = loop
-            self.tasks = [loop.create_task(self._run(SPOT_URL, "spot")), loop.create_task(self._run(FUT_URL, "futures"))]
+            self.tasks = [loop.create_task(self._run(SPOT_URL, "spot")), loop.create_task(self._run(FUT_URL, "futures")),
+                          loop.create_task(self._run_kraken())]
 
     @staticmethod
     def _is_fut(env: dict) -> bool:
@@ -68,6 +71,43 @@ class Hub:
             self.connected[name] = False
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30)
+
+    async def _run_kraken(self) -> None:
+        """Trade Kraken Futures PF_XBTUSD -> {"type":"vwap_tick"} al massimo ogni 0,5 s (prezzo ultimo + max/min dei trade
+        nell'intervallo, per aggiornare la candela in formazione senza perdere gli estremi)."""
+        import time as _time
+        backoff = 1
+        while True:
+            try:
+                async with websockets.connect(KRAKEN_URL, ping_interval=20, open_timeout=15) as ws:
+                    await ws.send(json.dumps({"event": "subscribe", "feed": "trade", "product_ids": ["PF_XBTUSD"]}))
+                    self.connected["kraken"] = True
+                    backoff = 1
+                    hi = lo = px = None
+                    t_ms = 0
+                    last_emit = 0.0
+                    async for raw in ws:
+                        d = json.loads(raw)
+                        if d.get("feed") != "trade" or d.get("product_id") != "PF_XBTUSD":
+                            continue
+                        p = float(d["price"])
+                        px, t_ms = p, int(d.get("time") or _time.time() * 1000)
+                        hi = p if hi is None else max(hi, p)
+                        lo = p if lo is None else min(lo, p)
+                        now = _time.monotonic()
+                        if now - last_emit >= 0.5:
+                            last_emit = now
+                            msg = {"type": "vwap_tick", "source": "kraken", "time": t_ms // 1000, "price": px, "high": hi, "low": lo}
+                            self.last["vwap_tick"] = msg
+                            hi = lo = None
+                            await self._broadcast(msg)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                log.warning("stream kraken disconnesso: %s", e)
+            self.connected["kraken"] = False
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
 
     def _parse(self, env: dict) -> dict | None:
         stream, d = env.get("stream", ""), env.get("data", {})

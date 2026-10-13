@@ -1076,7 +1076,7 @@ def calendar(windows: dict, cyc: dict, proj: dict, ev: dict, now: pd.Timestamp, 
         raw.append({"source": "stagionale", "time": w["date"], "start": w["start"], "end": w["end"], "strength": s,
                     "expected": w["expected"], "probability": w["consistency"], "text": w["text"], "ref": w["id"],
                     "title": f"Finestra {w['label']}"})
-    for it in cyc["items"] + [dict(c, key=f"cl_{i}", label=f"Cluster {c['kind_label']} ~{c['projected_days']} gg dall'halving")
+    for it in cyc["items"] + [dict(c, key=f"cl_{i}", label=f"Cluster {c['kind_label']} ~{c['projected_days']:.0f} giorni dall'halving")
                               for i, c in enumerate(cyc["clusters"])]:
         a, b = pd.Timestamp(it["from"], unit="s", tz="UTC"), pd.Timestamp(it["to"], unit="s", tz="UTC")
         if b < today or a > end:

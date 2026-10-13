@@ -79,16 +79,16 @@ def status_for(key: str, v: float, d: pd.DataFrame) -> tuple[str, str]:
         r = s.tail(30).mean() / s.tail(365).mean() - 1
         name = "Attività" if key == "active_addresses" else "Transazioni"
         if r > 0.08:
-            return f"{r * 100:+.0f}% vs media 1a", "bullish"
+            return f"{r * 100:+.0f}% vs media annua", "bullish"
         if r < -0.08:
-            return f"{r * 100:+.0f}% vs media 1a", "bearish"
-        return f"{r * 100:+.0f}% vs media 1a", "neutral"
+            return f"{r * 100:+.0f}% vs media annua", "bearish"
+        return f"{r * 100:+.0f}% vs media annua", "neutral"
     if key == "supply":
         return f"{v / 21e6 * 100:.2f}% di 21M", "neutral"
     if key == "issuance_usd":
         s = d["issuance_usd"].dropna()
         r = s.tail(30).mean() / s.tail(365).mean() - 1
-        return f"{r * 100:+.0f}% vs media 1a", "neutral"
+        return f"{r * 100:+.0f}% vs media annua", "neutral"
     if key == "puell":
         if v < 0.5:
             return "Zona di accumulo: miner sotto stress", "bullish"

@@ -161,7 +161,7 @@ export default function AlertsPage() {
         <KpiCell icon={<BellRing />} accent="amber" label={t('Avvisi nelle 24 h')} value={hq.data ? `${today}` : '—'} foot={hq.data ? t('{n} nello storico', { n: hist.length }) : null} />
         <KpiCell icon={<History />} accent="amber" label={t('Ultimo avviso')} value={last ? relAgo(last.time, now) : t('Nessuno')} foot={last ? last.title : t('Nessun avviso personale finora')} />
         <KpiCell icon={<Timer />} accent="amber" label={t('Motore avvisi')} value={lastEval ? (now - lastEval < 90 ? t('Attivo') : t('In ritardo')) : '—'}
-          foot={lastEval ? t('Ultimo controllo {a}', { a: relAgo(lastEval, now) }) : null} />
+          foot={lastEval ? t('Ultimo controllo {a}', { a: now - lastEval < 45 ? t('adesso') : agoSeconds(now - lastEval) }) : null} />
       </KpiStrip>
 
       <div className="mt-3 grid gap-3 2xl:grid-cols-[minmax(0,1fr)_460px]">
@@ -198,9 +198,16 @@ export default function AlertsPage() {
         </div>
         <Card className="2xl:max-h-[calc(100vh-160px)]">
           <CardHeader title={t('Storico')} icon={<Zap />} accent="amber" subtitle={t('Avvisi personali e revisioni del diario')} updatedAt={hq.dataUpdatedAt} interval={30_000} />
-          <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-            <Q q={hq} loading={<div className="px-5 pb-4"><Skeleton className="h-60" /></div>} isEmpty={() => !hist.length} empty={t('Ancora nessun avviso personale.')}>
-              {() => (
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2">
+            <Q q={hq} loading={<div className="px-5 pb-4"><Skeleton className="h-60" /></div>} isEmpty={() => false}>
+              {() => !hist.length ? (
+                // same empty state as "Le tue regole", centred in the card (it is as tall as the left column)
+                <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+                  <History size={18} className="text-slate-500" />
+                  <p className="max-w-xs text-sm text-slate-300">{t('Ancora nessun avviso personale.')}</p>
+                  <p className="max-w-xs text-xs text-slate-500">{t('Qui compaiono gli avvisi scattati e le revisioni del diario, dal più recente.')}</p>
+                </div>
+              ) : (
                 <div>
                   {hist.map((a) => {
                     const sev = SEVERITY_META[a.severity] ?? SEVERITY_META.info

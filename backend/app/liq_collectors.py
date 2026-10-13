@@ -72,7 +72,7 @@ def _mark_started(exchange: str) -> None:
             return
         _meta[exchange] = time.time()
         try:
-            Path(META_FILE).write_text(json.dumps(_meta), encoding="utf-8")
+            store.write_text(META_FILE, json.dumps(_meta))
         except Exception as e:  # noqa: BLE001
             log.warning("meta liquidazioni non salvata: %s", e)
 

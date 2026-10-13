@@ -35,15 +35,16 @@ const altFmt = (v: number) => v.toFixed(0)
 
 function Kpis({ d }: { d: Macro }) {
   const k = d.kpi
+  // 7 tiles: one row only from 1700px (narrower tiles truncated the labels); below, 4 + 3 with the last tile spanning 2
   return (
-    <KpiStrip cols="grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
+    <KpiStrip cols="grid-cols-2 md:grid-cols-4 min-[1700px]:grid-cols-7">
       <KpiCell icon={<DollarSign />} label="DXY" value={f(k.dxy.value)} delta={<>{nPct(k.dxy.change_1d)} <span className="text-slate-400">{dd(1)}</span></>} title={`${dd(30)} ${pct(k.dxy.change_30d)}`} />
       <KpiCell icon={<Percent />} label="US10Y" value={`${f(k.us10y.value)}%`} delta={<>{nPts(k.us10y.change_30d)} <span className="text-slate-400">{dd(30)}</span></>} />
       <KpiCell icon={<Activity />} label="VIX" value={f(k.vix.value)} delta={<>{nPct(k.vix.change_1d)} <span className="text-slate-400">{dd(1)}</span></>} />
       <KpiCell icon={<Coins />} label={t('Supply stablecoin')} value={usdCompact(k.stables.value, 1)} delta={<Change value={k.stables.growth_90d} suffix={dd(90)} />} />
       <KpiCell icon={<ArrowLeftRight />} label="ETH/BTC" value={f(k.ethbtc.value, 5)} delta={<Change value={k.ethbtc.change_30d} suffix={dd(30)} />} />
       <KpiCell icon={<PieChart />} label={t('Dominance BTC')} value={`${f(k.dominance.value)}%`} delta={<PointsChange value={k.dominance.change_30d} suffix={dd(30)} />} />
-      <KpiCell icon={<Shuffle />} label={t('Indice altseason')} value={<>{f(k.altseason.value, 0)}<span className="ml-1 text-sm font-normal text-slate-400">/ 100</span></>} foot={cap(k.altseason.phase_label)} className="col-span-2 md:col-span-1" />
+      <KpiCell icon={<Shuffle />} label={t('Indice altseason')} value={<>{f(k.altseason.value, 0)}<span className="ml-1 text-sm font-normal text-slate-400">/ 100</span></>} foot={cap(k.altseason.phase_label)} className="col-span-2 min-[1700px]:col-span-1" />
     </KpiStrip>
   )
 }
@@ -343,7 +344,7 @@ export default function MacroPage() {
   const q = useMacro()
   return (
     <div>
-      <PageTitle title={t('Macro & Rotazione')} subtitle={t('Liquidità, dollaro e tassi, correlazioni con i mercati tradizionali e rotazione verso le altcoin.')} />
+      <PageTitle title={t('Macro e rotazione')} subtitle={t('Liquidità, dollaro e tassi, correlazioni con i mercati tradizionali e rotazione verso le altcoin.')} />
       <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[320px]" /><Skeleton className="h-[420px]" /></div>} isEmpty={(d) => !d.dollar_rates?.dxy?.series?.length}>
         {(d) => (
           <div className="flex flex-col gap-3">

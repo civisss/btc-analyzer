@@ -206,7 +206,7 @@ export function MethodNote({ children, title, className }: { children: ReactNode
 
 // ------------------------------------------------------------------ KPI cards
 /** Row of KPI cards (separate lifted tiles with a 12px gap), responsive columns. */
-export function KpiStrip({ children, className, cols = 'grid-cols-2 md:grid-cols-3 xl:grid-cols-6' }: { children: ReactNode; className?: string; cols?: string }) {
+export function KpiStrip({ children, className, cols = 'grid-cols-2 md:grid-cols-3 min-[1700px]:grid-cols-6' }: { children: ReactNode; className?: string; cols?: string }) {
   return <div className={clsx('grid gap-3', cols, className)}>{children}</div>
 }
 
@@ -227,12 +227,12 @@ export function KpiCell({ label, value, delta, foot, spark, aside, title, classN
   const hasFoot = foot != null && foot !== false && foot !== ''
   return (
     <div className={clsx('card kpi relative flex min-w-0 flex-col px-4 py-3.5 sm:px-5', className)} title={title}>
-      <div className="flex min-w-0 items-center gap-2.5">
-        {icon && <IconBadge icon={icon} accent={acc ?? 'slate'} size="sm" />}
+      <div className="kpi-row flex min-w-0 items-center gap-2.5">
+        {icon && <IconBadge icon={icon} accent={acc ?? 'slate'} size="sm" className="kpi-icon" />}
         <div className="label min-w-0 truncate" title={typeof label === 'string' ? label : undefined}>{label}</div>
       </div>
-      <div className={clsx('mt-2 flex items-center gap-3', aside && '-my-1.5')}>
-        <div className="tnum min-w-0 flex-1 truncate text-3xl font-semibold tracking-[-0.02em] text-white [&_*]:!text-white">{value}</div>
+      <div className={clsx('kpi-row mt-2 flex items-center gap-3', aside && '-my-1.5')}>
+        <div className="kpi-value tnum min-w-0 flex-1 truncate text-3xl font-semibold tracking-[-0.02em] text-white [&_*]:!text-white">{value}</div>
         {aside && <div className="grid h-[72px] w-[72px] shrink-0 place-items-center">{aside}</div>}
       </div>
       <div className="tnum mt-1 flex min-w-0 items-baseline gap-1.5 truncate text-xs text-slate-400">

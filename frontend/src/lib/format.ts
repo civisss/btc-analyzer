@@ -69,6 +69,15 @@ export function pts(v: N, digits = 2): string {
   return `${s}${Math.abs(v).toFixed(digits)} pt`
 }
 
+/** Ordinal (percentiles, ranks): IT "38°" · EN "38th" / "21st" / "3rd". */
+export function ordinal(v: N): string {
+  if (!ok(v)) return DASH
+  const n = Math.round(v)
+  if (getLang() !== 'en') return `${n}°`
+  const sfx = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'
+  return `${n}${sfx}`
+}
+
 export function num(v: N, digits = 2): string {
   if (!ok(v)) return DASH
   return (v < 0 ? '−' : '') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
@@ -139,6 +148,13 @@ function translated(m: Record<string, string>): Record<string, string> {
   return new Proxy(m, { get: (o, k: string) => (typeof o[k] === 'string' ? t(o[k]) : undefined) })
 }
 export const TONE_LABEL: Record<string, string> = translated({ bullish: 'Rialzista', bearish: 'Ribassista', neutral: 'Neutrale' })
+/** Cycle-clock zones by API key (the API label is a lowercase Italian word the backend translator leaves as is). */
+export const ZONE_LABEL: Record<string, string> = translated({
+  bottom: 'Zona di minimo', accumulation: 'Accumulo', mid: 'Metà ciclo', euphoria: 'Euforia', top: 'Zona di massimo',
+})
+/** Zone name in the UI language from its key, falling back to the API label. */
+export const zoneName = (key: string | null | undefined, fallback?: string | null): string =>
+  (key && ZONE_LABEL[key]) || (fallback ? fallback.charAt(0).toUpperCase() + fallback.slice(1) : DASH)
 export const PHASE_LABEL: Record<string, string> = translated({ accumulation: 'Accumulo', bull: 'Bull market', distribution: 'Distribuzione', bear: 'Bear market' })
 export const CATEGORY_LABEL: Record<string, string> = translated({
   cycle: 'Ciclo', fractal: 'Frattali', liquidity: 'Liquidità', usdt: 'USDT', onchain: 'On-chain', derivatives: 'Derivati', technical: 'Tecnica',

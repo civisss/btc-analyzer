@@ -31,7 +31,7 @@ function Kpis({ d }: { d: EventsResponse }) {
   const g = dayUnit()
   const mtWhen = mt.days_to > 0 ? t('Tra {n} giorni', { n: mt.days_to }) : mt.days_to === 0 ? tr('Oggi', 'Today') : t('{n} giorni fa', { n: -mt.days_to })
   return (
-    <KpiStrip cols="grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">
+    <KpiStrip cols="grid-cols-2 md:grid-cols-3 min-[1700px]:grid-cols-6">
       <KpiCell className="col-span-2 md:col-span-1" icon={<CalendarClock />} label={t('Prossimo evento')} value={next ? next.title : '—'}
         foot={next ? `${next.date_label} · ${whenLabel(next.days_away)}` : undefined} title={next?.text} />
       <KpiCell className="col-span-2 md:col-span-1" icon={<Landmark />} label={t('Prossimo FOMC')} value={fomc ? fomc.date_label : '—'}

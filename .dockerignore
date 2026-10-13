@@ -5,3 +5,4 @@ frontend/dist
 .git
 *.md
 !README.md
+backend/data/.*.tmp

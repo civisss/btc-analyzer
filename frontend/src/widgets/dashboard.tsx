@@ -17,7 +17,7 @@ import FearGreedGauge, { fngLabel } from '../components/charts/FearGreedGauge'
 import ProChart, { type LineDef, type MarkerDef, type PaneDef, type PriceLineDef, type ZoneDef } from '../components/charts/ProChart'
 import EChart from '../components/charts/EChart'
 import { C, axisLabel, axisNum, legendBase, lineSeries, tooltipBase, valueAxis } from '../components/charts/theme'
-import { CATEGORY_LABEL, PHASE_LABEL, date, dayUnit, int, pct, pts, quarter, toPct, usd, usdCompact } from '../lib/format'
+import { CATEGORY_LABEL, PHASE_LABEL, date, dayUnit, int, pct, pts, quarter, toPct, usd, usdCompact, zoneName } from '../lib/format'
 import { cap, t, tfLabel, tr } from '../i18n'
 import { emaPts, useApp } from '../lib/store'
 import { usePrice, useThrottledPrice, useTfCandles } from './hooks'
@@ -76,7 +76,7 @@ function CycleClockCell() {
     <KpiCell className="min-[480px]:col-span-2 min-[1800px]:col-span-1" label={t('Orologio del ciclo')} icon={<Orbit />} accent="violet"
       title={t('Cycle Score 0–100: 0 = zona di minimo, 100 = zona di massimo')}
       value={c ? (c.score != null ? `${c.score.toFixed(0)}` : '—') : q.isError ? '—' : <Skeleton className="h-7 w-14" />}
-      delta={c && <span className="text-slate-300">{c.zone_label ? cap(c.zone_label) : '—'}</span>}
+      delta={c && <span className="text-slate-300">{zoneName(c.zone, c.zone_label)}</span>}
       foot={c?.change_30d != null && <span className="tnum text-slate-500">{t('{v} in 30g', { v: pts(c.change_30d, 0) })}</span>}
       aside={c && <Ring value={c.score} />} />
   )

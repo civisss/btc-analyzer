@@ -16,6 +16,9 @@ export type LevelId =
   | 'piv_d_P' | 'piv_d_R1' | 'piv_d_S1' | 'piv_w_P' | 'piv_w_R1' | 'piv_w_R2' | 'piv_w_S1' | 'piv_w_S2' | 'piv_m_P' | 'piv_m_R1' | 'piv_m_S1'
   | 'weekly_open' | 'monthly_open' | 'quarterly_open' | 'yearly_open' | 'prev_week_high' | 'prev_week_low' | 'prev_month_high' | 'prev_month_low'
   | 'monday_high' | 'monday_low' | 'monday_mid' | 'range_high' | 'range_mid' | 'range_low' | 'ath'
+  | 'vwap_w' | 'vwap_w_up1' | 'vwap_w_dn1' | 'vwap_m' | 'vwap_m_up1' | 'vwap_m_dn1' | 'vwap_q' | 'vwap_q_up1' | 'vwap_q_dn1'
+  | 'vwap_y' | 'vwap_y_up1' | 'vwap_y_dn1' | 'vwap_pw' | 'vwap_pm' | 'vwap_pq' | 'vwap_py'
+  | 'vp_pw_poc' | 'vp_pw_vah' | 'vp_pw_val'
 
 export type RuleParams =
   | { direction: 'above' | 'below'; price: number }                                   // price_cross

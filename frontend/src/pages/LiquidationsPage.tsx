@@ -7,8 +7,11 @@ import { LiqHeatmapChart } from '../widgets/charts'
 import { EX_NAME, ExchangeBadge } from '../widgets/derivPro'
 import { date, dateTime, int, pct, time, usd, usdCompact as usdC } from '../lib/format'
 import { usePrice, useThrottledPrice } from '../widgets/hooks'
-import { cap, t, tfLabel, tr } from '../i18n'
+import { cap, getLang, t, tfLabel, tr } from '../i18n'
 import { ArrowDownRight, ArrowUpRight, BadgeCheck, Building2, CalendarDays, Crosshair, Droplets, Flame, Layers, Magnet, Radio, ShieldAlert, Timer } from 'lucide-react'
+
+/** Pool source from the API ("Swing high 4h intatto", "Equal highs 1h (2 tocchi)"): the field is not translated server side. */
+const poolSource = (s: string) => cap(getLang() === 'en' ? s.replace(/\((\d+) tocchi\)/, '($1 touches)').replace(/\bintatto\b/, 'intact') : s)
 
 /** compact USD without a trailing ".0" ($500K, not $500.0K) */
 const usdCompact = (v: number | null | undefined, d?: number) => usdC(v, d).replace(/\.0(?=[KMBT])/, '')
@@ -177,7 +180,7 @@ export default function LiquidationsPage() {
                               <div key={i} className="grid min-h-8 grid-cols-[1fr_56px] items-center gap-x-3 border-t border-line py-1.5 first:border-t-0">
                                 <div className="min-w-0">
                                   <div className="tnum text-sm"><span className="font-medium text-white">{usd(p.price)}</span> <span className="text-xs text-slate-400">{p.kind === 'buy_side' ? 'Buy-side' : 'Sell-side'}</span></div>
-                                  <div className="text-xs text-slate-400">{cap(p.source)}</div>
+                                  <div className="text-xs text-slate-400">{poolSource(p.source)}</div>
                                 </div>
                                 <ProgressBar value={p.strength} className="h-1" />
                               </div>

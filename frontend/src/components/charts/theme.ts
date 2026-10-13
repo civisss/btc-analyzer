@@ -69,7 +69,8 @@ export function axisNum(v: number): string {
   const a = Math.abs(v)
   if (a === 0) return '0'
   if (a < 1) return String(+v.toPrecision(2)).replace('-', '−')
-  return compact(v, a >= 1e3 ? 1 : 0).replace(/\.0(?=[KMBT]|$)/, '')
+  // trailing zeros off (1.00 → 1, 2.50 → 2.5, 1.0K → 1K) so ticks read the same as 10 · 100 · 1K
+  return compact(v, a >= 1e3 ? 1 : 0).replace(/(\.\d*?)0+(?=[KMBT]|$)/, '$1').replace(/\.(?=[KMBT]|$)/, '')
 }
 
 /** Short month names in the current UI language (call at render time). */

@@ -341,7 +341,7 @@ function HowSection({ d }: { d: ForecastV2 }) {
                   <div key={k} className="flex gap-2.5 border-t border-line py-2">
                     <span className="mt-1.5 h-2 w-2 shrink-0 rounded-sm" style={{ background: MEMBER_COLOR[k] }} />
                     <div className="min-w-0">
-                      <div className="text-sm text-slate-200">{t(m.name)}</div>
+                      <div className="text-sm text-slate-200">{cap(t(m.name))}</div>
                       <p className="line-clamp-2 text-xs text-slate-400" title={m.note}>{m.note}</p>
                     </div>
                   </div>
@@ -392,7 +392,7 @@ function Body({ d, updatedAt }: { d: ForecastV2; updatedAt: number }) {
   const h365 = hz(365)
   return (
     <div className="flex flex-col gap-3">
-      <KpiStrip cols="grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+      <KpiStrip cols="grid-cols-2 md:grid-cols-3 min-[1700px]:grid-cols-6">
         <KpiCell accent icon={<TrendingUp />} label={t('Prezzo attuale')} value={usd(d.last_price)} foot={t('Regime {r}', { r: t(d.regime.label).toLowerCase() })} />
         <KpiCell icon={<CalendarClock />} label={t('Mediana a {n} giorni', { n: 30 })} {...k(30)} />
         <KpiCell icon={<CalendarClock />} label={t('Mediana a {n} giorni', { n: 90 })} {...k(90)} />

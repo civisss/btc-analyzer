@@ -20,11 +20,13 @@ const InsightsPage = lazy(() => import('./pages/InsightsPage'))
 const AgentsPage = lazy(() => import('./pages/AgentsPage'))
 const StructurePage = lazy(() => import('./pages/StructurePage'))
 const EventsPage = lazy(() => import('./pages/EventsPage'))
+const AstroPage = lazy(() => import('./pages/AstroPage'))
 const TrackRecordPage = lazy(() => import('./pages/TrackRecordPage'))
 const PositioningPage = lazy(() => import('./pages/PositioningPage'))
 const AlertsPage = lazy(() => import('./pages/AlertsPage'))
 const JournalPage = lazy(() => import('./pages/JournalPage'))
 const SupplyDemandPage = lazy(() => import('./pages/SupplyDemandPage'))
+const VwapPage = lazy(() => import('./pages/VwapPage'))
 
 class Boundary extends Component<{ children: ReactNode }, { err: Error | null }> {
   state = { err: null as Error | null }
@@ -75,8 +77,10 @@ export default function App() {
         <Route path="macro" element={page(<MacroPage />)} />
         <Route path="previsioni" element={page(<ForecastPage />)} />
         <Route path="insights" element={page(<InsightsPage />)} />
+        <Route path="vwap" element={page(<VwapPage />)} />
         <Route path="struttura" element={page(<StructurePage />)} />
         <Route path="eventi" element={page(<EventsPage />)} />
+        <Route path="astronomia" element={page(<AstroPage />)} />
         <Route path="affidabilita" element={page(<TrackRecordPage />)} />
         <Route path="posizionamento" element={page(<PositioningPage />)} />
         <Route path="avvisi" element={page(<AlertsPage />)} />

@@ -122,6 +122,11 @@ const en: Record<string, string> = {
 
   // ---------------------------------------------------------------- chat panel
   'In che fase del ciclo siamo?': 'Which phase of the cycle are we in?',
+  'Come si stanno muovendo funding e open interest?': 'How are funding and open interest moving?',
+  'Cosa dicono le metriche on-chain?': 'What do the on-chain metrics say?',
+  'Quali eventi macro sono in arrivo?': 'Which macro events are coming up?',
+  'Domande suggerite': 'Suggested questions',
+  "Le risposte usano i dati live dell'app: prezzo, cicli, on-chain, derivati, liquidazioni e macro. Non è consulenza finanziaria.": "Answers use the app's live data: price, cycles, on-chain, derivatives, liquidations and macro. Not financial advice.",
   'Quali sono i livelli chiave da monitorare?': 'Which key levels should I watch?',
   'Dove sono i cluster di liquidazione più vicini?': 'Where are the nearest liquidation clusters?',
   'Errore: {msg}': 'Error: {msg}',

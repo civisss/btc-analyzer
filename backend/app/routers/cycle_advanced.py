@@ -205,7 +205,7 @@ def _display(k: str, v: float | None, core) -> str:
     if k == "power_law":
         return f"{(10 ** v - 1) * 100:+.0f}% dal fair value"
     if k == "ma2y":
-        return f"{5 ** v:.2f}× la MA 2 anni"
+        return f"{5 ** v:.2f}× la media mobile a 2 anni"
     if k == "drawdown":
         return f"{v * 100:.1f}% dall'ATH"
     if k == "halving":
