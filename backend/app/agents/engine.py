@@ -1374,9 +1374,35 @@ class VwapAgent(Agent):
 
 class ForecastAgent(Agent):
     def compute(self):
-        return {"f": _call("forecast", "get_forecast", horizon=90)}
+        out = {"f": _call("forecast", "get_forecast", horizon=90)}
+        try:
+            from ..analysis import forecast_oneday as fod  # noqa: PLC0415
+            out["d1"] = fod.summary()
+        except Exception as e:  # noqa: BLE001  (modello a 1 giorno non pronto: il resto dell'agente prosegue)
+            log.info("previsione 1g non disponibile per l'agente: %s", e)
+            out["d1"] = None
+        return out
+
+    def _oneday_finding(self, d1: dict) -> None:
+        """Finding sobrio sulla previsione a 1 giorno: valore, bande e verdetto contro il naive (mai un segnale)."""
+        tm, a = d1["tomorrow"], d1["all"]
+        v = a.get("verdict", {})
+        mase, p = a.get("mase"), a.get("dm_p")
+        if mase is None:
+            return
+        verdict = {"edge": "vantaggio significativo sul naive", "small_edge": "vantaggio piccolo ma significativo sul naive",
+                   "no_edge": "nessun vantaggio significativo sul naive", "worse": "peggiore del naive",
+                   "worse_ns": "nessun vantaggio sul naive"}.get(v.get("code"), "confronto con il naive non disponibile")
+        text = (f"Previsione a 1 giorno (chiusura del {util_data(tm['target'])}): {_usd(tm['median'])}, banda 90% "
+                f"{_k(tm['p05'])}–{_k(tm['p95'])}, P(rialzo) {tm['up_prob']:.0f}%. Fuori campione dal 2019: MASE {mase:.3f} "
+                f"(naive = 1){f', test Diebold-Mariano p = {p:.2f}' if p is not None else ''}: {verdict}. A un giorno la miglior stima resta vicina al "
+                "prezzo di oggi.")
+        if text not in [f["text"] for f in list(self.findings)[:6]]:
+            self.findings.appendleft(Finding("Previsione a 1 giorno", text, "neutral", 35).as_dict())
 
     async def act(self, r):
+        if r.get("d1"):
+            self._oneday_finding(r["d1"])
         ts = {t["days"]: t for t in r["f"].get("targets", [])}
         t30 = ts.get(30)
         if t30:
@@ -1530,7 +1556,7 @@ def build_team() -> list[Agent]:
                           "Layers", "#f97316", 300, subscribes=[], publishes=["agg_leverage.state"]),
         VwapAgent("vwap", "VWAP ancorati", "Calcola i VWAP settimanale, mensile, trimestrale e annuale (ancore UTC, bande ±σ) e i livelli del periodo precedente; segnala posizione del prezzo, cross e tocchi.",
                   "Anchor", "#3CC6B0", 60, subscribes=[], publishes=["vwap.position", "vwap.cross", "vwap.touch", "vwap.confluence"]),
-        ForecastAgent("forecast", "Previsioni ML", "Posizione nel ciclo + LightGBM + Monte Carlo, calibrati fuori campione: bande di probabilità da 7 a 365 giorni.",
+        ForecastAgent("forecast", "Previsioni ML", "Posizione nel ciclo + LightGBM + Monte Carlo, calibrati fuori campione: bande di probabilità da 7 a 365 giorni; previsione a 1 giorno confrontata con il naive.",
                       "TrendingUp", "#60a5fa", 600, subscribes=["pattern.projection.d1"], publishes=["forecast.targets", "forecast.check"]),
     ]
 

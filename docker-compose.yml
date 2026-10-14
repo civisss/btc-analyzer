@@ -4,7 +4,7 @@ services:
     image: btc-analyzer:latest
     container_name: btc-analyzer
     ports:
-      - "8000:8000"
+      - "8010:8000"   # 8010 sull host: la 8000 la usa un altro progetto
     environment:
       # LM Studio in esecuzione sull'host (Server locale attivo sulla porta 1234)
       LLM_BASE_URL: http://host.docker.internal:1234/v1

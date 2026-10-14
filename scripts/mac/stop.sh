@@ -3,7 +3,7 @@
 # Ferma sia il container Docker sia l'eventuale ambiente di sviluppo (--dev). I dati restano nel volume.
 SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 PID_FILE="$SCRIPT_DIR/.btc.pids"
-BACKEND_PORT=8000
+BACKEND_PORT=8010
 FRONTEND_PORT=5173
 
 GREEN='\033[0;32m'

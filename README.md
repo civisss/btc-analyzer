@@ -15,10 +15,10 @@ che collaborano tra loro. Interfaccia IT/EN, notifiche e aggiornamenti in tempo 
 | Sviluppo (uvicorn + Vite) | `scripts\windows\start.bat -Dev` | `./scripts/mac/start.sh --dev` |
 | Arresto | `scripts\windows\stop.bat` | `./scripts/mac/stop.sh` |
 
-Lo script controlla Docker e LM Studio, ferma quello che occupa le porte 8000/5173, ricostruisce l'immagine (con la cache:
+Lo script controlla Docker e LM Studio, ferma quello che occupa le porte 8010/5173, ricostruisce l'immagine (con la cache:
 veloce se il codice non è cambiato), avvia il container e aspetta che risponda. A mano: `docker compose up -d --build`.
 
-Apri **http://localhost:8000** (in sviluppo **http://localhost:5173**). I dati storici sono già inclusi nell'immagine e vengono aggiornati in automatico.
+Apri **http://localhost:8010** (in sviluppo **http://localhost:5173**). I dati storici sono già inclusi nell'immagine e vengono aggiornati in automatico.
 Lo storico resta salvato nel volume `btc-data`.
 
 ### LLM locale (LM Studio)
@@ -37,8 +37,8 @@ Il modo più semplice è `start.bat -Dev`. In sviluppo i dati stanno in `backend
 sono due copie separate.
 
 ```bash
-cd backend && .venv/Scripts/python -m uvicorn app.main:app --port 8000   # niente --reload su Windows: lascia worker orfani
-cd frontend && npm run dev        # http://localhost:5173 (proxy verso :8000)
+cd backend && .venv/Scripts/python -m uvicorn app.main:app --port 8010   # niente --reload su Windows: lascia worker orfani
+cd frontend && npm run dev        # http://localhost:5173 (proxy verso :8010)
 cd frontend && npm run dev:mock   # UI con dati simulati, senza backend
 ```
 

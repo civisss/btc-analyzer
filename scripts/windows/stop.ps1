@@ -7,7 +7,7 @@
 $ScriptDir    = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
 $PidFile      = Join-Path $ScriptDir '.btc.pids'
 $LogsDir      = Join-Path $ScriptDir 'logs'
-$BackendPort  = 8000
+$BackendPort  = 8010
 $FrontendPort = 5173
 
 Write-Host ""

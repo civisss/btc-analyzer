@@ -2,10 +2,10 @@
 set -e
 
 # Uso:
-#   scripts/mac/start.sh             app completa in Docker su http://localhost:8000
+#   scripts/mac/start.sh             app completa in Docker su http://localhost:8010
 #                                    (ricostruisce l'immagine solo se il codice è cambiato)
 #   scripts/mac/start.sh --no-build  come sopra, senza ricostruire l'immagine
-#   scripts/mac/start.sh --dev       sviluppo: backend uvicorn su :8000 + Vite su :5173,
+#   scripts/mac/start.sh --dev       sviluppo: backend uvicorn su :8010 + Vite su :5173,
 #                                    senza Docker (dati in backend/data, non nel volume Docker)
 DEV=false
 NOBUILD=false
@@ -18,7 +18,7 @@ for arg in "$@"; do
 done
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-BACKEND_PORT=8000
+BACKEND_PORT=8010
 FRONTEND_PORT=5173
 PID_FILE="$SCRIPT_DIR/.btc.pids"
 PYTHON="$SCRIPT_DIR/backend/.venv/bin/python"
@@ -143,7 +143,7 @@ fi
 echo -e "${BOLD}[5/5] Verifica...${NC}"
 MAX_RETRIES=90
 RETRY=0
-until curl -sf http://localhost:$BACKEND_PORT/api/status > /dev/null 2>&1 || [ $RETRY -ge $MAX_RETRIES ]; do
+until curl -sf http://127.0.0.1:$BACKEND_PORT/api/status > /dev/null 2>&1 || [ $RETRY -ge $MAX_RETRIES ]; do
   if $DEV && ! kill -0 $BACKEND_PID 2>/dev/null; then
     echo -e "${RED}  Backend crashato. Ultimi log:${NC}"
     tail -20 "$SCRIPT_DIR/logs/backend.log"

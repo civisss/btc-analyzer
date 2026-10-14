@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// API_TARGET (env) punta il dev server a un backend diverso; default: Docker su :8000
+// API_TARGET (env) punta il dev server a un backend diverso; default: backend su :8010 (127.0.0.1: su localhost/::1 la 8000-8010 può essere di altri container)
 const env = (globalThis as unknown as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {}
-const API_TARGET = env.API_TARGET || 'http://localhost:8000'
+const API_TARGET = env.API_TARGET || 'http://127.0.0.1:8010'
 const WS_TARGET = API_TARGET.replace(/^http/, 'ws')
 
 export default defineConfig({

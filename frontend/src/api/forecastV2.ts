@@ -87,8 +87,9 @@ export interface ForecastV2 extends Omit<Forecast, 'models'> {
 }
 
 /** v2 forecast at 365 days (the page crops the view client-side). Re-fetched every minute (bands re-anchored to the live price). */
-export const useForecastV2 = () =>
+export const useForecastV2 = (enabled = true) =>
   useQuery({
+    enabled,
     queryKey: ['forecast', 365],
     queryFn: async () => (await api.forecast(365)) as ForecastV2,
     refetchInterval: 60_000,

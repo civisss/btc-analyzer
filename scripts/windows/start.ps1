@@ -3,10 +3,10 @@
   btc-analyzer — Avvio (Windows)
 
   Uso:
-    start.bat              app completa in Docker su http://localhost:8000
+    start.bat              app completa in Docker su http://localhost:8010
                            (ricostruisce l'immagine solo se il codice è cambiato)
     start.bat -NoBuild     come sopra, senza ricostruire l'immagine
-    start.bat -Dev         sviluppo: backend uvicorn su :8000 + Vite su :5173,
+    start.bat -Dev         sviluppo: backend uvicorn su :8010 + Vite su :5173,
                            senza Docker (dati in backend\data, non nel volume Docker)
 #>
 param(
@@ -17,7 +17,7 @@ param(
 $ScriptDir    = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
 $PidFile      = Join-Path $ScriptDir '.btc.pids'
 $LogsDir      = Join-Path $ScriptDir 'logs'
-$BackendPort  = 8000
+$BackendPort  = 8010
 $FrontendPort = 5173
 $LlmUrl       = 'http://localhost:1234/v1/models'
 $Total        = 5
@@ -182,7 +182,7 @@ $backendUp = $false
 do {
     Start-Sleep -Seconds 2
     try {
-        $resp = Invoke-WebRequest -Uri "http://localhost:$BackendPort/api/status" -UseBasicParsing -TimeoutSec 3
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$BackendPort/api/status" -UseBasicParsing -TimeoutSec 3
         if ($resp.StatusCode -eq 200) { $backendUp = $true }
     } catch {}
     $retry++

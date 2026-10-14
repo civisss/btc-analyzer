@@ -13,6 +13,7 @@ Le serie mancanti nella storia antica restano NaN (LightGBM e kNN le gestiscono)
 from __future__ import annotations
 
 import logging
+import threading
 
 import numpy as np
 import pandas as pd
@@ -81,8 +82,21 @@ FEATURE_KEYS = list(FEATURES)
 LABELS = {k: v[0] for k, v in FEATURES.items()}
 
 
+_tl = threading.local()   # _tl.cut: Timestamp (naive UTC) -> i dataset sono troncati prima di questo istante (test di leakage)
+
+
 def _ds(name: str) -> pd.DataFrame | None:
-    """Dataset dallo store (con refresh) o, in modalità offline / non registrato, dal parquet su disco."""
+    """Dataset dallo store (con refresh) o, in modalità offline / non registrato, dal parquet su disco.
+    Se il thread corrente ha impostato `_tl.cut` (vedi `truncated_build`), restituisce solo le righe precedenti."""
+    df = _ds_raw(name)
+    cut = getattr(_tl, "cut", None)
+    if cut is not None and df is not None and "time" in df:
+        t = pd.to_datetime(df["time"], utc=True).dt.tz_convert(None)
+        df = df[(t < cut).to_numpy()]
+    return df
+
+
+def _ds_raw(name: str) -> pd.DataFrame | None:
     if not OFFLINE and name in store.REGISTRY:
         try:
             return store.get(name)
@@ -95,6 +109,16 @@ def _ds(name: str) -> pd.DataFrame | None:
         except Exception:  # noqa: BLE001
             return None
     return None
+
+
+def truncated_build(cut: pd.Timestamp) -> pd.DataFrame:
+    """Feature store ricostruito come se oggi fosse `cut` (tutte le sorgenti troncate): serve a verificare che la riga
+    di un giorno non dipenda da dati successivi. Thread-safe (il troncamento vale solo per il thread chiamante)."""
+    _tl.cut = pd.Timestamp(cut)
+    try:
+        return build()
+    finally:
+        _tl.cut = None
 
 
 def _daily(df: pd.DataFrame | None, cols, how="last") -> pd.DataFrame | None:

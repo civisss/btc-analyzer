@@ -144,6 +144,7 @@ interface UsdtAnalysis {
 
 // ---------------------------------------------------------------- FORECAST + AI (routers: forecast.py, ai.py)
 // GET /api/forecast?horizon=90   (horizon 7..365) — v2 additions documented in "## FORECAST" below
+// GET /api/forecast/oneday       — 1-day out-of-sample forecast vs naive, see "## FORECAST 1 DAY" below
 interface Forecast {
   horizon: number; generated_at: T; last_price: number;
   history: Pt[];                                                     // last ~365 daily closes
@@ -1006,6 +1007,63 @@ ranges, change %, P(up), weights, backtest hit/MASE/coverage); evaluation tables
 `ensemble` vs `rw0`/`previous`, `summary`, `skill_vs_naive`), by regime and `cycle_by_cycle`; reliability diagram from `calibration`;
 drivers bar chart (`drivers["30"].top`, with `lgb_weight`); regime badge; training status / `model_trained_at`. Always show the caveat
 that 180/365-day results rest on ~3 past cycles with overlapping windows.
+
+## FORECAST 1 DAY (router: forecast.py, engine: app/analysis/forecast_oneday.py, tests: backend/tests/test_forecast_oneday.py)
+Honest one-step-ahead forecast ("real vs predicted" chart) evaluated against the naive "tomorrow = today".
+- Inputs: the forecast v2 feature store (88 PIT features), CLOSED daily candles only (today's partial row dropped). Targets: A = log(close[t+1]/close[t]);
+  B = log(mid[t+1]/close[t]), mid = (H+L)/2 Binance 1d (B trained from 2017-08-18). Price forecast = today's price × exp(predicted return).
+- Model: LightGBM quantile (q05..q95, vol-normalised target, v2 tuned params), expanding-window walk-forward, MONTHLY refit (rows with target realised
+  by the 1st of the month), out-of-sample origins from 2019-01-01. Tomorrow's forecast uses the current month's model (same as the backtest).
+- Bands: split-conformal relative CQR on the last 1095 realised OOS errors; P(up) Platt-calibrated on past forecasts only (1460-day window).
+- Baselines: naive (close_t), historical mean drift (expanding); for the mid target also naive mid_t (MASE scale) and naive close_t (stricter benchmark).
+- CryptoPredictions replica (demo, reimplemented): 4 input days (their window_size 5: last day = target) × [open, high, low, close, volume, RSI14(SMA),
+  MACD12/26 on mid, mid], first 100 rows dropped, target = next-day mid as a LEVEL, sklearn RandomForest 1000 trees (random_state 42), train/valid
+  dates from their config (train 2018-10-20→2021-11-10, valid 2021-11-10→2023-01-16); after valid the frozen model continues (shows the level cap).
+- Metrics (errors in log ≈ %): MAE (USD), MAPE, MASE = mean|e| / mean|e_naive| on the same days, direction (|pred change| > 0.01%, binomial p vs 50%
+  and vs "always up"), corr of returns and of prices, coverage 50/90, Diebold-Mariano (abs loss, HLN, two-sided) vs naive, Brier skill of P(up).
+  Verdict codes: edge (MASE<0.97 & DM p<0.05) · small_edge (MASE<1 & p<0.05) · no_edge · worse (p<0.05) · worse_ns · baseline. Mid model verdict uses
+  the naive close benchmark (`mase_vs_close`, `dm_p_vs_close`).
+- Leakage check (every run + tests): structural (each model's last training target ≤ forecast origin), point-in-time feature rebuild with every source
+  truncated at the forecast day (`forecast_features.truncated_build`, thread-local) must equal the full-history row; replica train/valid no overlap.
+- Cache: incremental raw OOS `forecast_oneday_oos.parquet`, series `forecast_oneday_series.parquet`, meta `forecast_oneday.json` (atomic writes via
+  store). Recomputed when a new UTC day is closed (20 min after 00:00 UTC), checked every 10 min and on requests; first run ≈ 1 min, then seconds.
+  503 only before the first result. Payload ≈ 300 KB. Forecast agent adds a sober finding (tone neutral) with tomorrow's value and the verdict.
+
+```ts
+type VerdictCode = 'edge' | 'small_edge' | 'no_edge' | 'worse' | 'worse_ns' | 'baseline' | 'n_a'
+interface OneDayMetrics {
+  n: number; mae?: number; mape?: number; rmse_pct?: number; mase?: N; bias_pct?: number; corr_price?: N; corr_ret?: N
+  n_dir?: number; hit_rate?: N; always_up?: N; p_dir?: N; p_dir_vs_up?: N; share_up_calls?: N; dm_stat?: N; dm_p?: N
+  mase_vs_close?: N; dm_stat_vs_close?: N; dm_p_vs_close?: N          // mid target only
+  coverage_50?: number; coverage_90?: number; width_50?: number; width_90?: number; brier?: number; brier_skill?: N   // model rows
+  verdict: { code: VerdictCode; mase?: N; dm_p?: N; benchmark?: 'naive' | 'naive_close'; direction_significant?: boolean; direction_beats_always_up?: boolean }
+}
+// GET /api/forecast/oneday
+interface ForecastOneDay {
+  version: 1; generated_at: T; data_day: string                       // last closed UTC day used
+  tomorrow: { origin: T; target: T; closes_at: T; ref_price: number; median: number; p05: number; p25: number; p75: number; p95: number
+              change_pct: number; up_prob: number /* calibrated % */; up_prob_raw: number; mid: { median: number; p05: number; p95: number }
+              drift_price: number; naive_price: number; live_price: N; live_change_pct: N; live_in_band: '50' | '90' | 'out' | null }
+  series: { t: T[] /* target day */; close: N[]; ref: N[] /* close at origin = naive */; model: N[]; p05: N[]; p25: N[]; p75: N[]; p95: N[]
+            up: N[]; drift: N[]; mid: N[]; ref_mid: N[]; model_mid: N[]; replica: N[]; replica_valid: boolean[]; live: boolean[] }   // columnar, USD
+  evaluation: Record<'d90' | 'y1' | 'all' | 'repo', { from: T; to: T
+    close: Record<'model' | 'naive' | 'drift', OneDayMetrics>; mid: Record<'model' | 'naive' | 'naive_close' | 'replica', OneDayMetrics> }>
+  periods: { repo: { from: T; to: T } }
+  replica: { url: string; window_size: number; train_start: string; train_end: string; valid_start: string; valid_end: string; features: string[]
+             n_estimators: number; train_rows: number; train_from: T; train_to: T; valid_from: T; valid_to: T; valid_rows: number
+             train_max_price: number; no_overlap: boolean }
+  leakage: { structural_violations: number; rows: number; min_gap_days: number; max_gap_days: number; replica_no_overlap: boolean; passed: boolean
+             point_in_time: { passed: boolean | null; dates: { date: T; compared: number; mismatch: string[]; nan_mismatch: string[]; max_rel_diff: number; close_equal: boolean }[] } }
+  live_from: T | null                                                  // first forecast recorded in real time (earlier = backtest)
+  n_refits: number
+  settings: { oos_start: T; dir_eps_pct: number; conformal_window: number; platt_window: number; n_features: number; refit: 'monthly'; window: 'expanding'
+              train_start_close: string; train_start_mid: T }
+  training: { status: 'ready' | 'training' | 'error'; progress: string | null; error: string | null; trained_at: T | null; data_day: string | null
+              seconds: Record<string, number>; started_at: T | null }
+}
+// Frontend: src/api/forecastOneDay.ts (useForecastOneDay, key ['forecast','oneday']), src/widgets/forecastOneDay.tsx,
+// src/pages/ForecastOneDayTab.tsx — tab /previsioni?tab=oneday (default tab "percorso" = forecast v2).
+```
 
 ## TRACKING (module: app/tracking.py, router: tracking.py)
 Persistent prediction ledger `backend/data/tracking_ledger.parquet` (one row per prediction). `record_snapshot()` (idempotent: id =

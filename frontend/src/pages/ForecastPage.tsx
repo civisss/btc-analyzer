@@ -2,8 +2,11 @@ import { useMemo, useState } from 'react'
 import { CalendarClock, Compass, Gauge, GitCompareArrows, History, Layers, LineChart, ShieldCheck, Sigma, Spline, Target, TrendingUp, Waypoints } from 'lucide-react'
 import { useForecastV2, type EvalModelKey, type ForecastMetrics, type ForecastV2 } from '../api/forecastV2'
 import {
-  Badge, Card, CardBody, CardHeader, Change, Fill, KpiCell, KpiStrip, MethodNote, PageTitle, ProgressBar, Q, Section, Segmented, Skeleton, Toggle, ToneBadge, clsx,
+  Badge, Card, CardBody, CardHeader, Change, Fill, KpiCell, KpiStrip, MethodNote, PageTitle, ProgressBar, Q, Section, Segmented, Skeleton, TabBar, Toggle, ToneBadge, clsx,
 } from '../components/ui'
+import { useForecastOneDay, type ForecastOneDay } from '../api/forecastOneDay'
+import { useTab } from '../lib/useTab'
+import ForecastOneDayTab from './ForecastOneDayTab'
 import { CalibrationChart, DriverBars, ForecastPathChart, MEMBER_COLOR, MEMBER_ORDER, MEMBER_SHORT, WeightsByHorizon, cycleColor } from '../widgets/forecast'
 import { cap, t } from '../i18n'
 import { date, dateTime, dayUnit, usd, usdCompact } from '../lib/format'
@@ -463,15 +466,44 @@ function TrainingChip({ d }: { d: ForecastV2 }) {
   )
 }
 
-export default function ForecastPage() {
+function OneDayChip({ d }: { d: ForecastOneDay }) {
+  const tr = d.training
+  const color = tr.status === 'ready' ? 'bg-up' : tr.status === 'training' ? 'bg-amber-400 animate-pulse' : 'bg-down'
+  const label = tr.status === 'training' ? t('Aggiornamento in corso{p}', { p: tr.progress ? ` · ${tr.progress}` : '' })
+    : tr.status === 'error' ? t('Errore di aggiornamento: {e}', { e: tr.error ?? '—' })
+      : t('Dati fino al {d} · aggiornato {t}', { d: date(new Date(`${d.data_day}T00:00:00Z`).getTime() / 1000), t: dateTime(tr.trained_at) })
+  return (
+    <span className="inline-flex h-8 max-w-full items-center gap-2 truncate rounded-lg border border-line px-3 text-xs text-slate-300" title={t('Ricalcolo una volta al giorno dopo la chiusura UTC')}>
+      <span className={clsx('h-1.5 w-1.5 shrink-0 rounded-full', color)} /><span className="truncate">{label}</span>
+    </span>
+  )
+}
+
+const TABS = [{ value: 'percorso', label: 'Percorso a 12 mesi' }, { value: 'oneday', label: 'Previsione a 1 giorno' }] as const
+type Tab = (typeof TABS)[number]['value']
+
+function PathTab() {
   const q = useForecastV2()
   return (
+    <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[560px]" /><Skeleton className="h-60" /></div>} isEmpty={(d) => !d.path?.length}>
+      {(d) => <Body d={d} updatedAt={q.dataUpdatedAt} />}
+    </Q>
+  )
+}
+
+export default function ForecastPage() {
+  const [tab, setTab] = useTab<Tab>(TABS.map((x) => x.value), 'percorso')
+  const q = useForecastV2(tab === 'percorso')     // shared cache with PathTab (same query key)
+  const q1 = useForecastOneDay(tab === 'oneday')
+  return (
     <div>
-      <PageTitle title={t('Previsioni')} subtitle={t('Percorso di prezzo a 12 mesi dalla posizione nel ciclo attuale e da come si sono mossi i cicli passati.')}
-        right={q.data?.training ? <TrainingChip d={q.data} /> : undefined} />
-      <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[560px]" /><Skeleton className="h-60" /></div>} isEmpty={(d) => !d.path?.length}>
-        {(d) => <Body d={d} updatedAt={q.dataUpdatedAt} />}
-      </Q>
+      <PageTitle title={t('Previsioni')}
+        subtitle={tab === 'oneday'
+          ? t('Prezzo di domani previsto fuori campione e confrontato onestamente con il naive "domani = oggi".')
+          : t('Percorso di prezzo a 12 mesi dalla posizione nel ciclo attuale e da come si sono mossi i cicli passati.')}
+        right={tab === 'oneday' ? (q1.data?.training ? <OneDayChip d={q1.data} /> : undefined) : (q.data?.training ? <TrainingChip d={q.data} /> : undefined)} />
+      <TabBar tabs={TABS.map((x) => ({ value: x.value, label: t(x.label) }))} value={tab} onChange={setTab} />
+      {tab === 'oneday' ? <ForecastOneDayTab /> : <PathTab />}
     </div>
   )
 }
