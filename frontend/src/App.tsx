@@ -27,6 +27,9 @@ const AlertsPage = lazy(() => import('./pages/AlertsPage'))
 const JournalPage = lazy(() => import('./pages/JournalPage'))
 const SupplyDemandPage = lazy(() => import('./pages/SupplyDemandPage'))
 const VwapPage = lazy(() => import('./pages/VwapPage'))
+const TimingPage = lazy(() => import('./pages/TimingPage'))
+const SuperchartPage = lazy(() => import('./pages/SuperchartPage'))
+const OrderBookPage = lazy(() => import('./pages/OrderBookPage'))
 
 class Boundary extends Component<{ children: ReactNode }, { err: Error | null }> {
   state = { err: null as Error | null }
@@ -81,6 +84,9 @@ export default function App() {
         <Route path="struttura" element={page(<StructurePage />)} />
         <Route path="eventi" element={page(<EventsPage />)} />
         <Route path="astronomia" element={page(<AstroPage />)} />
+        <Route path="timing" element={page(<TimingPage />)} />
+        <Route path="superchart" element={page(<SuperchartPage />)} />
+        <Route path="orderbook" element={page(<OrderBookPage />)} />
         <Route path="affidabilita" element={page(<TrackRecordPage />)} />
         <Route path="posizionamento" element={page(<PositioningPage />)} />
         <Route path="avvisi" element={page(<AlertsPage />)} />

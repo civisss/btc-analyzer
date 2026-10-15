@@ -272,6 +272,9 @@ INVALIDATES: dict[str, list[str]] = {
     "agg_leverage": ["/derivatives/aggregate"],
     "analyst": ["/insights", "/agents"],
     "vwap": ["/vwap"],
+    "timing": ["/timing"],
+    "anomalies": ["/anomalies", "/superchart/series"],
+    "orderbook": ["/orderbook/status", "/orderbook/signals"],
 }
 
 
@@ -587,9 +590,53 @@ class AnalogsAgent(Agent):
     """Analogie storiche soprattutto grafiche (forma, candele, gambe, figure) su 4H e 1D."""
 
     def compute(self):
-        return {"h4": _call("analogs", "build", tf="4h", top=5), "d1": _call("analogs", "build", tf="1d", top=5)}
+        out = {"h4": _call("analogs", "build", tf="4h", top=5), "d1": _call("analogs", "build", tf="1d", top=5)}
+        try:  # analogia di struttura (sequenza di massimi/minimi ZigZag) su BTC e USDT.D giornalieri
+            out["struct"] = {a: _call("struct_analogs", "build", asset=a, tf="1d") for a in ("btc", "usdtd")}
+        except Exception as e:  # noqa: BLE001
+            log.warning("analogia di struttura non disponibile: %s", e)
+        return out
+
+    async def _structure(self, st: dict) -> None:
+        """Finding sobrio: prossimi pivot strutturali (mediana dei top-N, P25–P75) + verdetto del backtest walk-forward."""
+        import pandas as pd
+
+        from ..analysis.structure import dit_short
+        verdict_it = {"strong": "significativo", "weak": "debole", "none": "nessun vantaggio sulle baseline", "anecdotal": "aneddotico (pochi casi)"}
+        for asset, name in (("btc", "BTC"), ("usdtd", "USDT.D")):
+            d = (st or {}).get(asset) or {}
+            pr = (d.get("projection") or {}).get("pivots") or []
+            bt = d.get("backtest") or {}
+            if not pr or not bt.get("n"):
+                continue
+            p1 = pr[0]
+            kind = "massimo" if p1["kind"] == "high" else "minimo"
+            if asset == "btc":
+                lvl = f"{_usd(p1['price'])} (P25–P75 {_usd(p1['lo'])}–{_usd(p1['hi'])})"
+            else:
+                b = p1.get("btc") or {}
+                tr = d.get("translation") or {}
+                lvl = (f"{p1['price']:.2f}% (P25–P75 {p1['lo']:.2f}–{p1['hi']:.2f}%)"
+                       + (f", per BTC ≈ {_usd(b.get('price'))} (relazione swing per swing {'debole' if tr.get('strength') == 'weak' else 'moderata' if tr.get('strength') == 'moderate' else 'forte'}, R² {tr.get('r2', 0):.2f}"
+                          + ("; nel backtest la traduzione non batte «BTC invariato»" if ((bt.get("btc") or {}).get("mase") or 9) >= 1 else "") + ")" if b else ""))
+            when = "già toccato" if p1.get("reached") else f"verso {dit_short(pd.Timestamp(p1['t_lo'], unit='s'))}–{dit_short(pd.Timestamp(p1['t_hi'], unit='s'))}"
+            m, bm = bt["model"], bt["base_median"]
+            v = bt.get("verdict", "none")
+            text = (f"{name} 1D, struttura degli ultimi {d['k']} swing (ZigZag {d['mult']}×ATR): prossimo pivot atteso {kind} {p1['label']} a {lvl}, {when}; "
+                    f"mediana di {d['projection']['n']} analoghi. Backtest walk-forward su {bt['n']} casi: etichetta corretta {m['hit']:.0f}% "
+                    f"(baseline {bm['hit']:.0f}%), errore di prezzo mediano {m['err_med']:.1f}% (baseline {bm['err_med']:.1f}%): verdetto {verdict_it.get(v, v)}. "
+                    "Ipotesi di studio, non un segnale.")
+            up = p1["change"] > 0 if asset == "btc" else p1["change"] < 0
+            tone = ("bullish" if up else "bearish") if v in ("strong", "weak") else "neutral"
+            self.finding(Finding(f"Struttura {name} 1D", text, tone, {"strong": 60, "weak": 45}.get(v, 30)))
+            await self.say(f"analogs.structure.{asset}", text, tone=tone,
+                           data={"asset": asset, "tf": "1d", "next": {"kind": p1["kind"], "label": p1["label"], "price": p1["price"],
+                                                                     "lo": p1["lo"], "hi": p1["hi"], "t_lo": p1["t_lo"], "t_hi": p1["t_hi"]},
+                                 "verdict": v, "n": bt["n"]})
 
     async def act(self, r):
+        if r.get("struct"):
+            await self._structure(r["struct"])
         for key, label in (("h4", "4H"), ("d1", "1D")):
             a = r[key]
             ms = a.get("matches") or []
@@ -985,6 +1032,114 @@ class AstroAgent(Agent):
                                  f"{ASTRO_VERDICT_IT.get(u.get('verdict') or 'none')}.", "neutral", 50))
 
 
+TIMING_TYPE_IT = {"c30": "30 giorni", "c45": "45 giorni", "c60": "60 giorni", "c90": "90 giorni", "c120": "120 giorni", "c144": "144 giorni",
+                  "c180": "180 giorni", "c270": "270 giorni", "c360": "360 giorni", "c_mult": "multipli lunghi", "sq9": "quadrato del 9",
+                  "yeardiv": "divisione dell'anno", "anniv": "anniversario", "seasonal": "data stagionale"}
+TIMING_EVENT_IT = {"PS": "PS", "SC": "SC (selling climax)", "AR_A": "AR", "ST_A": "ST", "SPRING": "Spring", "TEST": "test dello Spring",
+                   "SOS": "SOS (sign of strength)", "LPS": "LPS", "BRK_DN": "rottura al ribasso", "PSY": "PSY", "BC": "BC (buying climax)",
+                   "AR_D": "AR", "ST_D": "ST", "UT": "UT", "UTAD": "UTAD", "SOW": "SOW (sign of weakness)", "LPSY": "LPSY", "BRK_UP": "rottura al rialzo"}
+TIMING_SIDE_IT = {"acc": "accumulazione", "dist": "distribuzione"}
+
+
+def _art_it(d: str) -> str:
+    from ..util import art
+    return art(d, "il")
+TIMING_VERDICT_IT = {"none": "nessun vantaggio rispetto al caso", "weak": "effetto debole (non regge alla correzione per test multipli)",
+                     "strong": "effetto significativo e stabile", "anecdotal": "casi troppo pochi per un giudizio"}
+
+
+class TimingAgent(Agent):
+    """Timing Gann · Wyckoff · ritmi: date chiave imminenti con il loro track record, eventi e fasi di Wyckoff, ritmi solo se significativi."""
+
+    def finding(self, f: Finding) -> None:
+        """Una sola voce per titolo (i numeri cambiano a ogni giro: si aggiorna la voce invece di accodarne di nuove)."""
+        for i, x in enumerate(list(self.findings)):
+            if x["title"] == f.title:
+                del self.findings[i]
+                break
+        self.findings.appendleft(f.as_dict())
+
+    def compute(self):
+        out = {"o": _call("timing", "build_overview")}
+        rh = {}
+        for kind in ("weekday", "hour"):
+            try:
+                rh[kind] = _call("timing", "build_rhythms", kind=kind)
+            except Exception as e:  # noqa: BLE001
+                log.info("timing ritmi %s: %s", kind, e)
+        out["rh"] = rh
+        return out
+
+    async def act(self, r):
+        o = r["o"]
+        g = o.get("gann") or {}
+        v = g.get("verdicts") or {}
+        n_types = sum(v.values())
+        summary = (f"Conteggi di Gann verificati su {n_types} tipi (pivot a 10 giorni entro ±2 g, dal 2012): "
+                   + (f"{v.get('strong', 0)} con effetto significativo e stabile, " if v.get("strong") else "nessuno con effetto significativo e stabile, ")
+                   + f"{v.get('weak', 0)} deboli.")
+        self.finding(Finding("Verdetto dei conteggi di Gann", summary, "neutral", 70))
+        # ---- data chiave entro 3 giorni
+        nxt = g.get("next")
+        win = (g.get("params") or {}).get("win", 2)
+        for u in (g.get("upcoming") or []):
+            if 0 <= u["days_away"] <= 3 and u["score"] >= 2:
+                types = ", ".join(TIMING_TYPE_IT.get(x, x) for x in u["types"])
+                when = "oggi" if u["days_away"] == 0 else "domani" if u["days_away"] == 1 else f"tra {u['days_away']} giorni"
+                hr, br = u.get("hist_hit_rate"), u.get("hist_base_rate")
+                msg = f"Data chiave Gann {when} ({util_data(u['time'])}, finestra ±{win} g): {u['score']} conteggi in confluenza ({types}). "
+                if hr is not None and br is not None:
+                    msg += (f"Storicamente le date con questo punteggio hanno avuto un pivot a 10 giorni nella finestra nel {hr:.0f}% dei casi "
+                            f"contro il {br:.0f}% di un giorno qualsiasi: {TIMING_VERDICT_IT.get(u.get('hist_verdict') or 'none', TIMING_VERDICT_IT['none'])}.")
+                await self.say("timing.key_date", msg, data={"time": u["time"], "score": u["score"], "verdict": u.get("hist_verdict")})
+                break
+        if nxt:
+            self.finding(Finding("Prossima data chiave", f"{util_data(nxt['time'])}: punteggio {nxt['score']} ({', '.join(TIMING_TYPE_IT.get(x, x) for x in nxt['types'])}); "
+                                 f"hit rate storico {nxt.get('hist_hit_rate') or 0:.0f}% contro {nxt.get('hist_base_rate') or 0:.0f}% per caso.", "neutral", 50))
+        # ---- Wyckoff: cambi di fase ed eventi nuovi
+        for tf, w in (o.get("wyckoff") or {}).items():
+            a = w.get("active")
+            tfl = "1D" if tf == "1d" else "4H"
+            if not a:
+                key = (tf, None, None, None)
+                if self.state.get(f"wy_{tf}") not in (None, key):
+                    lc = w.get("last_closed") or {}
+                    await self.say(f"timing.wyckoff.{tf}", f"Wyckoff {tfl}: il range di {TIMING_SIDE_IT.get(lc.get('side'), '')} si è chiuso "
+                                   f"({'rottura nella direzione attesa' if lc.get('status') in ('up', 'down') else 'range fallito o scaduto'}); nessun range attivo.")
+                self.state[f"wy_{tf}"] = key
+                continue
+            le = a.get("last_event") or {}
+            key = (tf, a["side"], a["phase"], (le.get("key"), le.get("time")))
+            if self.state.get(f"wy_{tf}") != key:
+                msg = (f"Wyckoff {tfl}: {TIMING_SIDE_IT[a['side']]} in fase {a['phase']} (range ${a['low']:,.0f}–${a['high']:,.0f}); "
+                       f"ultimo evento {TIMING_EVENT_IT.get(le.get('key'), le.get('key'))} {_art_it(util_data(le.get('time')))} a ${le.get('price') or 0:,.0f}.")
+                st = w.get("stat")
+                if st and st.get("n") and st.get("mean") is not None:
+                    msg += (f" Dopo un {TIMING_EVENT_IT.get(st['key'], st['key'])} {tfl} BTC ha fatto in media {st['mean']:+.1f}% a 10 giorni "
+                            f"(n={st['n']}, {TIMING_VERDICT_IT.get(st.get('verdict') or 'none')}).")
+                await self.say(f"timing.wyckoff.{tf}", msg, data={"side": a["side"], "phase": a["phase"], "event": le.get("key")})
+                self.state[f"wy_{tf}"] = key
+                self.finding(Finding(f"Wyckoff {tfl}", msg, "neutral", 50))
+        # ---- ritmi: solo se significativi dopo la correzione
+        sig = []
+        for kind, res in (r.get("rh") or {}).items():
+            for row in res.get("rows") or []:
+                if row.get("verdict") == "strong":
+                    sig.append((kind, row))
+        if sig:
+            kind, row = sig[0]
+            lab = (["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"][row["bucket"]] if kind == "weekday"
+                   else f"le {row['bucket']:02d}:00 UTC")
+            await self.say("timing.rhythm", f"Ritmo di calendario significativo dopo la correzione per test multipli: {lab} "
+                           f"(rendimento medio {row['mean']:+.3f}%, {row['diff']:+.3f} punti rispetto alle altre caselle, p corretto {row['p_bh']:.3f}, stabile negli anni).",
+                           data={"kind": kind, "bucket": row["bucket"]})
+        rc = (o.get("rhythm") or {}).get("close") or {}
+        full = rc.get("full") or {}
+        if full.get("n"):
+            self.finding(Finding("Pump inizio · dump metà · pump fine", f"Mese in tre parti (chiusure, dal 2017): lo schema appare nel {full.get('rate') or 0:.1f}% dei mesi "
+                                 f"contro il {full.get('null') or 0:.1f}% atteso per caso; {TIMING_VERDICT_IT.get(rc.get('verdict') or 'none')}.", "neutral", 60))
+
+
 class VerifierAgent(Agent):
     """Track record: confronta le previsioni degli agenti con la realtà e calcola l'affidabilità di ciascuno."""
 
@@ -1372,6 +1527,159 @@ class VwapAgent(Agent):
                 await self.say("vwap.confluence", text, data={"mid": c["mid"], "members": c["members"]})
 
 
+ANOM_TYPE_IT = {"funding": "funding Binance", "oi": "open interest Bybit", "liq_long": "liquidazioni long", "liq_short": "liquidazioni short",
+                "volume": "volume spot", "etf": "flussi ETF spot", "exchange": "flussi netti degli exchange"}
+ANOM_PHRASE_IT = {"funding_up": "funding Binance molto alto", "funding_dn": "funding Binance molto basso",
+                  "oi_up": "open interest Bybit in forte aumento", "oi_dn": "open interest Bybit in forte calo",
+                  "liq_long_up": "liquidazioni long eccezionali", "liq_short_up": "liquidazioni short eccezionali", "volume_up": "volume spot eccezionale",
+                  "etf_up": "afflussi eccezionali negli ETF spot", "etf_dn": "deflussi eccezionali dagli ETF spot",
+                  "exchange_up": "afflussi netti eccezionali verso gli exchange", "exchange_dn": "deflussi netti eccezionali dagli exchange"}
+ANOM_VERDICT_IT = {"strong": "differenza significativa anche dopo la correzione per test multipli",
+                   "weak": "differenza che non regge alla correzione per test multipli",
+                   "none": "nessuna differenza distinguibile dal caso", "anecdotal": "casi troppo pochi per un giudizio"}
+
+
+def _anom_value(ev: dict) -> str:
+    v, u = ev.get("value") or 0, ev.get("unit")
+    if u == "pct_8h":
+        return f"{v:+.4f}%/8h"
+    if u == "musd":
+        return f"{v:+,.0f}M$"
+    if u == "usd":
+        return _usd(v)
+    if ev.get("type") == "oi":
+        return f"{ev.get('x') or 0:+.1f}% in un giorno"
+    return f"{v:+,.0f} BTC" if ev.get("type") == "exchange" else f"{v:,.0f} BTC"
+
+
+class AnomalyAgent(Agent):
+    """Anomalie: z robusto point-in-time su funding, OI, liquidazioni, volume, flussi ETF ed exchange; annuncia le nuove
+    con il backtest storico del loro tipo (descrittivo: nessun segnale)."""
+
+    def compute(self):
+        return {"a": _call("superchart", "build_anomalies")}
+
+    async def act(self, r):
+        a = r["a"]
+        rows = {x["id"]: x for x in a.get("types") or []}
+        recent = sorted(a.get("recent") or [], key=lambda e: e["time"])
+        seen: set = self.state.setdefault("seen", set())
+        first = not self.state.get("init")
+        now = _now()
+        for ev in recent:
+            key = f"{ev['id']}:{ev['time']}"
+            if key in seen:
+                continue
+            seen.add(key)
+            if first and ev.get("avail", 0) < now - 2 * 86400:
+                continue                      # primo giro: solo le anomalie appena pubblicate, niente arretrati
+            row = rows.get(ev["id"]) or {}
+            h7 = next((c for c in row.get("horizons") or [] if c.get("h") == 7), None)
+            msg = f"Anomalia: {ANOM_PHRASE_IT.get(ev['id'], ev['id'])} {_art_it(util_data(ev['time']))} ({_anom_value(ev)}, z {ev['z']:+.1f})."
+            if h7 and h7.get("n"):
+                rt, vo = h7["ret"], h7["vol"]
+                msg += (f" Su {h7['n']} casi storici dello stesso tipo, BTC a 7 giorni ha fatto in media {rt['mean']:+.1f}% "
+                        f"contro {rt['base']:+.1f}% di un giorno qualsiasi ({ANOM_VERDICT_IT.get(rt['verdict'], rt['verdict'])}); "
+                        f"movimento assoluto medio {vo['mean']:.1f}% contro {vo['base']:.1f}% ({ANOM_VERDICT_IT.get(vo['verdict'], vo['verdict'])}).")
+            else:
+                msg += " Storico insufficiente per un backtest di questo tipo."
+            await self.say(f"anomalies.{ev['type']}", msg, data={"id": ev["id"], "time": ev["time"], "z": ev["z"], "verdict": row.get("verdict")})
+        self.state["init"] = True
+        sig = [ANOM_TYPE_IT.get(x["type"], x["type"]) + (" (+)" if x["sign"] > 0 else " (−)") for x in rows.values() if x.get("verdict") == "strong"]
+        p = a.get("params") or {}
+        text = (f"{len(recent)} anomalie negli ultimi {p.get('recent_days', 30)} giorni (|z| ≥ {p.get('thr', 3):g}, finestra {p.get('window', 90)} giorni). "
+                + (f"Tipi con un effetto storico significativo dopo la correzione: {', '.join(sig)}." if sig
+                   else "Nessun tipo mostra un effetto storico significativo dopo la correzione per test multipli."))
+        self.finding(Finding("Anomalie recenti", text, "neutral", 55))
+        if recent:
+            ev = recent[-1]
+            self.finding(Finding("Ultima anomalia", f"{(lambda x: x[:1].upper() + x[1:])(ANOM_PHRASE_IT.get(ev['id'], ev['id']))} {_art_it(util_data(ev['time']))} (z {ev['z']:+.1f}).", "neutral", 50))
+
+
+class OrderBookAgent(Agent):
+    """Order book Binance USDⓈ-M BTCUSDT (collector app/ob_collector.py): descrive muri, ritiri, squilibri e divergenze delta/CVD.
+
+    Soglie dichiarate: muro = bucket da $10 ≥ k × mediana dei bucket entro ±1% (k = 5, min 2 BTC, ≥ 20 s); ritiro prima del tocco =
+    muro sceso sotto il 30% del massimo con prezzo entro 0,15% e senza scambi a quel livello; squilibrio persistente = quota bid
+    entro ±0,5% media > 60% (o < 40%) con > 80% dei campioni dello stesso lato negli ultimi 15 min; divergenza = prezzo ±0,2% in
+    un'ora con CVD di segno opposto e ≥ 10% del volume. Tono sempre neutrale: la liquidità visibile non rivela intenzioni.
+    """
+
+    def finding(self, f: Finding) -> None:
+        for i, x in enumerate(list(self.findings)):
+            if x["title"] == f.title:
+                del self.findings[i]
+                break
+        self.findings.appendleft(f.as_dict())
+
+    def compute(self):
+        return {"sig": _call("orderbook", "build_signals", market="futures")}
+
+    async def act(self, r):
+        s = r["sig"]
+        if not s.get("synced") or not s.get("mid"):
+            self.finding(Finding("Stato del book", "Book Binance perpetual in sincronizzazione: nessuna lettura finché snapshot e diff stream non sono allineati.", "neutral", 40))
+            return
+        rule = s.get("wall_rule") or {}
+        walls = s.get("walls") or []
+        bid = min((w for w in walls if w["side"] == "bid"), key=lambda w: abs(w["dist_pct"]), default=None)
+        ask = min((w for w in walls if w["side"] == "ask"), key=lambda w: abs(w["dist_pct"]), default=None)
+        thr = rule.get("threshold")
+        if bid or ask:
+            parts = []
+            if bid:
+                parts.append(f"bid a ${bid['price']:,.0f} ({bid['q']:.0f} BTC, {bid['dist_pct']:+.2f}%)")
+            if ask:
+                parts.append(f"ask a ${ask['price']:,.0f} ({ask['q']:.0f} BTC, {ask['dist_pct']:+.2f}%)")
+            text = (f"Muri di liquidità più vicini entro ±1%: {' e '.join(parts)}. Soglia: {rule.get('k', 5):g}× la mediana dei livelli "
+                    f"(ora {thr or 0:.0f} BTC per bucket da $10). Liquidità visibile, può essere spostata in ogni momento.")
+            self.finding(Finding("Muri di liquidità", text, "neutral", 55))
+            key = (bid and bid["price"], ask and ask["price"])
+            # i muri vicini cambiano spesso: al team al massimo ogni 15 minuti (il finding resta sempre aggiornato)
+            if self.state.get("walls_key") != key and time.time() - self.state.get("walls_said", 0) >= 900:
+                self.state["walls_key"] = key
+                self.state["walls_said"] = time.time()
+                await self.say("orderbook.walls", text, data={"bid": bid, "ask": ask, "threshold": thr})
+        else:
+            self.finding(Finding("Muri di liquidità", f"Nessun livello entro ±1% supera la soglia ({rule.get('k', 5):g}× la mediana, ora {thr or 0:.0f} BTC).", "neutral", 50))
+        # liquidità ritirata prima del tocco: riassunto 30 min + annuncio dei ritiri grandi (≥ 2× soglia) appena avvenuti
+        evs = s.get("events") or []
+        pulled = [e for e in evs if e["kind"] == "pulled"]
+        consumed = [e for e in evs if e["kind"] == "consumed"]
+        self.finding(Finding("Muri spariti (30 min)", f"{len(pulled)} ritirati prima del tocco e {len(consumed)} consumati dagli scambi vicino al prezzo. "
+                             "Un ritiro è un fatto osservabile, non un'accusa: gli ordini vengono spostati per molti motivi.", "neutral", 50))
+        last_t = self.state.get("pulled_t", time.time() - 300)
+        big = [e for e in pulled if e["t"] > last_t and thr and e["qmax"] >= 2 * thr]
+        if big and time.time() - self.state.get("pulled_said", 0) >= 300:
+            e = max(big, key=lambda x: x["qmax"])
+            self.state["pulled_t"] = max(x["t"] for x in big)
+            self.state["pulled_said"] = time.time()
+            await self.say("orderbook.pulled", f"Liquidità ritirata prima del tocco: muro {e['side']} da {e['qmax']:.0f} BTC a ${e['price']:,.0f} sceso a "
+                           f"{e['q']:.0f} BTC con il prezzo a {e['dist_pct']:.2f}% e quasi nessuno scambio a quel livello (durata {e['age_s']} s).",
+                           data={"price": e["price"], "side": e["side"], "qmax": e["qmax"]})
+        # squilibrio bid/ask persistente
+        im = s.get("imbalance")
+        if im:
+            side = im.get("persistent")
+            text = (f"Quota bid entro ±0.5% dal mid: {im['mean'] * 100:.1f}% in media negli ultimi {im['minutes']:.0f} min (ora {im['now'] * 100:.1f}%)"
+                    + (f"; squilibrio persistente lato {'bid' if side == 'bid' else 'ask'}." if side else "; nessuno squilibrio persistente."))
+            self.finding(Finding("Squilibrio bid/ask", text, "neutral", 50))
+            if side and self.state.get("imb_side") != side:
+                await self.say("orderbook.imbalance", text, data={"side": side, "mean": im["mean"]})
+            self.state["imb_side"] = side
+        # delta / CVD dell'ultima ora vs prezzo
+        cv = s.get("cvd")
+        if cv:
+            div = cv.get("divergence")
+            text = (f"Ultima ora: prezzo {cv['price_change_pct']:+.2f}%, CVD {cv['cvd']:+.0f} BTC su {cv['volume']:.0f} BTC scambiati in modo aggressivo"
+                    + ("; il prezzo sale mentre prevalgono le vendite aggressive (divergenza)." if div == "price_up_cvd_down" else
+                       "; il prezzo scende mentre prevalgono gli acquisti aggressivi (divergenza)." if div == "price_down_cvd_up" else "."))
+            self.finding(Finding("Delta e CVD", text, "neutral", 50))
+            if div and self.state.get("div") != div:
+                await self.say("orderbook.cvd", text, data={"divergence": div, "cvd": cv["cvd"], "price_change_pct": cv["price_change_pct"]})
+            self.state["div"] = div
+
+
 class ForecastAgent(Agent):
     def compute(self):
         out = {"f": _call("forecast", "get_forecast", horizon=90)}
@@ -1480,7 +1788,7 @@ class AnalystAgent(Agent):
 def build_team() -> list[Agent]:
     return [
         AnalystAgent("analyst", "Analista AI", "Orchestratore: raccoglie i report di tutti gli agenti, calcola il consenso e scrive la sintesi (LLM locale).",
-                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "vwap.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
+                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "vwap.", "timing.", "anomalies.", "orderbook.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
         MarketAgent("market", "Market Data", "Monitora prezzo, range 24h e sentiment in tempo reale e avvisa gli altri agenti dei movimenti.",
                     "Activity", "#f7931a", 5, subscribes=[], publishes=["market.price", "market.alert"]),
         LevelsAgent("levels", "Pivot & Livelli", "Calcola pivot (classici, Fibonacci, Camarilla), swing e zone di supporto/resistenza; verifica confluenze su richiesta.",
@@ -1502,7 +1810,7 @@ def build_team() -> list[Agent]:
                    publishes=["flows.divergence", "flows.spike", "flows.leverage", "request.liquidity"]),
         AnalogsAgent("analogs", "Analoghi grafici", "Trova nello storico i grafici più simili a quello attuale (forma, candele, gambe, figure) e spiega cosa corrisponde a cosa.",
                      "ScanSearch", "#e879f9", 120, subscribes=["pattern.projection"],
-                     publishes=["analogs.match", "analogs.pattern", "analogs.check"]),
+                     publishes=["analogs.match", "analogs.pattern", "analogs.check", "analogs.structure"]),
         TimePivotsAgent("timepivots", "Pivot temporali", "Individua le date in cui BTC ha reagito in modo ricorrente (stagionalità, tempi di ciclo, Fibonacci temporali, eventi) e avvisa quando si avvicinano.",
                         "CalendarClock", "#facc15", 600, subscribes=["cycle.phase"],
                         publishes=["timepivot.next", "timepivot.alert", "timepivot.check"]),
@@ -1530,6 +1838,8 @@ def build_team() -> list[Agent]:
                     "CalendarDays", "#94a3b8", 600, subscribes=[], publishes=["events.next", "events.soon"]),
         AstroAgent("astro", "Astronomia e numeri", "Calcola fasi lunari, eclissi, Mercurio retrogrado, ciclo solare e livelli numerici, li testa sullo storico di BTC contro il caso e annuncia gli eventi imminenti con il verdetto statistico.",
                    "MoonStar", "#9B87F5", 1800, subscribes=[], publishes=["astro.summary", "astro.soon"]),
+        TimingAgent("timing", "Timing Gann · Wyckoff", "Proietta i conteggi di Gann dai pivot maggiori, riconosce fasi ed eventi di Wyckoff su 1D/4H e verifica i ritmi di calendario: annuncia date chiave, eventi e ritmi sempre con il loro track record contro il caso.",
+                    "Hourglass", "#9B87F5", 600, subscribes=[], publishes=["timing.key_date", "timing.wyckoff.1d", "timing.wyckoff.4h", "timing.rhythm"]),
         VerifierAgent("verifier", "Verifica", "Registra le previsioni di ogni agente, le confronta con la realtà e calcola l'affidabilità usata dall'Analista per pesare i pareri.",
                       "BadgeCheck", "#4c8dff", 1800, subscribes=[], publishes=["verifier.summary"]),
         AlertsAgent("alerts", "Avvisi", "Motore delle notifiche: valuta soglie e cooldown, evita lo spam e invia i toast per gli eventi importanti.",
@@ -1556,6 +1866,11 @@ def build_team() -> list[Agent]:
                           "Layers", "#f97316", 300, subscribes=[], publishes=["agg_leverage.state"]),
         VwapAgent("vwap", "VWAP ancorati", "Calcola i VWAP settimanale, mensile, trimestrale e annuale (ancore UTC, bande ±σ) e i livelli del periodo precedente; segnala posizione del prezzo, cross e tocchi.",
                   "Anchor", "#3CC6B0", 60, subscribes=[], publishes=["vwap.position", "vwap.cross", "vwap.touch", "vwap.confluence"]),
+        AnomalyAgent("anomalies", "Anomalie", "Cerca valori anomali (z robusto senza dati futuri) in funding, open interest, liquidazioni, volume e flussi ETF/exchange e li annuncia con il backtest storico di cosa è successo dopo.",
+                     "Radar", "#E8B04B", 1800, subscribes=[], publishes=["anomalies.funding", "anomalies.oi", "anomalies.liq_long", "anomalies.liq_short",
+                                                                        "anomalies.volume", "anomalies.etf", "anomalies.exchange"]),
+        OrderBookAgent("orderbook", "Order book", "Legge il book Binance perpetual raccolto in tempo reale: muri di liquidità vicini al prezzo (soglia k× la mediana), liquidità ritirata prima del tocco, squilibri bid/ask persistenti e delta/CVD divergenti dal prezzo. Solo descrizione, nessun segnale operativo.",
+                       "Grid3x3", "#5B8DEF", 30, subscribes=[], publishes=["orderbook.walls", "orderbook.pulled", "orderbook.imbalance", "orderbook.cvd"]),
         ForecastAgent("forecast", "Previsioni ML", "Posizione nel ciclo + LightGBM + Monte Carlo, calibrati fuori campione: bande di probabilità da 7 a 365 giorni; previsione a 1 giorno confrontata con il naive.",
                       "TrendingUp", "#60a5fa", 600, subscribes=["pattern.projection.d1"], publishes=["forecast.targets", "forecast.check"]),
     ]
@@ -1574,7 +1889,7 @@ async def start() -> None:
         bus.agents[a.id] = a
     # avvio scaglionato: prima i produttori di dati, l'analista per ultimo
     order = {"market": 1, "derivatives": 3, "levels": 5, "liquidity": 8, "correlation": 11, "cycles": 14,
-             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "vwap": 4, "analyst": 66}
+             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "vwap": 4, "timing": 60, "anomalies": 50, "orderbook": 15, "analyst": 66}
     loop = asyncio.get_running_loop()
     for a in team:
         loop.create_task(a.inbox_loop())

@@ -25,7 +25,8 @@ const PATH_KEYS: [string, string[]][] = [
   ['/derivatives/aggregate', ['deriv-agg']],
   ['/derivatives', ['derivatives']],
   ['/flows', ['flows']],
-  ['/analogs', ['analogs']],
+  ['/analogs/structure', ['structAnalogs']],
+  ['/analogs', ['analogs', 'structAnalogs']],
   ['/timepivots', ['timepivots']],
   ['/macro', ['macro']],
   ['/stablecoins', ['stablecoins']],
@@ -44,6 +45,10 @@ const PATH_KEYS: [string, string[]][] = [
   ['/alerts', ['alerts']],
   ['/status', ['status']],
   ['/vwap', ['vwap']],
+  ['/timing', ['timing']],
+  ['/superchart', ['superchart']],
+  ['/anomalies', ['anomalies']],
+  ['/orderbook', ['orderbook']],   // solo stato/segnali: heatmap e footprint ('ob-heatmap', 'ob-footprint') si aggiornano dal WS dedicato
 ]
 
 /** Query-key roots touched by a list of API path prefixes (unknown paths fall back to their first segment). */

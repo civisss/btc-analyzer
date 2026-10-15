@@ -1,5 +1,8 @@
 /* ECharts-based analytic charts shared by the dashboard and the detail pages. */
 import { useMemo } from 'react'
+import { Radar } from 'lucide-react'
+import type { AnomalyMark } from '../api/superchart'
+import { Toggle } from '../components/ui'
 import type { Candle, Forecast, Fractals, Liquidations, Pt, UsdtAnalysis } from '../api/types'
 import EChart from '../components/charts/EChart'
 import {
@@ -14,6 +17,42 @@ type TipParam = { seriesName: string; value: unknown; color: string; axisValue?:
 const tipHead = (s: string) => `<div style="color:#94a3b8;font-size:11px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.06)">${s}</div>`
 const tipRow = (color: string, name: string, val: string) =>
   `<div style="display:flex;justify-content:space-between;gap:18px;align-items:center;line-height:20px"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px"></span>${name}</span><b style="font-variant-numeric:tabular-nums">${val}</b></div>`
+
+// ------------------------------------------------------------------ anomaly markers (Superchart z-score on daily bars)
+const dayKey = (sec: number) => Math.floor(sec / 86400)
+/** Amber dots on the anomaly days, placed on the value of the series point of that day (x in ms). */
+export function anomalyMarkPoint(marks: AnomalyMark[] | undefined, xy: [number, number | null][]) {
+  if (!marks?.length || !xy.length) return undefined
+  const byDay = new Map<number, [number, number]>()
+  for (const [x, y] of xy) if (y != null) byDay.set(dayKey(x / 1000), [x, y])   // last point of each UTC day
+  const data = marks.map((m) => byDay.get(dayKey(m.time))).filter((p): p is [number, number] => !!p).map((coord) => ({ coord }))
+  if (!data.length) return undefined
+  return { symbol: 'circle', symbolSize: 8, silent: true, animation: false, label: { show: false },
+    itemStyle: { color: C.amber, borderColor: '#0E1424', borderWidth: 1.5 }, data }
+}
+/** Tooltip row for an anomaly day ('' when the hovered day is not one). */
+export function anomalyTipRow(marks: AnomalyMark[] | undefined, ms: number) {
+  const m = marks?.find((x) => dayKey(x.time) === dayKey(ms / 1000))
+  return m ? tipRow(C.amber, t('Anomalia'), `z ${m.z > 0 ? '+' : '−'}${Math.abs(m.z).toFixed(1)}`) : ''
+}
+/** "Anomalie" toggle for a card header (the markers come from the Superchart anomaly engine, |z| ≥ 3 on daily data). */
+export function AnomalyToggle({ on, onClick, loading, count }: { on: boolean; onClick: () => void; loading?: boolean; count?: number }) {
+  return (
+    <span title={t('Giorni anomali (|z| ≥ 3 sui dati giornalieri, stesso motore del Superchart)')}>
+      <Toggle on={on} onClick={onClick}>
+        <Radar size={13} className={loading ? 'animate-pulse' : undefined} />{t('Anomalie')}
+        {/* how many fall inside the chart: 0 tells the toggle worked, there are simply none in this window */}
+        {on && !loading && count != null && <span className="tnum rounded bg-white/[0.08] px-1 text-2xs text-slate-300">{count}</span>}
+      </Toggle>
+    </span>
+  )
+}
+/** Anomalies inside the time span of a series (seconds). */
+export function marksIn(marks: AnomalyMark[], pts: { time: number }[]): AnomalyMark[] {
+  if (!pts.length) return []
+  const a = pts[0].time - 86400, b = pts[pts.length - 1].time + 86400
+  return marks.filter((m) => m.time >= a && m.time <= b)
+}
 
 // ------------------------------------------------------------------ Liquidation heatmap
 const HEAT_COLORS = MAGMA // magma is reserved for the liquidation heatmap
@@ -45,7 +84,7 @@ export function LiqHeatmapChart({ data, height = 300, livePrice, compact = false
           return ''
         },
       },
-      xAxis: { type: 'category', data: times, axisLabel: { ...axisLabel, alignMinLabel: 'left', alignMaxLabel: 'right', formatter: (v: string) => fmtT(Number(v)), interval: multiDay ? (i: number) => dayStart(i) : 'auto', hideOverlap: true }, axisLine: { lineStyle: { color: C.axis } }, axisTick: { show: false }, splitArea: { show: false } },
+      xAxis: { type: 'category', data: times, axisLabel: { ...axisLabel, alignMinLabel: 'left', alignMaxLabel: 'right', formatter: (v: string) => fmtT(Number(v)), interval: multiDay ? (i: number) => i > 0 && dayStart(i) : 'auto', hideOverlap: true }, axisLine: { lineStyle: { color: C.axis } }, axisTick: { show: false }, splitArea: { show: false } },
       yAxis: [
         { type: 'category', data: prices, show: false },
         { type: 'value', position: 'right', min: prices[0] - step / 2, max: prices[prices.length - 1] + step / 2, splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: usdAxisFmt }, axisLine: { show: false } },
@@ -214,10 +253,12 @@ export function ForecastFanChart({ data, height = 300, historyDays = 180, showSc
 // ------------------------------------------------------------------ Generic multi-line time chart
 export type LineSpec = { name: string; data: Pt[]; color: string; axis?: 0 | 1; area?: boolean; dashed?: boolean; width?: number; type?: 'line' | 'bar' }
 export function TimeLinesChart({
-  lines, height = 260, log = false, yFmt, y2Fmt, zoom = false, legend = true, markLines, yMin, yMax, compactTip,
+  lines, height = 260, log = false, yFmt, y2Fmt, zoom = false, legend = true, markLines, yMin, yMax, compactTip, anomalies,
 }: {
   lines: LineSpec[]; height?: number | string; log?: boolean; yFmt?: (v: number) => string; y2Fmt?: (v: number) => string
   zoom?: boolean; legend?: boolean; markLines?: { y: number; color: string; label?: string; axis?: 0 | 1 }[]; yMin?: number; yMax?: number; compactTip?: boolean
+  /** anomaly days drawn on the first series */
+  anomalies?: AnomalyMark[]
 }) {
   const option = useMemo(() => {
     const f1 = yFmt ?? ((v: number) => usdAxisFmt(v))
@@ -232,7 +273,7 @@ export function TimeLinesChart({
           ps.filter((p) => (p.value as number[])[1] != null).map((p) => {
             const l = lines.find((x) => x.name === p.seriesName)
             return tipRow(l?.color ?? p.color, p.seriesName, (l?.axis === 1 ? f2 : f1)((p.value as number[])[1]))
-          }).join(''),
+          }).join('') + anomalyTipRow(anomalies, Number((ps[0]?.value as number[])?.[0])),
       },
       dataZoom: zoom ? [dataZoomInside, dataZoomSlider] : undefined,
       xAxis: timeAxis(),
@@ -248,6 +289,8 @@ export function TimeLinesChart({
             lineStyle: { width: l.width ?? 1.8, color: l.color, type: l.dashed ? 'dashed' : 'solid' },
             areaStyle: l.area ? { color: areaGradient(l.color, 0.22) } : undefined,
           })
+        const mp = i === 0 ? anomalyMarkPoint(anomalies, toXY(l.data)) : undefined
+        if (mp) Object.assign(base, { markPoint: mp })
         if (i === 0 && markLines?.length) {
           return {
             ...base,
@@ -260,7 +303,7 @@ export function TimeLinesChart({
         return base
       }),
     }
-  }, [lines, log, yFmt, y2Fmt, zoom, legend, markLines, yMin, yMax, compactTip])
+  }, [lines, log, yFmt, y2Fmt, zoom, legend, markLines, yMin, yMax, compactTip, anomalies])
   return <EChart option={option} height={height} />
 }
 

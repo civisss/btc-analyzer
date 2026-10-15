@@ -520,7 +520,7 @@ function NumeriTab({ d }: { d: AstroResponse }) {
       </div>
       <div className="grid gap-3 xl:grid-cols-3">
         <BitcoinNumbers d={d} />
-        {h('friday13') && <HypothesisCard h={h('friday13')!} className="h-full" />}
+        {h('friday13') && <HypothesisCard h={h('friday13')!} className="h-full justify-between" />}
       </div>
       <div className="grid gap-3 xl:grid-cols-3">
         <Card className="h-full">
@@ -631,8 +631,8 @@ function VerdettiTab({ d }: { d: AstroResponse }) {
           <CardBody className="pt-0">
             {v ? (
               <div className="no-scrollbar -mx-4 overflow-x-auto sm:-mx-5">
-                <table className="tbl min-w-[560px]">
-                  <thead><tr><th className="pl-4 sm:pl-5">{t('Calendario')}</th><th>{t('Seconda fonte')}</th><th className="text-right">n</th><th className="text-right">{t('Scarto medio assoluto')}</th><th className="pr-4 text-right sm:pr-5">{t('Scarto massimo')}</th></tr></thead>
+                <table className="tbl min-w-[460px]">
+                  <thead><tr><th className="pl-4 sm:pl-5">{t('Calendario')}</th><th>{t('Seconda fonte')}</th><th className="text-right">n</th><th className="!whitespace-normal text-right">{t('Scarto medio assoluto')}</th><th className="!whitespace-normal pr-4 text-right sm:pr-5">{t('Scarto massimo')}</th></tr></thead>
                   <tbody>{v.checks.map((c) => {
                     const unit = fin(c.mean_abs_min) ? 'min' : fin(c.mean_abs_km) ? 'km' : tr('macchie', 'spots')
                     const mean = c.mean_abs_min ?? c.mean_abs_km ?? c.mean_abs_ssn
@@ -640,7 +640,7 @@ function VerdettiTab({ d }: { d: AstroResponse }) {
                     return (
                       <tr key={c.id} title={c.note ?? undefined}>
                         <td className="pl-4 sm:pl-5"><div className="font-medium text-slate-200">{t(CHECK_LABEL[c.id] ?? c.id)}</div><div className="text-2xs text-slate-500">{c.range}{fin(c.missing) ? ` · ${t('mancanti {n}', { n: c.missing })}` : ''}{fin(c.classification_flips) ? ` · ${t('classificazioni diverse {n}', { n: c.classification_flips })}` : ''}</div></td>
-                        <td className="max-w-[220px] truncate text-slate-400"><a href={c.url} target="_blank" rel="noreferrer" className="hover:text-white">{t(c.source)}</a></td>
+                        <td className="min-w-[140px] max-w-[220px] !whitespace-normal text-xs leading-snug text-slate-400"><a href={c.url} target="_blank" rel="noreferrer" className="hover:text-white">{t(c.source)}</a></td>
                         <td className="text-right text-slate-300">{c.n}</td>
                         <td className="text-right text-slate-100">{fin(mean) ? `${mean.toFixed(2)} ${unit}` : '—'}</td>
                         <td className="pr-4 text-right text-slate-300 sm:pr-5">{fin(mx) ? `${mx.toFixed(2)} ${unit}` : '—'}</td>

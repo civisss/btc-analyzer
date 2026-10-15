@@ -281,8 +281,8 @@ function ExchangeTotalsCard({ d }: { d: Liquidations }) {
       {/* stretched next to the model card: rows spread over the height, long/short split as footer */}
       <CardBody className="flex flex-col px-0 pt-0">
         <div className="flex-1 overflow-x-auto">
-          <table className="tbl min-w-[600px] xl:h-full">
-            <thead><tr><th className="pl-4">Exchange</th><th className="text-right">Long</th><th className="text-right">Short</th><th className="text-right">{t('Totale')}</th><th className="text-right">{t('Eventi')}</th><th className="pr-4">{t('In raccolta dal')}</th></tr></thead>
+          <table className="tbl min-w-[500px] xl:h-full min-[1700px]:min-w-[600px]">
+            <thead><tr><th className="pl-4">Exchange</th><th className="text-right">Long</th><th className="text-right">Short</th><th className="text-right">{t('Totale')}</th><th className="text-right max-[1699px]:hidden">{t('Eventi')}</th><th className="pr-4">{t('In raccolta dal')}</th></tr></thead>
             <tbody>
               {EXS.map((x) => {
                 const r = by[x]
@@ -292,7 +292,7 @@ function ExchangeTotalsCard({ d }: { d: Liquidations }) {
                     <td className="text-right text-slate-200">{usdCompact(r?.long_24h ?? 0, 1)}</td>
                     <td className="text-right text-slate-200">{usdCompact(r?.short_24h ?? 0, 1)}</td>
                     <td className="text-right font-medium text-white">{usdCompact((r?.long_24h ?? 0) + (r?.short_24h ?? 0), 1)}</td>
-                    <td className="text-right text-slate-300">{int(r?.count_24h ?? 0)}</td>
+                    <td className="text-right text-slate-300 max-[1699px]:hidden">{int(r?.count_24h ?? 0)}</td>
                     <td className="pr-4 text-slate-400">{r?.collecting_since ? dateTime(r.collecting_since) : t('In avvio')}</td>
                   </tr>
                 )
@@ -302,7 +302,7 @@ function ExchangeTotalsCard({ d }: { d: Liquidations }) {
                 <td className="text-right font-semibold text-white">{usdCompact(L, 1)}</td>
                 <td className="text-right font-semibold text-white">{usdCompact(S, 1)}</td>
                 <td className="text-right font-semibold text-white">{usdCompact(L + S, 1)}</td>
-                <td className="text-right text-slate-300">{int(EXS.reduce((a, x) => a + (by[x]?.count_24h ?? 0), 0))}</td>
+                <td className="text-right text-slate-300 max-[1699px]:hidden">{int(EXS.reduce((a, x) => a + (by[x]?.count_24h ?? 0), 0))}</td>
                 <td className="pr-4 text-slate-400">{d.totals.all_since ? t('Tutti dal {d}', { d: dateTime(d.totals.all_since) }) : '—'}</td>
               </tr>
             </tbody>
@@ -350,7 +350,7 @@ function ModelCard({ d }: { d: Liquidations }) {
           </div>
         )}
         {v && (
-          <div className="dgrid grid-cols-2 sm:grid-cols-4">
+          <div className="dgrid grid-cols-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
             <div className="min-w-0 px-3 py-2.5"><div className="label truncate">{t('Stato')}</div><div className="mt-1 truncate text-lg font-semibold text-white">{status}</div>
               <div className="tnum truncate text-xs text-slate-400">{t('{h} ore · {n} eventi', { h: v.hours, n: int(v.events) })}</div></div>
             <div className="min-w-0 px-3 py-2.5"><div className="label truncate">{t('Correlazione oraria')}</div><div className="tnum mt-1 truncate text-lg font-semibold text-white">{v.spearman != null ? (v.spearman < 0 ? '−' : '') + Math.abs(v.spearman).toFixed(2) : '—'}</div>

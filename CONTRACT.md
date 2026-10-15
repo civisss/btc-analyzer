@@ -275,6 +275,78 @@ interface Analogs {
 }
 ```
 
+## STRUCTURE ANALOGS (router: struct_analogs.py, engine: app/analysis/structure_analogs.py, agent: analogs, tests: backend/tests/test_structure_analogs.py)
+Scheda "Analogia di struttura" della pagina Analoghi (`/analoghi?tab=struttura`): il movimento attuale confrontato con quelli passati per
+SEQUENZA di massimi/minimi, con i prossimi pivot proiettati e un backtest walk-forward. Testi composti dal frontend (chiavi + numeri).
+- Pivot: `structure.zigzag_confirmed` su ATR(14) di Wilder (prime 13 candele NaN, nessun riempimento con dati futuri), soglia `mult`×ATR,
+  indice di conferma `ci`; etichette `structure.label_swings`; BOS/CHoCH `structure.zigzag_breaks` (prima CHIUSURA oltre l'ultimo
+  swing confermato; la stessa funzione ora usata da `detect_events`). La candela in formazione non entra nelle rotture.
+- Serie: btc = `analogs.load(tf)` dal 2011 (4h|1d|1w); usdtd = USDT.D calibrata (1d da `stablecoins.daily_frame`, 4h = stima
+  `usdt_analogs.frame_4h`, 1w = ultima chiusura della settimana) dal 2018; ethbtc = `ethbtc_1d` (1d|1w) dal lug 2017. USDT.D ed ETH/BTC
+  sono di sole chiusure → OHLC sintetico (open = chiusura precedente, high/low = max/min tra le due).
+- Abbinamento: ultimi K swing (K+1 pivot confermati) → ampiezze log ÷ media |ampiezza|, durate ÷ durata media, etichette. Candidati:
+  stesso tipo di ultimo pivot, ≤ max(1, K//3) etichette diverse, analogo + 3 pivot successivi finiti prima dell'inizio del tratto attuale.
+  D = mean|Δampiezze| + 0.5·mean|Δdurate| + 0.15·etichette diverse + 0.1·|log rapporto scale| + 0.5·max(0, già percorso dal pivot in
+  formazione − swing successivo dell'analogo) (in unità di scala). similarity = 100·e^(−D). Top-N distanti ≥ K pivot tra loro.
+- Proiezione: pivot j+1..j+3 dell'analogo riportati sul presente con i rapporti di scala (clip 1/3..3); il primo non può essere meno
+  estremo del pivot in formazione (`reached` = già toccato, data = quella dell'estremo), date crescenti e future. Combinata = mediana
+  top-N; intervalli = proiezione + quantili 25–75 dei residui del backtest (conformal walk-forward, contengono sempre la proiezione),
+  altrimenti P25–P75 degli analoghi (`calibrated: false`).
+- Traduzione in BTC (usdtd, ethbtc): β = regressione per l'origine di Δlog BTC su Δlog serie sugli ultimi 24 swing confermati;
+  BTC = BTC_now·exp(β·Δlog serie da ora); semiampiezza log = √((β·(P75−P25)/2)² + (0.674·σ_res·√h)²). strength: R² ≥ .5 strong, ≥ .25
+  moderate, altrimenti weak. Verificata nel backtest (`backtest.btc`) contro «BTC invariato».
+- Backtest: a ogni conferma di un pivot m (T = ci[m]) tutto si ricalcola con i soli pivot confermati a T (test: troncare la serie a T
+  lascia identiche tutte le righe). Esito = pivot m+1 (e m+2). Baseline: ampiezza/durata mediane storiche nella direzione alternata
+  (pivot ≤ m) e "analogo casuale" (stessi candidati, 400 estrazioni con reinserimento). p_err_random = quota di estrazioni con errore
+  medio ≤ modello; p_err_median = test del segno unilaterale sugli errori per istante. Verdetto: n<30 anecdotal · strong = errore medio <
+  entrambe le baseline, p_err_random<.05, p_err_median<.05, migliore della mediana in entrambe le metà, hit ≥ baseline · weak = migliore
+  di entrambe con almeno un p<.10 · altrimenti none. Cache: backtest per (asset, tf, mult, K, top) finché non si conferma un nuovo pivot
+  (0.2–3 s a freddo; 4h USDT.D ≈ 8 s con la stima 4H); risposta 30 s. Payload ≈ 60–100 KB.
+- Real time: il frontend aggiorna l'ultima candela e il pivot in formazione col prezzo live (solo BTC) e ricarica alla nuova candela;
+  invalidazione WS: l'agente `analogs` (120 s) invalida "/analogs" → anche la query `structAnalogs`.
+- Agente `analogs`: finding "Struttura BTC 1D" / "Struttura USDT.D 1D" + topic `analogs.structure.{btc|usdtd}` (prossimo pivot, P25–P75,
+  finestra di date, verdetto); tono neutro se il verdetto non è strong/weak.
+
+```ts
+// GET /api/analogs/structure?asset=btc&tf=1d&mult=2.5&k=5&top=5
+//   asset "btc"|"usdtd"|"ethbtc"; tf "4h"|"1d"|"1w" (ethbtc: 1d|1w); mult 1.5..6 passo 0.5 (default 4h 3 · 1d 2.5 · 1w 2);
+//   k 3..8 (default 5); top 1..10 (default 5). 400 su combinazione non valida o pivot insufficienti.
+type SaLabel = 'HH'|'LH'|'HL'|'LL'; type SaKind = 'high'|'low'
+type SaCandle = { time: T; open: number; high: number; low: number; close: number }   // usd: intero sopra $1000; usdtd in %; ethbtc ratio
+interface SaPivot { n: number; idx: number; time: T; price: number; kind: SaKind; label: SaLabel | null; confirmed: T; after: boolean }
+interface SaBreak { kind: 'bos_up'|'bos_down'|'choch_up'|'choch_down'; from_idx: number; to_idx: number; level: number; from_time: T; time: T }
+interface SaProjPivot { h: 1|2|3; kind: SaKind; label: SaLabel; agree: number | null /* % analoghi con la stessa etichetta */
+  price: number; lo: number; hi: number; change: number /* % dall'ultimo prezzo */; time: T; t_lo: T; t_hi: T; bar: number; reached: boolean
+  btc: { price: number; lo: number; hi: number } | null }
+interface SaAnalog { rank: number; similarity: number; distance: number
+  parts: { amp: number; dur: number; mismatch: number; scale: number; short: number }
+  start: T; end: T; after_end: T; candles: SaCandle[]; pivots: SaPivot[] /* n 1..K+1 abbinati, K+2..K+4 after */; breaks: SaBreak[]; end_idx: number
+  ratio: { amp: number; time: number }; scale: { amp: number /* % medio */; bars: number }; labels: (SaLabel | null)[]
+  outcome: { h: number; label: SaLabel | null; kind: SaKind; change: number; bars: number }[]; projection: SaProjPivot[] }
+interface StructAnalogs {
+  asset: string; tf: string; mult: number; k: number; top: number; unit: 'usd'|'pct'|'ratio'; generated_at: T
+  assets: Record<string, string[]>; synthetic: boolean
+  current: { candles: SaCandle[]; pivots: SaPivot[]; breaks: SaBreak[]
+    pending: { idx: number; time: T; price: number; kind: SaKind; label: SaLabel; move: number }   // pivot in formazione (estremo finora)
+    last: { time: T; price: number; forming: boolean }; btc_price: number
+    swings: { amp: number; bars: number }[]; scale: { amp: number; bars: number }; start: T; end: T }
+  projection: { n: number; pivots: SaProjPivot[]; calibrated: boolean; few: boolean } | null
+  analogs: SaAnalog[]
+  translation: { method: 'leg_elasticity'; beta: number; r2: number; corr: number; n: number; resid_sd: number; strength: 'strong'|'moderate'|'weak'; legs: number } | null
+  history: { pivots: number; candidates: number; first: T; max_mismatch: number }
+  backtest: { n: number; from?: T; to?: T; ms?: number; verdict: 'none'|'weak'|'strong'|'anecdotal'
+    model?: { hit; cov; cov_raw; err_med; err_mean; time_err_med; time_cov; agree_hit: { n; hit } | null }   // % (errori in % di prezzo, tempo in candele)
+    base_median?: { hit; err_med; err_mean; time_err_med }; base_random?: { hit; err_med; err_mean; time_err_med; hit_q95; err_q05 }
+    mase?: N; mase_random?: N; mase_time?: N; p_err_random?: number; p_hit_random?: number; p_err_median?: N
+    next2?: { hit; base_hit; cov; err_med; base_err_med; mase }
+    btc?: { n; err_med; base_err_med; mase; cov; p_sign; dir_hit } | null       // traduzione in BTC vs «BTC invariato»
+    halves?: { from: T; to: T; n: number; hit: number; base_hit: number; mase: N }[]
+    recent?: { time: T; kind: SaKind; pred_label: SaLabel; actual_label: SaLabel; hit: boolean; pred: number; lo: number; hi: number
+               actual: number; actual_time: T; inside: boolean; err: number; base_err: number }[]
+    calibration?: { n: number[]; lr: ([number, number] | null)[]; dt: ([number, number] | null)[] } }
+}
+```
+
 ## FLOWS — spot vs futures (router: flows.py)
 ```ts
 // GET /api/flows?tf=1h|4h|1d&range=1d|3d|7d|30d|90d|1y|3y      (USD values; aggressive = taker orders)
@@ -1905,3 +1977,233 @@ interface VwapOverview {
   profile: { mode: VwapProfileMode; va_pct: 70; sessions: VwapProfileSession[] }
 }
 ```
+
+## TIMING (router: timing.py, engines: app/analysis/timing_gann.py + timing_wyckoff.py + timing_rhythms.py, agent: timing, tests: backend/tests/test_timing.py)
+Sezione "Timing Gann · Wyckoff" (`/timing`, schede `?tab=` assente = scenari · `gann` · `wyckoff` · `ritmi`). Replica gli strumenti
+dei "timing tops & bottoms" (conteggi di Gann, fasi di Wyckoff, ritmi di calendario) con il track record contro il caso.
+I testi sono composti dal frontend (chiavi + numeri): l'API non contiene frasi da tradurre.
+- Gann: ancore = pivot maggiori dello zigzag 4×ATR(14) giornaliero con indice di conferma; proiezione valida solo se la finestra
+  inizia dopo la conferma. Bersaglio = pivot a N giorni (frattale, N 10|20), colpo = bersaglio entro ±W (1|2|3). Placebo a traslazione
+  circolare (≥30 g, esaustivo) + placebo dei conteggi (k·U(0.8,1.2), 400 estrazioni). BH tra i tipi (`p_bh`) e su tutte le 6 definizioni
+  (`p_bh_all`, 84 test). Verdetto: n<30 anecdotal · strong = p_bh<0.05, p_counts<0.05, stabile nelle due metà e p_bh_all<0.05 · weak = p<0.05.
+  Cache: backtest delle 6 definizioni per giorno (5–30 s a freddo, pre-calcolato dall'agente), risposta 2 min.
+- Wyckoff: macchina a stati causale su candele chiuse (Binance k_1d/k_4h; il backtest 1D aggiunge il segmento `daily` 2012 → 16 ago 2017).
+  Rendimenti a 5/10/20 g dalla candela di conferma (`confirmed`) contro tutte le candele; p da 2000 estrazioni, IC bootstrap, BH su eventi × orizzonti.
+- Ritmi: `thirds` = mese 1–10/11–20/21–fine, definizione `close` o `extremes` (soglia θ 2|3|5%); caso = stesso schema su tutte le finestre
+  10+10+10 g che iniziano in un giorno qualsiasi; p binomiale e Šidák su 104 combinazioni. Caselle: Welch + BH + test di famiglia (max |t|, 500 permutazioni).
+- Avvisi personali: livelli `wy_1d_high`, `wy_1d_low`, `wy_4h_high`, `wy_4h_low` (range di Wyckoff attivi).
+
+```ts
+type N = number | null
+type Verdict = 'none' | 'weak' | 'strong' | 'anecdotal'
+type GannTypeId = 'c30'|'c45'|'c60'|'c90'|'c120'|'c144'|'c180'|'c270'|'c360'|'c_mult'|'sq9'|'yeardiv'|'anniv'|'seasonal'
+interface GannTypeRow { id: GannTypeId; group?: 'giorni'|'quadrato'|'anno'; days?: number[]; n: number; hits?: number
+  hit_rate?: N; base_rate?: N; lift?: N; null_q05?: N; null_q95?: N; ctrl_rate?: N          // percentuali
+  p_shift?: N; p_counts?: N; p_bh?: N; p_bh_all?: N; halves?: { n: number; rate: N; base: N; lift: N }[]; stable?: boolean; verdict: Verdict }
+interface ScoreBin { min: number; max: number | null; n: number; hit_rate?: N; base_rate?: N; lift?: N; null_q95?: N; p?: N; p_bh?: N; verdict?: Verdict | null }
+interface GannSource { type: GannTypeId; days: number | null; exact: T; anchor: T | null; anchor_kind: 'high'|'low'|null; anchor_price: N; verdict: Verdict | null; lift: N }
+interface GannDate { time: T; start: T; end: T; days_away: number; score: number; types: GannTypeId[]; sources: GannSource[]
+  hist_hit_rate: N; hist_base_rate: N; hist_lift: N; hist_n: number | null; hist_verdict: Verdict | null }
+
+// GET /api/timing/gann?horizon=90&pivot=10&win=2      (horizon 14..365; (pivot, win) in {10,20}×{1,2,3})
+interface GannResponse {
+  generated_at: T; today: T; price: number; horizon: number
+  params: { pivot_n: number; win: number; anchor_mult: number; min_shift: number; n_ctrl: number; cluster_tol: number; min_n: number; alpha: number; defs: [number, number][]; tests_all: number }
+  sample: { start: T; end: T; days: number; anchors: number; targets: number; base_rate: N }
+  types: GannTypeRow[]; score_bins: ScoreBin[]                      // score = tipi di conteggio distinti entro ±1 g; bin 0–1, 2, 3, 4, ≥5
+  upcoming: GannDate[]                                              // massimi locali del punteggio (finestra ±W), ordinati per data
+  score_future: { time: T; score: number; types: GannTypeId[] }[]   // ogni giorno da oggi a oggi + horizon
+  anchors: { time: T; confirmed: T; kind: 'high'|'low'; price: number }[]   // ultimi ~1500 giorni
+  targets_recent: { time: T; kind: 'high'|'low'; price: number }[]; open_extreme: { time: T; kind: 'high'|'low'; price: number } | null
+  recent: { time: T; type: GannTypeId; hit: boolean; score: number | null }[]
+  sq9: { anchor: { price: number; kind: 'high'|'low' }; levels: { deg: number; turns: number; price: number; dist: number }[]; step_usd: number } | null
+  fan: { anchor: { time: T; price: number; kind: 'high'|'low' }; prev: { time: T; price: number; kind: 'high'|'low' }; leg_days: number; slope_1x1: number
+         days_since: number; direction: 'up'|'down'; lines: { key: '1x2'|'1x1'|'2x1'; factor: number; slope: number; price: N; dist: N }[] } | null   // scala arbitraria, non testato
+  counts: Record<GannTypeId, number[]>; seasonal_dates: [number, number][]; candles: Candle[]   // ultime 400 candele 1D
+}
+
+type WyKey = 'PS'|'SC'|'AR_A'|'ST_A'|'SPRING'|'TEST'|'SOS'|'LPS'|'BRK_DN'|'PSY'|'BC'|'AR_D'|'ST_D'|'UT'|'UTAD'|'SOW'|'LPSY'|'BRK_UP'
+type WyPhase = 'A'|'B'|'C'|'D'|'E'
+interface WyEvent { key: WyKey; time: T; confirmed: T; price: number; rv: N /* volume relativo */; phase: WyPhase; bu?: boolean; pen?: N /* in ATR */; low_vol?: boolean }
+interface WyRange { side: 'acc'|'dist'; status: 'active'|'up'|'down'|'failed'|'expired'; phase: WyPhase; high: number; low: number
+  start: T; confirmed: T; end: T | null; bars: number; width_pct: N; after_20: N; events: WyEvent[] }
+interface WyHorizon { days: number; n: number; base_mean: N; base_up: N; mean?: N; median?: N; excess?: N; ci?: [N, N]; hit?: N; base_hit?: N
+  p?: N; p_bh?: N; stable?: boolean; agrees?: boolean; halves?: { n: number; excess: N }[]; verdict: Verdict }
+// GET /api/timing/wyckoff?tf=1d|4h
+interface WyckoffResponse { tf: '1d'|'4h'; bars: number; since: T; last_closed: T; generated_at: T; price: number
+  active: WyRange | null; last_range: WyRange | null; ranges: WyRange[] /* visibili nel grafico */; timeline: WyRange[] /* ultimi 60, dal più recente */
+  outcomes: Record<string, number>   // acc_up, acc_failed, acc_expired, dist_down, dist_failed, dist_expired
+  backtest: { rows: { key: WyKey; side: 'acc'|'dist'; direction: 'up'|'down'; n: number; horizons: WyHorizon[] }[]
+              base: Record<string, { mean: N; up: N }>; segments: { since: T; until: T; bars: number }[]; bars: number; tests: number; split: T }
+  chart_from: T
+  params: { lb: number; trend: number; trend_pct: number; ps_lb: number; ar_max: number; max_bars: number; min_age: number; min_w: number; bpd: number; vol_n: number
+            horizons: number[]; n_perm: number; n_boot: number; min_n: number; alpha: number }
+  candles: Candle[] }   // ultime 500 (1D) / 700 (4H) candele, l'ultima in formazione
+
+// GET /api/timing/rhythms?kind=thirds|weekday|monthweek|monthday|hour&how=close|extremes&pattern=%2B-%2B&theta=2|3|5&start=2017|2013&recent=YYYY-MM-DD
+//   pattern: 3 caratteri in {+, -, .} (. = qualsiasi; "..." non ammesso)
+interface ThirdsFam { pattern: string; n: number; k: number; rate: N; null: N; lift: N; p: N; p_bh?: N }
+interface ThirdsResponse { kind: 'thirds'; pattern: string; def: 'close'|'extremes'; theta: number; cuts: [number, number]
+  full: ThirdsFam & { naive: N /* prodotto delle marginali, solo close */; coin: N }
+  recent: { from: T; n: number; k: number; rate: N; p: N; months: { month: T; match: boolean }[] }
+  family: ThirdsFam[] /* 8 schemi pieni */; combos: number /* 104 */; p_sidak: N; verdict: Verdict; stable: boolean
+  by_year: { year: number; n: number; k: number; rate: N }[]
+  seg_means: { seg: number; n: number; mean: N; median: N; up: N; others_mean: N; p: N }[]
+  months: { month: T; open: N; segs: ({ ret: N; high: N; low: N; close: N } | null)[]; match: boolean | null; partial: (boolean | null)[] | null }[]   // dal più recente
+  null_windows: number; generated_at: T; start: T; start_key: '2017'|'2013'; thetas: number[]; patterns: string[] }
+interface BucketResponse { kind: 'weekday'|'monthweek'|'monthday'|'hour'; labels: number[]   // weekday 0=lun · monthweek 0..4 · monthday 1..31 · hour 0..23 UTC
+  rows: { bucket: number; n: number; mean: N; median: N; up: N; diff: N; t: N; p: N; p_bh: N; stable: boolean; share_same_sign: N; verdict: Verdict
+          recent: { n: number; mean: N; up: N; diff: N; p: N; p_bh: N }; years: { year: number; diff: N; n: number }[] }[]   // % log per giorno/ora
+  family: { max_t: N; p: N; n_perm: number; tests: number }; heat: { year: number; values: N[] }[]; n: number; since: T | null
+  recent: { from: T; n: number }; generated_at: T; start: T; start_key: '2017'|'2013'; combos: number }
+
+// GET /api/timing   (panoramica + scenari, cache 60 s)
+interface LevelGroup { price: number; low: number; high: number; sources: string[] /* wy_1d_high, st_1d_low, vwap_m, vwap_pw … */; dist: number }
+interface WyStat { key: WyKey; days: number; n: number | null; mean: N; excess: N; hit: N; base_hit: N; p: N; p_bh: N; verdict: Verdict | null; direction: 'up'|'down'; agrees: boolean | null }
+interface TimingOverview { generated_at: T; today: T; price: number
+  gann: { next: GannDate | null /* punteggio massimo ≥2 entro 30 g */; upcoming: GannDate[]; verdicts: Partial<Record<Verdict, number>>
+          score_bins: ScoreBin[]; best_bin: ScoreBin | null; params: GannResponse['params']; sample: GannResponse['sample']
+          types: Pick<GannTypeRow, 'id'|'n'|'hit_rate'|'base_rate'|'lift'|'p_shift'|'p_bh'|'p_bh_all'|'verdict'>[] }
+  wyckoff: Record<'1d'|'4h', { tf: '1d'|'4h'; active: (Pick<WyRange, 'side'|'phase'|'high'|'low'|'start'|'confirmed'|'bars'|'width_pct'> & { last_event: WyEvent | null }) | null
+                               last_key_event: WyEvent | null; stat: WyStat | null; last_closed: Pick<WyRange, 'side'|'status'|'phase'|'high'|'low'|'start'|'end'> | null; key_stats: WyStat[] }>
+  rhythm: { close: Pick<ThirdsResponse, 'full'|'recent'|'verdict'|'p_sidak'|'combos'> & { current: ThirdsResponse['months'][number] }
+            extremes: Pick<ThirdsResponse, 'full'|'recent'|'verdict'|'p_sidak'|'theta'> & { current: ThirdsResponse['months'][number] } }   // "+-+" dal 2017, recente da 2026-08-01
+  levels: LevelGroup[]   // livelli esistenti raggruppati entro 0.6%
+  scenarios: { pivot: LevelGroup; hold: { level: LevelGroup; next: LevelGroup[]; invalid: LevelGroup }; lose: { level: LevelGroup; next: LevelGroup[]; invalid: LevelGroup }
+               resistance: LevelGroup | null } | null }
+```
+Agente `timing` (Hourglass, 10 min): `timing.key_date` (data chiave entro 3 g con l'hit rate storico del suo punteggio), `timing.wyckoff.1d|4h`
+(cambio di fase o nuovo evento, con la statistica dell'evento), `timing.rhythm` (solo caselle con verdetto strong); invalida `/timing` → query `['timing', …]`.
+
+## SUPERCHART (router: superchart.py, engines: app/analysis/superchart.py + anomalies.py, layouts: app/superchart_layouts.py, agent: anomalies, tests: backend/tests/test_superchart.py)
+
+Vista sincronizzata di serie GIÀ presenti nell'app (nessuna fonte nuova). Griglia = candele del timeframe:
+`15m` Binance USDⓈ-M (candele 1m del modulo VWAP dal 1° gennaio dell'anno precedente + `fut_15m`), `1h/4h/1d/1w` Binance spot `k_*` (candela in formazione col prezzo live).
+Allineamento point-in-time, senza interpolazione: ogni osservazione nativa ha `avail = time + lag` (fine del periodo + ritardo di pubblicazione);
+la candela i mostra il valore noto a `close_i = apertura + tf` (in formazione: adesso). `last` (livelli) = ultimo valore disponibile ripetuto entro `stale`;
+`mean` (tassi) = media dei valori disponibili nella candela, oppure `last` se la serie è più lenta del timeframe; `sum` (flussi) = somma nella candela in cui
+diventano disponibili, mai ripetuti. Ritardi: CoinMetrics (riserve, netflow, MVRV, NUPL) 2 g dall'inizio del giorno osservato; Farside ETF 1,5 g;
+BGeometrics STH/LTH 8 g (piano gratuito: 7 g di ritardo); macro Yahoo, stablecoin DefiLlama, USDT.D, premio/basis giornalieri 1 g; Fear & Greed 0 (00:00 UTC);
+OI/long-short = istantanea a fine periodo. Replay (`asof`): solo candele chiuse entro asof e solo osservazioni con avail ≤ asof → identico allo storico completo
+troncato (test). Unica componente non causale dichiarata: il fattore di calibrazione CoinGecko della USDT dominance (costante applicata a tutto lo storico).
+
+Anomalie: z robusto = (y − mediana) / max(IQR/1.349, ½σ), mediana e scala sui `window` valori PRECEDENTI (il punto corrente è escluso);
+`window` = 90 osservazioni (giornaliere), 52 (settimanali), ~30 giorni (intraday, 30…1000). y = livello | variazione log % | differenza | log | log1p |
+sbilanciamento taker delta/volume (CVD). Serie più fini del grafico: anomalie al timeframe del grafico; candela in formazione esclusa. Episodi dello stesso segno
+entro 7 g (giornaliere; 3 osservazioni native / 6 candele sul grafico) = un solo evento.
+
+```ts
+type ScTf = '15m' | '1h' | '4h' | '1d' | '1w'
+// GET /api/superchart/catalog
+interface ScCatalog {
+  indicators: { id: string; group: 'price'|'derivatives'|'flows'|'onchain'|'macro'; cols: string[]; place: 'pane'|'overlay'
+                anom: boolean; anom_how: 'level'|'pct'|'diff'|'log'|'log1p'|null; unit: 'usd'|'btc'|'idx'|'pct'|'pct_8h'|'ratio'|'musd'|'busd'
+                source: string /* codice: binance_spot, agg3, farside, coinmetrics… */; res: number /* s, 0 = candele/eventi */; lag: number /* s oltre la fine del periodo */
+                na_tf: ScTf[]; cum: string[] /* colonne cumulate nella finestra (CVD) */ }[]
+  presets: { id: 'essential'|'derivatives'|'onchain'|'macro'; tf: ScTf; log: boolean; panes: ScPaneState[] }[]
+  tfs: ScTf[]; default_bars: Record<ScTf, number>; max_bars: number /* 120000 */
+}
+// id: vwap(w,m,q,y overlay) volume(v) rsi(rsi) macd(macd,signal,hist) funding_binance(f) funding_agg(f) oi_binance(oi) oi_agg(oi) ls_ratio(r)
+//     liquidations(long,short) cvd_spot(d) cvd_perp(d) cb_premium(p) basis(b) etf_flows(f) exch_reserve(r) exch_netflow(n) mvrv(mvrv) nupl(nupl)
+//     sopr_sth(sopr) mvrv_holders(sth,lth) fng(v) usdt_dom(d) stables(s, B$) dxy(c) spx(c) gold(c)
+
+// GET /api/superchart/series?tf=1h&ids=a,b&bars=20000&to=<T>&asof=<T>&z=3&candles=1   (≤16 ids; risposta JSON compatta, gzip)
+interface ScData {
+  tf: ScTf; step: number; source: 'binance_spot'|'binance_usdm'; asof: T|null; now: T; thr: number
+  window: { i0: number; i1: number; total: number; first: T|null; last: T|null }   // finestra = ultime `bars` candele con apertura ≤ to
+  t: T[]; close_t: T[]                                                           // apertura delle candele · close dell'ultima
+  candles?: { o: number[]; h: number[]; l: number[]; c: number[]; v: number[] }
+  series: Record<string, { cols: Record<string, (number|null)[]>                 // allineate a t (CVD cumulato da inizio finestra)
+                           obs?: (T|null)[]                                      // tempo dell'osservazione mostrata su ogni candela (serie `last`/`mean` lente)
+                           first: T|null; last: T|null                           // prima/ultima osservazione nativa
+                           anomalies: [number /* indice in t */, number /* z */, number|null /* valore */, number|null /* y */, number|null /* mediana di y */, T /* osservazione */][]
+                           ms: number }>
+  errors: Record<string, 'unavailable'>; ms: number
+}
+// GET/POST /api/superchart/layouts · PUT/DELETE /api/superchart/layouts/{id}   (USER_DATA_DIR/superchart_layouts.json, store.write_text)
+interface ScPaneState { id: string; h: number /* 60..600 px, 0 se sovrapposto */; an: boolean /* anomalie */; ov: boolean /* sul prezzo */ }
+interface ScLayout { id: string; name: string /* 1..60 */; state: { tf: ScTf; log: boolean; panes: ScPaneState[] /* ≤12 */ }; created_at: T; updated_at: T }
+// POST body {name, state} → ScLayout · PUT body {name?, state?} → ScLayout · DELETE → {ok:true} · 400 stato non valido · 404
+
+// GET /api/anomalies?z=3   (cache 30 min per soglia; giorni completi e pubblicati)
+type AnVerdict = 'strong' /* p BH < 0.05 */ | 'weak' /* p < 0.05 */ | 'none' | 'anecdotal' /* n < 8 */
+interface AnMetric { mean: N; median: N; ci: [N, N] /* IC 95% bootstrap */; base: N /* media dei giorni casuali */; diff: N; p: N /* Monte Carlo 4000 */; p_bh: N; up: N; verdict: AnVerdict }
+interface Anomalies {
+  params: { thr: number; window: 90; gap_days: 7; horizons: [1, 3, 7]; min_n: 8; n_mc: 4000; n_boot: 2000; tests: number; recent_days: 30 }
+  types: { id: string /* funding_up|funding_dn|oi_up|oi_dn|liq_long_up|liq_short_up|volume_up|etf_up|etf_dn|exchange_up|exchange_dn */
+           type: 'funding'|'oi'|'liq_long'|'liq_short'|'volume'|'etf'|'exchange'; sign: 1|-1; unit: string; available: boolean; lag_s: number
+           sample_from: T|null; sample_to: T|null; n_events: number; last_event: T|null; n: number
+           horizons: { h: number; n: number; ret: AnMetric /* rendimento % */; vol: AnMetric /* |rendimento| % */ }[]
+           verdict: AnVerdict; headline: { h: number; metric: 'ret'|'vol' } | null }[]
+  recent: { type: string; sign: 1|-1; id: string; time: T; avail: T; value: number; x: number /* valore trasformato */; how: string; z: number; unit: string }[]
+  generated_at: T; compute_ms: number
+}
+```
+Tipi del backtest (serie giornaliere): funding Binance (media del giorno, livello), OI Bybit USDT (variazione %), liquidazioni long/short reali (log1p, raccolta live),
+volume spot Binance (log), flussi ETF Farside (livello, ultima seduta provvisoria esclusa), netflow exchange CoinMetrics (livello, dal 2015). Ingresso alla chiusura
+del primo giorno in cui il dato è pubblicato; base = tutti i giorni misurabili dello stesso periodo con lo stesso ritardo; BH su tipi × segni × orizzonti × metriche.
+Agente `anomalies` (Radar, 30 min): `anomalies.<tipo>` per ogni anomalia nuova con il backtest a 7 g del suo tipo (al primo giro solo quelle pubblicate da < 2 g);
+invalida `/anomalies` e `/superchart/series` → query `['anomalies', …]`, `['superchart', …]`. Tono sempre neutro (descrittivo).
+
+## ORDER BOOK (router: orderbook.py, collector: app/ob_collector.py, logica: app/analysis/orderbook_core.py, agent: orderbook, tests: backend/tests/test_orderbook.py)
+
+Collector in-process (thread `orderbook` con event loop proprio, avviato da `live.start()`), mercati da env `ORDERBOOK_MARKETS` (default `futures,spot`):
+`futures` = Binance USDⓈ-M BTCUSDT (`wss://fstream.binance.com/public/ws/btcusdt@depth@100ms`, `/market/ws/btcusdt@aggTrade`, snapshot `fapi/v1/depth` limit 1000),
+`spot` = Binance BTCUSDT (`stream.binance.com:9443/ws/...`, snapshot `api/v3/depth` limit 5000). Book locale secondo la procedura ufficiale
+(futures: scarta u < lastUpdateId, primo evento U ≤ L ≤ u, poi `pu` = u precedente; spot: scarta u ≤ L, primo U ≤ L+1 ≤ u, poi U = u+1), risincronizzazione
+automatica a ogni buco. Verifica: ogni 120 s (futures) / 300 s (spot) book "ombra" da nuovo snapshot portato allo STESSO update id e confrontato livello per
+livello nella zona già coperta da snapshot (atteso 0) + zona nuova (ricostruita solo dal diff stream: livelli mai aggiornati mancanti, riparati dallo snapshot).
+Footprint vs kline 1m REST ogni 300 s (minuti completi: |Δvolume| atteso < 0,5%). Buchi negli id aggTrade (disconnessioni, riavvii < 15 min) recuperati via REST.
+Campioni: ogni 1 s bucket da $10 entro ±1,5% dal mid; medie al minuto; footprint 1m × bin $5. Storage `DATA_DIR/orderbook/<market>/`
+(hs/hsm orari "solo variazioni" 7 g · hm medie al minuto 30 g · fp/fk/ev 30 g), sempre via `store.write_parquet` / `write_text`.
+Muro = bucket ≥ 5× mediana dei bucket entro ±1% e ≥ 2 BTC (perp) / 1 BTC (spot) per ≥ 20 s; `pulled` = sceso < 30% del massimo con prezzo entro 0,15% senza
+scambi corrispondenti; `consumed` = scambi ≥ 50% della liquidità sparita o prezzo sul livello. Imbalance footprint: buy[p] ≥ 3×sell[p−bin] (1), sell[p] ≥ 3×buy[p+bin] (2),
+lato opposto 0 ammesso se ≥ 1% del volume candela; `stacked` ≥ 3 livelli consecutivi. Debug (solo `ORDERBOOK_DEBUG=1`): `POST /api/orderbook/debug/{gap|depth|trades|flush}`.
+
+```ts
+type N = number | null
+type ObMarket = 'futures' | 'spot'
+interface ObEvent { t: number; kind: 'pulled' | 'consumed' | 'appeared'; side: 'bid' | 'ask'; price: number /* bucket [price, price+10) */
+                    qmax: number; q: number /* BTC */; age_s: number; dist_pct: number; executed?: N }
+interface ObWall { price: number; side: 'bid' | 'ask'; q: number; qmax: number; age_s: number; dist_pct: number }
+
+// GET /api/orderbook/heatmap?market&from&to&bucket=10|20|50|100|250&range=0.1..1.5&cols≤3000   (≤ 6 h: campioni 1 s, oltre: medie al minuto; max 7 g)
+// q = base64 di uint16 LE, matrice cols × rows (tempo-maggiore, riga 0 = prezzo più basso): 0 = nessun dato, v = (code−1)·scale BTC.
+// bucket alzato automaticamente se rows > 900; celle ≤ 2,4 M. Il frontend lo chiede senza ?lang (dati numerici).
+interface ObHeatmap { market: ObMarket; from: number; to: number; tier: 's' | 'm'; dt: number; range_pct: number; bucket: number
+  cols: number; rows: number; price_lo: N; q: string; scale: number; empty?: boolean; pct?: Record<'p50'|'p90'|'p95'|'p98'|'p99'|'p99.5', number>
+  t: number[]; mid: N[]; last: N[]; hi: N[]; lo: N[]; vb: N[]; vs: N[] /* BTC aggressivi */; vwap: N[]; bb: N[]; ba: N[]
+  imb: N[] /* quota bid entro ±0,5% */; tlo: N[]; thi: N[] /* zona coperta da snapshot */
+  gaps: [number, number][]; events: ObEvent[]; walls: ObWall[]; collection_start: N
+  wall_rule: { k: number; min_qty: number; min_age_s: number; near_pct: number; median: N; threshold: N } }
+
+// GET /api/orderbook/footprint?market&tf=1m|5m|15m|1h&from&to&bin=5|10|25|50|100&limit≤300   (array colonnari; livelli candela i = off[i]..off[i]+cnt[i])
+interface ObFootprint { market: ObMarket; tf: string; bin: number; from: number; to: number; ratio: 3; min_share: 0.01; collection_start: N; empty?: boolean
+  candles: { t: number[]; o: number[]; h: number[]; l: number[]; c: number[]; buy: number[]; sell: number[]; delta: number[]; cvd: number[]
+             poc: N[]; n: number[] /* trade aggregati */; ok: boolean[] /* tutti i minuti raccolti completi */; off: number[]; cnt: number[] }
+  levels: { p: number[]; buy: number[]; sell: number[]; imb: number[] /* bit 1 = buy, 2 = sell */ }
+  stacked: { side: 'buy' | 'sell'; from: number; to: number; n: number; i: number }[] }
+
+// GET /api/orderbook/signals?market   (anche per l'agente)
+interface ObSignals { market: ObMarket; time: number; synced: boolean; mid: N; walls: ObWall[] /* entro ±1% */; events: ObEvent[] /* 30 min, pulled|consumed */
+  wall_rule: { k: number; min_qty: number; median: N; threshold: N; window_pct: number }
+  imbalance?: { mean: number; share_bid: number; share_ask: number; now: number; minutes: number; persistent: 'bid' | 'ask' | null }
+  cvd?: { minutes: number; price_change_pct: number; cvd: number; volume: number; cvd_share: N; divergence: 'price_up_cvd_down' | 'price_down_cvd_up' | null } }
+
+// GET /api/orderbook/status
+interface ObStatus { time: number; enabled: ObMarket[]; cpu: { collector_pct: number; flush_pct: number; window_s: number }; rss_mb: N
+  config: { range_pct; sample_s; base_bucket; fp_base_bin; buckets; fp_bins; retention_days: { hs; hm; fp }; imb_ratio; imb_min_share; debug }
+  markets: Record<ObMarket, { depth_connected; trade_connected; synced: boolean; last_update_id: N; levels: { bids; asks }; best_bid; best_ask; mid; last_sample
+    trusted: [N, N]; trusted_pct: [N, N]; msgs: { depth; trades }; snapshots; disconnects: { depth; trades }; book_gaps
+    resyncs: { n; last: { t; reason: 'connect' | 'gap' }[] }
+    verify: { n; ok; top_mismatch; range_mismatch; levels_compared; diff_only_levels; new_zone_levels; new_zone_mismatch; every_s; last }
+    kline_check: { n; median_abs; p95_abs; max_abs; within_05 /* quota 0..1 */; buy: {…}; last: { t; ours; official; diff_pct; buy_diff_pct }[]; every_s }
+    backfills: { t; from; to; n; ok; fetched }[]; incomplete_minutes; collection_start: N; sessions: [number, number][]; coverage: [number, number][]
+    storage: { total_mb; mb_per_day: N; hs_mb_per_day: N; other_mb_per_day: N; hours_measured; files; by_kind_mb }; mem_est_mb; flush_ms_p50 }> }
+```
+WS dedicato `/api/ws/orderbook?market&bucket&range&tf&bin` (parametri modificabili inviando lo stesso JSON), ≤ 3 msg/s:
+`{"type":"ob_live", market, time, status:{synced,depth,trades}, cols?:[{t, mid, bb, ba, last, hi, lo, vb, vs, vwap, imb, tlo, thi, plo, q:number[]}],
+fp?:{t, tf, bin, o,h,l,c, buy, sell, delta, poc, n, ok, p[], lbuy[], lsell[], imb[], stacked[]} (≤ 2/s, candela in formazione), events?: ObEvent[]}`.
+Agente `orderbook` (Grid3x3, 30 s, solo perp): `orderbook.walls` (muri più vicini cambiati), `orderbook.pulled` (ritiro ≥ 2× soglia), `orderbook.imbalance`
+(squilibrio persistente), `orderbook.cvd` (divergenza); invalida `/orderbook/status`, `/orderbook/signals` → query `['orderbook', …]`
+(heatmap `['ob-heatmap', …]` e footprint `['ob-footprint', …]` si aggiornano solo dal WS + ricarica ogni 5/2 min). Tono sempre neutro.

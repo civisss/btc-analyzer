@@ -84,6 +84,10 @@ export const LEVEL_LABEL: Record<LevelId, { label: string; group: string }> = {
   vp_pw_poc: { label: 'POC della settimana precedente', group: 'Profilo di volume' },
   vp_pw_vah: { label: 'VAH della settimana precedente (value area)', group: 'Profilo di volume' },
   vp_pw_val: { label: 'VAL della settimana precedente (value area)', group: 'Profilo di volume' },
+  wy_1d_high: { label: 'Massimo del range Wyckoff 1G', group: 'Range Wyckoff' },
+  wy_1d_low: { label: 'Minimo del range Wyckoff 1G', group: 'Range Wyckoff' },
+  wy_4h_high: { label: 'Massimo del range Wyckoff 4h', group: 'Range Wyckoff' },
+  wy_4h_low: { label: 'Minimo del range Wyckoff 4h', group: 'Range Wyckoff' },
 }
 
 export const METRIC_META: Record<MetricKey, { label: string; unit: string; step: number; hint: string }> = {

@@ -193,16 +193,17 @@ function MetricsTable({ d, period }: { d: ForecastOneDay; period: OneDayPeriod }
     { title: t('Target: chiusura di domani'), rows: CLOSE_ROWS.map((r) => ({ ...r, m: e.close[r.key] })) },
     { title: t('Target: prezzo medio (H+L)/2 di domani'), rows: MID_ROWS.map((r) => ({ ...r, m: e.mid[r.key] })) },
   ]
+  // below 1700px four secondary columns (p, always up, price corr., DM p) are hidden so the verdict stays visible
   return (
     <div className="no-scrollbar -mx-4 overflow-x-auto sm:-mx-5">
-      <table className="tbl min-w-[1180px]">
+      <table className="tbl min-w-[860px] min-[1700px]:min-w-[1180px]">
         <thead><tr>
           <th className="pl-4 sm:pl-5">{t('Modello')}</th><th className="text-right">n</th><th className="text-right">MAPE</th>
           <th className="text-right" title={t('Errore medio diviso quello del naive sugli stessi giorni: sotto 1 batte il naive')}>MASE</th>
           <th className="text-right" title={t('Solo prezzo medio: MASE rispetto al naive "chiusura di oggi"')}>{t('vs chiusura')}</th>
-          <th className="text-right">{t('Direzione')}</th><th className="text-right">{t('p (vs 50%)')}</th><th className="text-right">{t('Sempre rialzo')}</th>
-          <th className="text-right">{t('Corr. rendimenti')}</th><th className="text-right">{t('Corr. prezzi')}</th>
-          <th className="text-right">{t('Copertura 50/90%')}</th><th className="text-right" title={t('Diebold-Mariano sull\'errore assoluto, contro il naive')}>{t('DM p')}</th>
+          <th className="text-right">{t('Direzione')}</th><th className="text-right max-[1699px]:hidden">{t('p (vs 50%)')}</th><th className="text-right max-[1699px]:hidden">{t('Sempre rialzo')}</th>
+          <th className="text-right">{t('Corr. rendimenti')}</th><th className="text-right max-[1699px]:hidden">{t('Corr. prezzi')}</th>
+          <th className="text-right">{t('Copertura 50/90%')}</th><th className="text-right max-[1699px]:hidden" title={t('Diebold-Mariano sull\'errore assoluto, contro il naive')}>{t('DM p')}</th>
           <th className="pr-4 sm:pr-5">{t('Verdetto')}</th>
         </tr></thead>
         <tbody>
@@ -222,12 +223,12 @@ function MetricsTable({ d, period }: { d: ForecastOneDay; period: OneDayPeriod }
                   <td className={clsx('text-right text-base font-semibold', maseCls(m?.mase))}>{x3(m?.mase)}</td>
                   <td className={clsx('text-right', maseCls(m?.mase_vs_close))}>{x3(m?.mase_vs_close)}</td>
                   <td className="text-right font-semibold text-white">{pc(m?.hit_rate)}</td>
-                  <td className={clsx('text-right', fin(m?.p_dir) && m!.p_dir! < 0.05 ? 'text-slate-100' : 'text-slate-400')}>{pv(m?.p_dir)}</td>
-                  <td className="text-right text-slate-400">{pc(m?.always_up)}</td>
+                  <td className={clsx('text-right max-[1699px]:hidden', fin(m?.p_dir) && m!.p_dir! < 0.05 ? 'text-slate-100' : 'text-slate-400')}>{pv(m?.p_dir)}</td>
+                  <td className="text-right text-slate-400 max-[1699px]:hidden">{pc(m?.always_up)}</td>
                   <td className="text-right text-slate-200">{x2(m?.corr_ret)}</td>
-                  <td className="text-right text-slate-400">{x3(m?.corr_price)}</td>
+                  <td className="text-right text-slate-400 max-[1699px]:hidden">{x3(m?.corr_price)}</td>
                   <td className="text-right text-slate-300">{fin(m?.coverage_90) ? `${pc(m?.coverage_50, 0)} / ${pc(m?.coverage_90, 0)}` : '—'}</td>
-                  <td className="text-right text-slate-300">{pv(m?.dm_p)}</td>
+                  <td className="text-right text-slate-300 max-[1699px]:hidden">{pv(m?.dm_p)}</td>
                   <td className="pr-4 sm:pr-5"><VerdictBadge code={m?.verdict?.code} /></td>
                 </tr>
               )

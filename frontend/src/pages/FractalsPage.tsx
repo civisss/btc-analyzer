@@ -152,7 +152,8 @@ export default function FractalsPage() {
                 </div>
               </div>
 
-              <div className="grid items-start gap-3 lg:grid-cols-2">
+              {/* equal heights: the shorter card spreads its rows instead of leaving a blank bottom */}
+              <div className="grid gap-3 lg:grid-cols-2">
                 <Card>
                   <CardHeader title={t('Retest attesi')} icon={<Magnet />} subtitle={t('Zone rivisitate dagli analoghi')} />
                   <CardBody className="flex flex-col">
@@ -177,8 +178,8 @@ export default function FractalsPage() {
                 </Card>
                 <Card>
                   <CardHeader title={t('Altri timeframe')} icon={<Layers3 />} />
-                  <CardBody className="overflow-x-auto px-2">
-                    <table className="tbl">
+                  <CardBody className="flex flex-col overflow-x-auto px-2">
+                    <table className="tbl flex-1">
                       <thead><tr><th>TF</th><th>{t('Similarità media')}</th><th>{t('Bias')}</th><th className="text-right">{t('Prob. rialzo')}</th></tr></thead>
                       <tbody>
                         {d.multi_tf.map((m) => (

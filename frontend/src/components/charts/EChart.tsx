@@ -50,7 +50,13 @@ function normalize(option: O, width = 0): O {
     const lbl = a0.axisLabel as O | undefined
     const a = a0.type === 'time' && !(lbl && lbl.formatter) ? { ...a0, axisLabel: { ...(lbl ?? {}), formatter: itTimeLabel } } : a0
     const split = a.splitLine as O | undefined
-    if (!horizontalGrid) return { ...a, splitLine: { ...(split ?? {}), show: false } }
+    if (!horizontalGrid) {
+      // x axes: the first/last tick label is aligned inwards so it is never cut by the card edge ("5 Oct" → "Oct")
+      const xl = (a.axisLabel as O | undefined) ?? {}
+      const edge = (a.type === 'time' || a.type === 'value') && xl.alignMinLabel === undefined && xl.alignMaxLabel === undefined
+        ? { axisLabel: { ...xl, alignMinLabel: 'left', alignMaxLabel: 'right' } } : {}
+      return { ...a, ...edge, splitLine: { ...(split ?? {}), show: false } }
+    }
     if (split?.show === false) return a
     return { ...a, splitLine: { ...(split ?? {}), lineStyle: { ...((split?.lineStyle as O) ?? {}), color: C.grid } } }
   }

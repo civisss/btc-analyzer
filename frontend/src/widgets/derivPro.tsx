@@ -393,7 +393,7 @@ export function CmeTab() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="dgrid mt-3 grid-cols-2 sm:grid-cols-4">
+                  <div className="dgrid mt-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
                     <Stat k={t('Trader totali')} v={int(d.traders.total)} sub={t('Riportabili e non')} />
                     <Stat k={t('Lev. funds L / S')} v={`${int(d.traders.lev_long)} / ${int(d.traders.lev_short)}`} sub={t('Numero di trader')} />
                     <Stat k={t('Asset manager L / S')} v={`${int(d.traders.am_long)} / ${int(d.traders.am_short)}`} sub={t('Numero di trader')} />

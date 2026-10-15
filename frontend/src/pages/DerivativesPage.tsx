@@ -6,7 +6,8 @@ import { useLive } from '../api/live'
 import type { Derivatives } from '../api/types'
 import { C } from '../components/charts/theme'
 import { Card, CardBody, CardHeader, Change, Fill, KpiCell, KpiStrip, PageTitle, Q, Segmented, Skeleton, TabBar } from '../components/ui'
-import { TimeLinesChart, candlesToPts } from '../widgets/charts'
+import { AnomalyToggle, TimeLinesChart, candlesToPts, marksIn } from '../widgets/charts'
+import { useAnomalyMarks } from '../api/superchart'
 import { FlowsSection, SignalList } from '../widgets/flows'
 import { BasisTab, CmeTab, LeverageTab } from '../widgets/derivPro'
 import { dayUnit, pct, usd, usdCompact } from '../lib/format'
@@ -47,6 +48,12 @@ const ONE_LINE = [{ y: 1, color: 'rgba(148,163,184,0.6)' }]
 
 function DerivCharts({ d, updatedAt }: { d: Derivatives; updatedAt: number }) {
   const [lsKind, setLsKind] = useState<'accounts' | 'top_traders' | 'taker'>('accounts')
+  const [anFund, setAnFund] = useState(false)
+  const [anOi, setAnOi] = useState(false)
+  const fundAn = useAnomalyMarks('funding_binance', anFund)
+  const oiAn = useAnomalyMarks('oi_binance', anOi)
+  const fundMarks = useMemo(() => marksIn(fundAn.marks, d.funding.series), [fundAn.marks, d.funding.series])
+  const oiMarks = useMemo(() => marksIn(oiAn.marks, d.open_interest.series), [oiAn.marks, d.open_interest.series])
   const fundLines = useMemo(() => [{ name: 'Funding', data: d.funding.series, color: C.blue, type: 'bar' as const }], [d.funding.series])
   const oiLines = useMemo(() => [{ name: 'Open Interest', data: d.open_interest.series, color: C.blue, area: true }], [d.open_interest.series])
   const lsLines = useMemo(() => [{ name: 'Long/Short', data: d.long_short[lsKind], color: C.blue, area: true }], [d.long_short, lsKind])
@@ -81,12 +88,14 @@ function DerivCharts({ d, updatedAt }: { d: Derivatives; updatedAt: number }) {
     <>
       <div className="grid gap-3 xl:grid-cols-2">
         <Card>
-          <CardHeader title="Funding rate" subtitle={t('Percentuale per 8 ore')} icon={<Activity />} updatedAt={updatedAt} />
-          <CardBody><TimeLinesChart height={300} legend={false} lines={fundLines} yFmt={fundFmt} zoom compactTip /></CardBody>
+          <CardHeader title="Funding rate" subtitle={t('Percentuale per 8 ore')} icon={<Activity />} updatedAt={updatedAt}
+            right={<AnomalyToggle on={anFund} onClick={() => setAnFund((x) => !x)} loading={fundAn.loading} count={fundMarks.length} />} />
+          <CardBody><TimeLinesChart height={300} legend={false} lines={fundLines} yFmt={fundFmt} zoom compactTip anomalies={fundMarks} /></CardBody>
         </Card>
         <Card>
-          <CardHeader title="Open interest" subtitle={t('Valore nozionale in USD')} icon={<Layers />} />
-          <CardBody><TimeLinesChart height={300} legend={false} lines={oiLines} yFmt={oiFmt} zoom compactTip /></CardBody>
+          <CardHeader title="Open interest" subtitle={t('Valore nozionale in USD')} icon={<Layers />}
+            right={<AnomalyToggle on={anOi} onClick={() => setAnOi((x) => !x)} loading={oiAn.loading} count={oiMarks.length} />} />
+          <CardBody><TimeLinesChart height={300} legend={false} lines={oiLines} yFmt={oiFmt} zoom compactTip anomalies={oiMarks} /></CardBody>
         </Card>
       </div>
       <div className="grid gap-3 xl:grid-cols-12">

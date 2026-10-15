@@ -139,7 +139,7 @@ export function CardHeader({
         <div className="min-w-0">
           {kicker && <div className="label mb-0.5" style={accent ? { color: ACCENT_HEX[accent] } : undefined}>{kicker}</div>}
           <h2 className="flex min-h-7 items-center gap-1.5 text-title font-semibold tracking-[-0.01em] text-white">
-            <span className="min-w-0 truncate" title={typeof title === 'string' ? title : undefined}>{title}</span>
+            <span className="min-w-0 max-sm:line-clamp-2 sm:truncate" title={typeof title === 'string' ? title : undefined}>{title}</span>
             {info && <InfoTip text={info} />}
           </h2>
           {(subtitle || updatedAt) ? (
@@ -229,16 +229,16 @@ export function KpiCell({ label, value, delta, foot, spark, aside, title, classN
     <div className={clsx('card kpi relative flex min-w-0 flex-col px-4 py-3.5 sm:px-5', className)} title={title}>
       <div className="kpi-row flex min-w-0 items-center gap-2.5">
         {icon && <IconBadge icon={icon} accent={acc ?? 'slate'} size="sm" className="kpi-icon" />}
-        <div className="label min-w-0 truncate" title={typeof label === 'string' ? label : undefined}>{label}</div>
+        <div className="kpi-label label min-w-0 truncate" title={typeof label === 'string' ? label : undefined}>{label}</div>
       </div>
       <div className={clsx('kpi-row mt-2 flex items-center gap-3', aside && '-my-1.5')}>
         <div className="kpi-value tnum min-w-0 flex-1 truncate text-3xl font-semibold tracking-[-0.02em] text-white [&_*]:!text-white">{value}</div>
         {aside && <div className="grid h-[72px] w-[72px] shrink-0 place-items-center">{aside}</div>}
       </div>
-      <div className="tnum mt-1 flex min-w-0 items-baseline gap-1.5 truncate text-xs text-slate-400">
+      <div className="kpi-row tnum mt-1 flex min-w-0 items-baseline gap-1.5 truncate text-xs text-slate-400">
         {hasDelta && <span className="shrink-0">{delta}</span>}
         {hasDelta && hasFoot && <span className="text-slate-600">·</span>}
-        {hasFoot && <span className="min-w-0 truncate text-slate-400" title={typeof foot === 'string' ? foot : undefined}>{foot}</span>}
+        {hasFoot && <span className="kpi-foot-text min-w-0 truncate text-slate-400" title={typeof foot === 'string' ? foot : undefined}>{foot}</span>}
         {!hasDelta && !hasFoot && <span className="text-slate-600">—</span>}
       </div>
       {spark && <div className="pointer-events-none mt-2 h-9">{spark}</div>}

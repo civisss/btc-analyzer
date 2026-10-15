@@ -396,17 +396,17 @@ function ProfileCard({ source, calc, tf, prof }: { source: VwapSource; calc: Vwa
             <thead>
               <tr>
                 <th>{t('Sessione')}</th><th className="text-right">VAH</th><th className="text-right">POC</th><th className="text-right">VAL</th>
-                <th className="text-right">{t('Volume')}</th><th className="text-right">{t('Robustezza')}</th>
+                <th className="text-right">{t('Volume')} (BTC)</th><th className="text-right">{t('Robustezza')}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.start}>
-                  <td className="tnum whitespace-nowrap text-white">{date(r.start, false)} → {date(Math.min(r.end, q.data?.last_closed_end ?? r.end) - 1, false)}{!r.complete && <span className="ml-1.5 text-2xs text-slate-500">{t('in corso')}</span>}</td>
+                  <td className="tnum whitespace-nowrap text-white">{date(r.start, false)} → {date(Math.min(r.end, q.data?.last_closed_end ?? r.end) - 1, false)}{!r.complete && <div className="text-2xs font-normal text-slate-500">{t('in corso')}</div>}</td>
                   <td className="tnum text-right text-slate-300">{usdP(r.vah)}</td>
                   <td className="tnum text-right font-medium text-white">{usdP(r.poc)}</td>
                   <td className="tnum text-right text-slate-300">{usdP(r.val)}</td>
-                  <td className="tnum text-right text-slate-400">{Math.round(r.volume).toLocaleString('en-US')} BTC</td>
+                  <td className="tnum text-right text-slate-400">{Math.round(r.volume).toLocaleString('en-US')}</td>
                   <td className={clsx('tnum text-right', rob(r) > 25 ? 'text-amber-300' : 'text-slate-400')} title={`POC ${r.robust_bp.poc} · VAH ${r.robust_bp.vah} · VAL ${r.robust_bp.val} bp`}>±{rob(r).toFixed(0)} bp</td>
                 </tr>
               ))}
@@ -427,10 +427,11 @@ function ConfluenceCard({ s, price }: { s: VwapSummary; price: number | null }) 
     <Card className="h-full">
       <CardHeader title={t('Confluenze VWAP')} icon={<Combine />} accent="teal"
         subtitle={t('Livelli di periodi diversi entro lo {p}%', { p: String(s.confluence_pct ?? 0.5) })} />
-      <CardBody className="px-1 pb-2 pt-0">
+      <CardBody className="flex flex-col px-1 pb-2 pt-0">
         {items.length ? (
-          <div className="overflow-x-auto">
-            <table className="tbl">
+          // rows stretch to the height of the session table next to it
+          <div className="flex flex-1 flex-col overflow-x-auto">
+            <table className="tbl flex-1">
               <thead><tr><th>{t('Zona')}</th><th>{t('Livelli')}</th><th className="text-right">{t('Ampiezza')}</th><th className="text-right">{t('Distanza')}</th></tr></thead>
               <tbody>
                 {items.map((c) => (

@@ -10,6 +10,7 @@ import { t, tfLabel } from '../i18n'
 import { usePrice } from '../widgets/hooks'
 import { useTab } from '../lib/useTab'
 import { ImagePatternTab } from '../widgets/imagePattern'
+import { StructureAnalogsTab } from '../widgets/structAnalogs'
 import {
   AnalogCandles, AnalogOverlay, DCell, FeatureCard, LEG_COLOR, LINE_STYLE, LegBars, LegTable, MATCH_GRID, MappingList, balancedCols, PatternBadges, VisualBreakdown, analogStats, buildFuture, pctRangeWithFuture, plabel, whenYear, type ChartLayers,
 } from '../widgets/analogs'
@@ -82,14 +83,19 @@ function MatchPicker({ m, selected, onClick }: { m: AnalogMatch; selected: boole
   )
 }
 
-type Tab = 'live' | 'image'
+type Tab = 'live' | 'struttura' | 'image'
+const SUBTITLE: Record<Tab, string> = {
+  live: 'Il periodo storico più simile al grafico attuale, e perché.',
+  struttura: 'Il movimento attuale confrontato con quelli passati per sequenza di massimi e minimi, e i prossimi pivot attesi.',
+  image: 'Carica uno screenshot di un grafico: troviamo i periodi di BTC con la stessa figura.',
+}
 export default function AnalogsPage() {
-  const [tab, setTab] = useTab<Tab>(['live', 'image'], 'live')
+  const [tab, setTab] = useTab<Tab>(['live', 'struttura', 'image'], 'live')
   return (
     <div>
-      <PageTitle title={t('Analoghi')} subtitle={tab === 'live' ? t('Il periodo storico più simile al grafico attuale, e perché.') : t('Carica uno screenshot di un grafico: troviamo i periodi di BTC con la stessa figura.')} />
-      <TabBar value={tab} onChange={setTab} tabs={[{ value: 'live', label: t('Grafico attuale') }, { value: 'image', label: t('Da immagine') }]} />
-      {tab === 'live' ? <LiveAnalogs /> : <ImagePatternTab />}
+      <PageTitle title={t('Analoghi')} subtitle={t(SUBTITLE[tab])} />
+      <TabBar value={tab} onChange={setTab} tabs={[{ value: 'live', label: t('Grafico attuale') }, { value: 'struttura', label: t('Analogia di struttura') }, { value: 'image', label: t('Da immagine') }]} />
+      {tab === 'live' ? <LiveAnalogs /> : tab === 'struttura' ? <StructureAnalogsTab /> : <ImagePatternTab />}
     </div>
   )
 }
@@ -281,7 +287,7 @@ function LiveAnalogs() {
               <div className="grid gap-3 xl:grid-cols-12">
                 <Card className="xl:col-span-7">
                   <CardHeader title={t('Punti strutturali allineati')} icon={<ListChecks />} subtitle={t('{a} su {b} con lo stesso ruolo nei due periodi', { a: m.mapping.filter((p) => p.same_role).length, b: m.mapping.length })} />
-                  <CardBody><MappingList mapping={m.mapping} tf={d.tf} when={m.period.when} active={hover} onHover={setHover} /></CardBody>
+                  <CardBody className="flex flex-col"><MappingList mapping={m.mapping} tf={d.tf} when={m.period.when} active={hover} onHover={setHover} /></CardBody>
                 </Card>
                 <div className="flex flex-col gap-3 xl:col-span-5">
                   <Card className="flex-1">

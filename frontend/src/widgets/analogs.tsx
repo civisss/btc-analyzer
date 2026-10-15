@@ -600,7 +600,8 @@ export function MappingList({ mapping, tf, when, active, onHover, curLabel, twoF
   // long lists flow in two columns on wide screens (keeps the card as tall as its neighbours)
   const two = mapping.length > 6
   return (
-    <div className={clsx('grid content-start', two && (twoFrom === 'xl'
+    // xl: rows share the card height (the card is as tall as the narrative column next to it)
+    <div className={clsx('grid content-start xl:flex-1 xl:auto-rows-fr xl:content-stretch', two && (twoFrom === 'xl'
       ? 'xl:grid-cols-2 xl:gap-x-6 xl:[&>*:nth-child(2)]:border-t-0 xl:[&>*:nth-child(2)]:pt-0'
       : '2xl:grid-cols-2 2xl:gap-x-6 2xl:[&>*:nth-child(2)]:border-t-0 2xl:[&>*:nth-child(2)]:pt-0'))}>
       {mapping.map((m) => (
@@ -608,7 +609,7 @@ export function MappingList({ mapping, tf, when, active, onHover, curLabel, twoF
           key={m.n}
           onMouseEnter={() => onHover(m.n)}
           onMouseLeave={() => onHover(null)}
-          className={clsx('grid grid-cols-[auto_1fr] gap-3 border-t border-line px-1 py-2.5 transition-colors first:border-t-0 first:pt-0 sm:grid-cols-[auto_1.1fr_1fr_1fr]',
+          className={clsx('grid grid-cols-[auto_1fr] content-center gap-3 border-t border-line px-1 py-2.5 transition-colors first:border-t-0 first:pt-0 sm:grid-cols-[auto_1.1fr_1fr_1fr]',
             active === m.n && 'bg-white/[0.03]')}
         >
           <span className={clsx('grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs', active === m.n ? 'border-accent-blue text-white' : 'border-slate-500 text-slate-300')}>{m.n}</span>

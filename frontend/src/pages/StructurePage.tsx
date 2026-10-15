@@ -307,7 +307,8 @@ function PivotTab() {
                 </CardBody>
               </Card>
             </div>
-            <div className="grid items-start gap-3 xl:grid-cols-2">
+            {/* the two statistics tables need ~700px each: side by side only from 1700px */}
+            <div className="grid items-start gap-3 min-[1700px]:grid-cols-2">
               <Card>
                 <CardHeader icon={<Crosshair />} title={t('Rottura del range del lunedì')} subtitle={t('Cosa succede dopo la rottura del massimo o del minimo')}
                   info={t('Il «movimento inverso» di KillaXBT: dopo che il massimo (minimo) del lunedì viene preso, quanto spesso il prezzo rientra nel range e si muove di almeno 2–3% dal livello rotto nella direzione opposta entro la domenica. Tra parentesi il 75° percentile.')} />

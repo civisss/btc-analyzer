@@ -169,4 +169,7 @@
 @container (max-width: 200px) {
   .kpi-value { font-size: 1.375rem; line-height: 2rem; }
   .kpi-icon { display: none; }  /* the label gets the room instead of being truncated */
+  /* two-line label and sub-line instead of an ellipsis; the slot is reserved so the values of a row stay aligned */
+  .kpi-label { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1rem; min-height: 2rem; }
+  .kpi-foot-text { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 }

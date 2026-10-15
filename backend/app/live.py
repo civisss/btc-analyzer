@@ -140,3 +140,8 @@ def start() -> None:
         liq_collectors.start()
     except Exception as e:  # noqa: BLE001
         log.warning("collector liquidazioni multi-exchange non avviati: %s", e)
+    try:  # order book + trade aggressivi Binance (heatmap e footprint, app/ob_collector.py)
+        from . import ob_collector
+        ob_collector.start()
+    except Exception as e:  # noqa: BLE001
+        log.warning("collector order book non avviato: %s", e)

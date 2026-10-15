@@ -668,6 +668,38 @@ def zigzag_confirmed(h: np.ndarray, l: np.ndarray, a: np.ndarray, mult: float) -
     return piv
 
 
+def zigzag_breaks(conf: list[dict], c: np.ndarray) -> list[dict]:
+    """Rotture di struttura causali: prima CHIUSURA oltre l'ultimo swing high/low confermato (noto dalla sua `ci`).
+
+    BOS = rottura nella direzione dell'ultima rottura (o la prima), CHoCH = rottura contraria (cambio di carattere).
+    Ogni pivot si rompe una sola volta. Ritorna [{i, kind, level, pivot_i, inv}] in ordine di tempo.
+    """
+    conf = sorted(conf, key=lambda p: p["ci"])
+    out: list[dict] = []
+    trend = 0
+    sh = sl = None
+    pi = 0
+    for t in range(len(c)):
+        while pi < len(conf) and conf[pi]["ci"] <= t:
+            p = conf[pi]
+            if p["kind"] == "high":
+                sh = {"price": p["price"], "broken": False, "i": p["i"]}
+            else:
+                sl = {"price": p["price"], "broken": False, "i": p["i"]}
+            pi += 1
+        if sh and not sh["broken"] and c[t] > sh["price"]:
+            sh["broken"] = True
+            out.append({"i": t, "kind": "choch_up" if trend < 0 else "bos_up", "level": sh["price"], "pivot_i": sh["i"],
+                        "inv": sl["price"] if sl else None})
+            trend = 1
+        if sl and not sl["broken"] and c[t] < sl["price"]:
+            sl["broken"] = True
+            out.append({"i": t, "kind": "choch_down" if trend > 0 else "bos_down", "level": sl["price"], "pivot_i": sl["i"],
+                        "inv": sh["price"] if sh else None})
+            trend = -1
+    return out
+
+
 def fractals(h: np.ndarray, l: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
     n = len(h)
     ph = np.zeros(n, bool)
@@ -840,26 +872,8 @@ def detect_events(df: pd.DataFrame, tf: str) -> tuple[list[dict], dict]:
 
     # ---------------- BOS / CHoCH su zigzag confermato
     piv = zigzag_confirmed(h, l, np.nan_to_num(a, nan=np.nanmean(a)), cfg["zz"])
-    conf = sorted([p for p in piv if p["ci"] is not None], key=lambda p: p["ci"])
-    trend = 0
-    sh = sl = None
-    pi = 0
-    for t in range(n):
-        while pi < len(conf) and conf[pi]["ci"] <= t:
-            p = conf[pi]
-            if p["kind"] == "high":
-                sh = {"price": p["price"], "broken": False, "i": p["i"]}
-            else:
-                sl = {"price": p["price"], "broken": False, "i": p["i"]}
-            pi += 1
-        if sh and not sh["broken"] and c[t] > sh["price"]:
-            sh["broken"] = True
-            add("choch_up" if trend < 0 else "bos_up", t, level=sh["price"], inv=sl["price"] if sl else None, atr=a[t])
-            trend = 1
-        if sl and not sl["broken"] and c[t] < sl["price"]:
-            sl["broken"] = True
-            add("choch_down" if trend > 0 else "bos_down", t, level=sl["price"], inv=sh["price"] if sh else None, atr=a[t])
-            trend = -1
+    for b in zigzag_breaks([p for p in piv if p["ci"] is not None], c):
+        add(b["kind"], b["i"], level=b["level"], inv=b["inv"], atr=a[b["i"]])
     ev.sort(key=lambda e: e["i"])
     return ev, {"piv": piv}
 

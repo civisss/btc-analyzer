@@ -135,8 +135,9 @@ export function NextPivotsCard({ d, onSelect, n = 8 }: { d: TimePivots; onSelect
             <tbody>
               {next.map((c) => (
                 <tr key={c.id} className={onSelect ? 'cursor-pointer' : undefined} onClick={() => onSelect?.(c.id)}>
-                  <td className="text-white">{c.label}<div className="text-xs text-slate-400">{countdown(c.start, c.end)}</div></td>
-                  <td><ExpBadge e={c.expected} /></td>
+                  {/* narrow side card: long windows and expectations wrap so the confluence column stays in view */}
+                  <td className="!whitespace-normal text-white">{c.label}<div className="text-xs text-slate-400">{countdown(c.start, c.end)}</div></td>
+                  <td className="!whitespace-normal"><ExpBadge e={c.expected} className="!whitespace-normal" /></td>
                   <td className="text-right"><span className="tnum text-white">{int(c.confluence)}</span><span className="text-xs text-slate-400">/100</span>{fin(c.probability) && <div className="text-2xs text-slate-400">{t('Prob. storica {p}', { p: pctOf(c.probability) })}</div>}</td>
                 </tr>
               ))}

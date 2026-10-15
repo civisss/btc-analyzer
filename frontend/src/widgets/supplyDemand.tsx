@@ -2,6 +2,8 @@
 import { useMemo } from 'react'
 import type { Pt } from '../api/types'
 import type { AbsorptionRow, EtfData } from '../api/supplyDemand'
+import type { AnomalyMark } from '../api/superchart'
+import { anomalyMarkPoint, anomalyTipRow } from './charts'
 import EChart from '../components/charts/EChart'
 import {
   C, FONT, areaGradient, axisLabel, axisNum, dataZoomInside, dataZoomSlider, dateFmt, hexA, legendBase, lineSeries, timeAxis, toXY, tooltipBase,
@@ -91,14 +93,14 @@ export function ReservesChart({ reserve, price, mode, logPrice, height = 380 }: 
 }
 
 // ------------------------------------------------------------------ flusso netto (barre: entrate rosse, uscite verdi)
-export function NetflowBars({ data, height = 300, zoom = false, unitLabel }: { data: Pt[]; height?: number | string; zoom?: boolean; unitLabel: string }) {
+export function NetflowBars({ data, height = 300, zoom = false, unitLabel, anomalies }: { data: Pt[]; height?: number | string; zoom?: boolean; unitLabel: string; anomalies?: AnomalyMark[] }) {
   const option = useMemo(() => ({
     grid: { left: 8, right: 8, top: 12, bottom: zoom ? 36 : 8, containLabel: true },
     tooltip: {
       ...tooltipBase, trigger: 'axis', axisPointer: { type: 'shadow' },
       formatter: (ps: TipP[]) => {
         const [ms, v] = ps[0].value as number[]
-        return tipHead(`${dateFmt(ms)} · ${unitLabel}`) + tipRow(v > 0 ? C.down : C.up, v > 0 ? t('Entrate nette') : t('Uscite nette'), btcAmt(v, true))
+        return tipHead(`${dateFmt(ms)} · ${unitLabel}`) + tipRow(v > 0 ? C.down : C.up, v > 0 ? t('Entrate nette') : t('Uscite nette'), btcAmt(v, true)) + anomalyTipRow(anomalies, ms)
       },
     },
     dataZoom: zoom ? [dataZoomInside, dataZoomSlider] : undefined,
@@ -107,15 +109,16 @@ export function NetflowBars({ data, height = 300, zoom = false, unitLabel }: { d
     series: [{
       name: t('Flusso netto'), type: 'bar', data: toXY(data), barMaxWidth: 6, large: data.length > 600,
       itemStyle: { color: (p: { value: [number, number] }) => (p.value[1] > 0 ? C.down : C.up) },
+      markPoint: anomalyMarkPoint(anomalies, toXY(data) as [number, number | null][]),
     }],
-  }), [data, zoom, unitLabel])
+  }), [data, zoom, unitLabel, anomalies])
   return <EChart option={option} height={height} />
 }
 
 // ------------------------------------------------------------------ flussi ETF giornalieri per emittente + cumulato
 export const ISSUER_COLORS: Record<string, string> = { IBIT: C.blue, FBTC: C.purple, GBTC: C.teal, ARKB: '#94A0BC', BITB: '#626D88' }
 const OTHERS = '#3B4560'
-export function EtfFlowsChart({ d, start, unit, height = 400 }: { d: EtfData['daily']; start: number; unit: 'usd' | 'btc'; height?: number | string }) {
+export function EtfFlowsChart({ d, start, unit, height = 400, anomalies }: { d: EtfData['daily']; start: number; unit: 'usd' | 'btc'; height?: number | string; anomalies?: AnomalyMark[] }) {
   const option = useMemo(() => {
     const i0 = Math.max(0, d.dates.findIndex((x) => x >= start))
     const ms = d.dates.slice(i0).map((x) => x * 1000)
@@ -146,6 +149,7 @@ export function EtfFlowsChart({ d, start, unit, height = 400 }: { d: EtfData['da
           return tipHead(`${dateFmt(m)} · ${t('Totale')} <b style="color:#E8ECF4">${fin(tot) ? fmt(tot) : DASH}</b>`) +
             ps.filter((p) => fin((p.value as number[])[1]) && ((p.value as number[])[1] !== 0 || p.seriesName === lblCum))
               .map((p) => tipRow(p.color, p.seriesName, p.seriesName === lblCum ? fmtCum((p.value as number[])[1]) : fmt((p.value as number[])[1]))).join('')
+            + anomalyTipRow(anomalies, m)
         },
       },
       dataZoom: [dataZoomInside, dataZoomSlider],
@@ -155,12 +159,19 @@ export function EtfFlowsChart({ d, start, unit, height = 400 }: { d: EtfData['da
         valueAxis({ position: 'right', scale: false, splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: (v: number) => (unit === 'usd' ? usdMAxis(v) : axisNum(v)) } }),
       ],
       series: [
-        ...main.map((k) => stack(k, col(k), ISSUER_COLORS[k])),
+        // anomaly dots sit on the day's total (first stack series → left axis)
+        ...main.map((k, i) => ({ ...stack(k, col(k), ISSUER_COLORS[k]),
+          ...(i === 0 ? { markPoint: anomalyMarkPoint(anomalies, ms.map((m, j) => {
+            // top of the visible stack on the side of the day's net flow
+            const parts = Object.keys(d.issuers).map((k) => conv(d.issuers[k], j + i0) ?? 0)
+            const net = parts.reduce((a, x) => a + x, 0)
+            return [m, parts.filter((x) => (net >= 0 ? x > 0 : x < 0)).reduce((a, x) => a + x, 0)] as [number, number | null]
+          })) } : {}) })),
         stack(lblOthers, oth, OTHERS),
         lineSeries(lblCum, ms.map((m, j) => [m, cum[j]]), C.primary, { yAxisIndex: 1, lineStyle: { width: 1.6, color: C.primary } }),
       ],
     }
-  }, [d, start, unit])
+  }, [d, start, unit, anomalies])
   return <EChart option={option} height={height} />
 }
 

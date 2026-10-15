@@ -13,7 +13,8 @@ import {
 import { getLang, t, tr } from '../i18n'
 import { useTab } from '../lib/useTab'
 import { DASH, date, dayUnit, pct, usd } from '../lib/format'
-import { TimeLinesChart } from '../widgets/charts'
+import { AnomalyToggle, TimeLinesChart, marksIn } from '../widgets/charts'
+import { useAnomalyMarks } from '../api/superchart'
 import {
   AttentionChart, EtfFlowsChart, ISSUER_COLORS, ISSUER_NAME, MonthlyAbsorptionChart, NetflowBars, RatioChart, ReservesChart, btcAmt, fin, intg, mult, sfx, usdM,
 } from '../widgets/supplyDemand'
@@ -176,15 +177,21 @@ function ReservesCard({ d, updatedAt }: { d: ExchangesData; updatedAt: number })
 
 function NetflowCard({ d }: { d: ExchangesData }) {
   const [v, setV] = useState<'daily' | 'weekly' | 'rolling'>('daily')
+  const [an, setAn] = useState(false)
+  const anQ = useAnomalyMarks('exch_netflow', an && v === 'daily')
+  const netMarks = useMemo(() => marksIn(anQ.marks, d.series.net_daily), [anQ.marks, d.series.net_daily])
   return (
     <Card>
       <CardHeader icon={<BarChart3 />} title={t('Flusso netto verso gli exchange')}
         subtitle={v === 'daily' ? t('Giornaliero, ultimi 12 mesi · entrate − uscite (BTC)') : v === 'weekly' ? t('Somma settimanale dal 2015 (BTC)') : t('Somme mobili a 30 e 90 giorni (BTC)')}
         info={t('Positivo (rosso) = più BTC entrati che usciti: potenziale offerta in vendita. Negativo (verde) = più BTC ritirati: accumulo o spostamento in custodia.')}
-        right={<Segmented options={[{ value: 'daily' as const, label: tr('Giornaliero', 'Daily') }, { value: 'weekly' as const, label: tr('Settimanale', 'Weekly') }, { value: 'rolling' as const, label: t('Somme mobili') }]} value={v} onChange={setV} />} />
+        right={<>
+          <Segmented options={[{ value: 'daily' as const, label: tr('Giornaliero', 'Daily') }, { value: 'weekly' as const, label: tr('Settimanale', 'Weekly') }, { value: 'rolling' as const, label: t('Somme mobili') }]} value={v} onChange={setV} />
+          {v === 'daily' && <AnomalyToggle on={an} onClick={() => setAn((x) => !x)} loading={anQ.loading} count={netMarks.length} />}
+        </>} />
       <CardBody className="flex flex-col gap-2">
         {v !== 'rolling' && <Legend items={[{ label: t('Uscite nette (verde)'), color: C.up }, { label: t('Entrate nette (rosso)'), color: C.down }]} />}
-        {v === 'daily' && <NetflowBars data={d.series.net_daily} height={300} unitLabel={tr('giornaliero', 'daily')} />}
+        {v === 'daily' && <NetflowBars data={d.series.net_daily} height={300} unitLabel={tr('giornaliero', 'daily')} anomalies={netMarks} />}
         {v === 'weekly' && <NetflowBars data={d.series.net_weekly} height={300} zoom unitLabel={tr('settimana', 'week')} />}
         {v === 'rolling' && (
           <TimeLinesChart height={300} zoom yFmt={(x) => btcAmt(x, true, false)} markLines={[{ y: 0, color: hexA(C.grey, 0.5) }]}
@@ -447,6 +454,9 @@ function EtfFlowsCard({ d, updatedAt }: { d: EtfData; updatedAt: number }) {
     const days = { '3m': 92, '6m': 183, '1y': 366, all: 99999 }[range]
     return last - days * 86400
   }, [d, range])
+  const [an, setAn] = useState(false)
+  const anQ = useAnomalyMarks('etf_flows', an)
+  const etfMarks = useMemo(() => anQ.marks.filter((m) => m.time >= start - 86400), [anQ.marks, start])
   return (
     <Card className="h-full">
       <CardHeader icon={<BarChart3 />} updatedAt={updatedAt} interval={5 * 60_000} title={t('Flussi giornalieri per emittente')}
@@ -455,8 +465,9 @@ function EtfFlowsCard({ d, updatedAt }: { d: EtfData; updatedAt: number }) {
         right={<>
           <Segmented options={[{ value: '3m' as Range, label: tr('3M', '3M') }, { value: '6m' as Range, label: '6M' }, { value: '1y' as Range, label: tr('1A', '1Y') }, { value: 'all' as Range, label: tr('Tutto', 'All') }]} value={range} onChange={setRange} />
           <Segmented options={[{ value: 'usd' as const, label: 'USD' }, { value: 'btc' as const, label: 'BTC' }]} value={u} onChange={setU} />
+          <AnomalyToggle on={an} onClick={() => setAn((x) => !x)} loading={anQ.loading} count={etfMarks.length} />
         </>} />
-      <CardBody className="flex flex-col"><Fill min={320}><EtfFlowsChart d={d.daily} start={start} unit={u} height="100%" /></Fill></CardBody>
+      <CardBody className="flex flex-col"><Fill min={320}><EtfFlowsChart d={d.daily} start={start} unit={u} height="100%" anomalies={etfMarks} /></Fill></CardBody>
     </Card>
   )
 }

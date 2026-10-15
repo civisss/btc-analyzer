@@ -422,7 +422,7 @@ function SentimentHero({ d, updatedAt }: { d: SentimentData; updatedAt: number }
           {cz && (
             <div>
               <div className="label mb-1">{t('Storico nella zona attuale · {z}', { z: t(cz.zone) })}</div>
-              <div className="dgrid grid-cols-2 sm:grid-cols-4">
+              <div className="dgrid grid-cols-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
                 <Stat k={t('Giorni in zona')} v={cz.days.toLocaleString('en-US')} sub={t('{n} episodi', { n: cz.episodes })} />
                 <Stat k={t('Mediana {n}', { n: `30${dayUnit()}` })} v={<Change value={cz.r30_median} digits={1} />} sub={fin(cz.hit30) ? t('Positivi {p}%', { p: cz.hit30.toFixed(0) }) : undefined} />
                 <Stat k={t('Mediana {n}', { n: `90${dayUnit()}` })} v={<Change value={cz.r90_median} digits={1} />} sub={fin(cz.hit90) ? t('Positivi {p}%', { p: cz.hit90.toFixed(0) }) : undefined} />

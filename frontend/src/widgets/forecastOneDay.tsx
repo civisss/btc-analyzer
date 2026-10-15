@@ -198,7 +198,11 @@ export function OneDayScatter({ d, target, period, replica, height = '100%' }: {
     const pm = pts(mod)
     const pr = target === 'mid' && replica ? pts(s.replica) : []
     const ys = [...pm, ...pr].map((p) => Math.abs(p[1])).sort((x, y) => x - y)
-    const lim = Math.max(1, Math.ceil(ys[Math.floor(ys.length * 0.99)] ?? 5))
+    const raw = Math.max(1, Math.ceil(ys[Math.floor(ys.length * 0.99)] ?? 5))
+    // symmetric limits on a round step so the ticks are evenly spaced (no "−7 −6 … 6 7" at the edges)
+    const step = raw <= 4 ? 1 : raw <= 10 ? 2 : raw <= 25 ? 5 : 10
+    const lim = Math.ceil(raw / step) * step
+    const tick = (v: number) => (v < 0 ? `−${Math.abs(v)}` : `${v}`)
     const N = { mod: t('Modello'), rep: t('Replica CryptoPredictions'), perfect: t('Previsione perfetta') }
     const clip = (p: [number, number, number][]) => p.filter((q) => Math.abs(q[0]) <= lim && Math.abs(q[1]) <= lim)
     return {
@@ -209,10 +213,10 @@ export function OneDayScatter({ d, target, period, replica, height = '100%' }: {
         formatter: (p: { seriesName: string; value: [number, number, number]; color: string }) =>
           tipHead(dateFmt(p.value[2])) + tipRow(p.color, t('Previsto'), sgn(p.value[0])) + tipRow(OD_COLOR.actual, t('Reale'), sgn(p.value[1])),
       },
-      xAxis: valueAxis({ min: -lim, max: lim, scale: false, name: t('Rendimento previsto %'), nameLocation: 'middle', nameGap: 22,
-        splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: (v: number) => `${v}` } }),
-      yAxis: valueAxis({ min: -lim, max: lim, scale: false, name: t('Reale %'), nameGap: 10,
-        axisLabel: { ...axisLabel, formatter: (v: number) => `${v}` } }),
+      xAxis: valueAxis({ min: -lim, max: lim, interval: step, scale: false, name: t('Rendimento previsto %'), nameLocation: 'middle', nameGap: 22,
+        splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: tick } }),
+      yAxis: valueAxis({ min: -lim, max: lim, interval: step, scale: false, name: t('Reale %'), nameGap: 10,
+        axisLabel: { ...axisLabel, formatter: tick } }),
       series: [
         { name: N.mod, type: 'scatter', symbolSize: 4, large: false, itemStyle: { color: hexA(OD_COLOR.model, 0.55) }, data: clip(pm), z: 3,
           markLine: { silent: true, symbol: 'none', lineStyle: { color: 'rgba(226,232,240,0.35)', type: 'dashed' },

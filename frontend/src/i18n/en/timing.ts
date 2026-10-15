@@ -1,0 +1,215 @@
+// Timing page (pages/TimingPage.tsx + widgets/timing.tsx) and Wyckoff levels in personal alerts.
+const en: Record<string, string> = {
+  // page, tabs, KPIs
+  'Timing Gann · Wyckoff': 'Timing · Gann & Wyckoff',
+  'Date chiave, fasi di Wyckoff e ritmi di calendario nello stile dei «timing tops & bottoms», ognuno con il suo track record contro il caso: uno studio, non un segnale.':
+    'Key dates, Wyckoff phases and calendar rhythms in the “timing tops & bottoms” style, each with its track record against chance: a study, not a signal.',
+  'Scenari': 'Scenarios', 'Date chiave Gann': 'Gann key dates', 'Fasi Wyckoff': 'Wyckoff phases', 'Scopritore di ritmi': 'Rhythm finder',
+  'Prossima data chiave': 'Next key date', 'Punteggio {s}': 'Score {s}', 'Nessuna confluenza ≥ 2 nei prossimi 90 giorni': 'No confluence ≥ 2 in the next 90 days',
+  'Storico di quel punteggio': 'Track record of that score', 'Contro {b} di un giorno qualsiasi': 'Vs {b} on any day',
+  'Quota di date con questo punteggio seguite da un pivot a {n} giorni entro ±{w} g': 'Share of dates with this score followed by a {n}-day pivot within ±{w} d',
+  'Conteggi di Gann significativi': 'Significant Gann counts', '{w} deboli · dopo correzione per test multipli': '{w} weak · after multiple-testing correction',
+  'Wyckoff {tf}': 'Wyckoff {tf}', 'Fase {p}': 'Phase {p}', 'Pump · dump · pump': 'Pump · dump · pump', 'Dei mesi dal 2017 · caso {c}': 'Of months since 2017 · chance {c}',
+  'Mese in tre parti, chiusure di segmento': 'Month in three parts, segment closes',
+
+  // scenarios
+  'Dopo un {e} ({tf}) BTC ha fatto in media {m} a {d} giorni, {x} rispetto a un giorno qualsiasi (n = {n}): {v}.':
+    'After a {e} ({tf}) BTC averaged {m} over {d} days, {x} vs any day (n = {n}): {v}.',
+  'Nessuna data con almeno due conteggi di Gann in confluenza nei prossimi 90 giorni.': 'No date with at least two Gann counts in confluence in the next 90 days.',
+  'Finestra di timing più vicina: {d} (±{w} g, punteggio {s}). Le date con questo punteggio sono state seguite da un pivot a {p} giorni nel {h} dei casi contro il {b} di un giorno qualsiasi: {v}.':
+    'Nearest timing window: {d} (±{w} d, score {s}). Dates with this score were followed by a {p}-day pivot in {h} of cases vs {b} on any day: {v}.',
+  'Scenario A': 'Scenario A', 'Scenario B': 'Scenario B', 'Se tiene {p}': 'If {p} holds', 'Se perde {p}': 'If {p} is lost',
+  'Finché le chiusure giornaliere restano sopra {p}, i riferimenti successivi sopra il prezzo sono {a}{b}.': 'As long as daily closes stay above {p}, the next references above price are {a}{b}.',
+  'e poi': 'and then',
+  'Finché le chiusure giornaliere restano sopra {p}, non ci sono livelli noti sopra il prezzo entro il ±50%.': 'As long as daily closes stay above {p}, there are no known levels above price within ±50%.',
+  'Con una chiusura giornaliera sotto {p}, i riferimenti successivi sotto sono {a}{b}.': 'With a daily close below {p}, the next references below are {a}{b}.',
+  'Con una chiusura giornaliera sotto {p}, non ci sono livelli noti più in basso entro il ±50%.': 'With a daily close below {p}, there are no known lower levels within ±50%.',
+  'Riferimenti sopra': 'References above', 'Riferimenti sotto': 'References below', 'Finestra di timing': 'Timing window', 'Storico {h} contro {b}': 'History {h} vs {b}',
+  'Lo scenario decade se': 'The scenario lapses if', 'Chiusura giornaliera sotto {p}': 'Daily close below {p}', 'Ritorno con chiusura giornaliera sopra {p}': 'Back above {p} on a daily close',
+  'Ingredienti e track record': 'Ingredients & track record', 'Ogni ingrediente con il suo verdetto storico': 'Each ingredient with its historical verdict',
+  'Date chiave di Gann': 'Gann key dates', '{s} in fase {p} ({a}), range {l}–{h}.': '{s} in phase {p} ({a}), range {l}–{h}.',
+  'Nessun range di Wyckoff attivo su questo timeframe.': 'No active Wyckoff range on this timeframe.',
+  'Pump inizio · dump metà · pump fine': 'Pump start · dump mid · pump end',
+  'Dal 2017 lo schema compare nel {r} dei mesi contro il {n} atteso per caso; nei mesi da agosto 2026: {k} su {m}.':
+    'Since 2017 the pattern appears in {r} of months vs {n} expected by chance; in the months since August 2026: {k} of {m}.',
+  'Mese in corso: 1 parte conclusa su 3.': 'Current month: 1 part of 3 completed.', 'Mese in corso: {d} parti concluse su 3.': 'Current month: {d} parts of 3 completed.',
+  'Mese in corso: nessuna parte ancora conclusa.': 'Current month: no part completed yet.', 'Livelli': 'Levels',
+  'Range di Wyckoff, range giornaliero della sezione Struttura e VWAP ancorati: sono livelli esistenti, raggruppati entro lo 0.6%, non previsioni.':
+    'Wyckoff ranges, the daily range from the Structure section and anchored VWAPs: existing levels, grouped within 0.6%, not forecasts.',
+  'Mappa dei livelli': 'Level map', 'Candele giornaliere · livelli usati dagli scenari (entro il ±15%)': 'Daily candles · levels used by the scenarios (within ±15%)',
+  'Range di Wyckoff': 'Wyckoff range', 'Range di struttura': 'Structure range', '×n = livelli raggruppati': '×n = grouped levels',
+  'Nessuna data con almeno due conteggi in confluenza': 'No date with at least two counts in confluence',
+  'Nessun supporto noto sotto il prezzo: scenari non disponibili.': 'No known support below price: scenarios unavailable.',
+  'Prossime date chiave': 'Upcoming key dates', 'Conteggi di Gann in confluenza · storico del punteggio': 'Gann counts in confluence · score track record',
+  'Metodo · scenari': 'Method · scenarios',
+  'Gli scenari sono composti da regole fisse, senza modelli linguistici: il livello di riferimento è il gruppo di livelli esistenti più vicino sotto il prezzo (range di Wyckoff 1G e 4h, range giornaliero della sezione Struttura, VWAP ancorati settimanale, mensile, trimestrale, annuale e dei periodi precedenti), raggruppati quando distano meno dello 0.6%. Lo scenario A elenca i due gruppi successivi sopra il prezzo, lo scenario B i due sotto il livello.':
+    'Scenarios are built from fixed rules, with no language model: the reference level is the nearest group of existing levels below price (Wyckoff 1D and 4h ranges, the daily range from the Structure section, weekly, monthly, quarterly, yearly and previous-period anchored VWAPs), grouped when less than 0.6% apart. Scenario A lists the next two groups above price, scenario B the two below the level.',
+  'Accanto a ogni ingrediente c’è il suo verdetto storico. Gli scenari descrivono livelli e condizioni, non indicano operazioni: nessun ingrediente ha mostrato finora un vantaggio significativo e stabile rispetto al caso, salvo dove il verdetto dice il contrario.':
+    'Each ingredient shows its historical verdict. Scenarios describe levels and conditions, they do not suggest trades: so far no ingredient has shown a significant and stable edge over chance, unless its verdict says otherwise.',
+
+  // Gann tab
+  'Pivot 10 g': 'Pivot 10 d', 'Pivot 20 g': 'Pivot 20 d', 'Definizione del test': 'Test definition',
+  'Pivot bersaglio, finestra attorno alla data e orizzonte delle prossime date': 'Target pivot, window around the date and horizon of upcoming dates',
+  'Pivot a N giorni = massimo (o minimo) più estremo delle 2N+1 candele giornaliere centrate. Una data proiettata «colpisce» se c’è almeno un pivot entro ±W giorni. Le 6 combinazioni consultabili sono corrette insieme per test multipli.':
+    'N-day pivot = the most extreme high (or low) of the 2N+1 centred daily candles. A projected date “hits” if there is at least one pivot within ±W days. The 6 available combinations are corrected together for multiple testing.',
+  'Calendario di confluenza': 'Confluence calendar', 'Quanti tipi di conteggio cadono su ogni giorno (±1 g) · prossimi {h} giorni': 'How many count types land on each day (±1 d) · next {h} days',
+  'Ogni barra conta i tipi di conteggio di Gann distinti che proiettano una data entro ±1 giorno, solo da pivot maggiori già confermati oggi. Le barre piene sono le date da osservare (massimi locali con punteggio ≥ 2).':
+    'Each bar counts the distinct Gann count types projecting a date within ±1 day, only from major pivots already confirmed today. Solid bars are the dates to watch (local maxima with score ≥ 2).',
+  'Date da osservare': 'Dates to watch', 'Hit rate storico del punteggio / giorno qualsiasi': 'Historical hit rate of the score / any day',
+  'Track record per tipo di conteggio': 'Track record by count type', '{d} giorni dal {s} · {a} pivot maggiori · {b} pivot bersaglio': '{d} days since {s} · {a} major pivots · {b} target pivots',
+  'Hit rate = quota di date proiettate con un pivot entro la finestra. Caso = stessa quota con le date traslate a caso (stessa densità e stessi grappoli). Conteggi vicini = stesse ancore con conteggi spostati del 5–20% (non di Gann). p corretto: Benjamini-Hochberg su tutti i tipi e su tutte le 6 definizioni.':
+    'Hit rate = share of projected dates with a pivot inside the window. Chance = same share with dates shifted at random (same density and clustering). Nearby counts = same anchors with counts shifted by 5–20% (non-Gann). Corrected p: Benjamini-Hochberg across all types and all 6 definitions.',
+  'Conteggio': 'Count', 'Rapporto': 'Ratio', 'Conteggi vicini': 'Nearby counts', 'p corretto': 'Corrected p', 'Metà 1 · 2': 'Half 1 · 2',
+  'Hit rate contro la banda del caso': 'Hit rate vs the chance band', 'Un punto fuori dalla banda grigia è insolito; dentro non si distingue dal caso': 'A dot outside the grey band is unusual; inside it cannot be told from chance',
+  'Il punteggio di confluenza funziona?': 'Does the confluence score work?', 'Giorni del passato per punteggio, calcolato solo con pivot già confermati': 'Past days by score, computed only with pivots already confirmed',
+  'Per ogni giorno dal 2012 si conta quanti tipi di conteggio cadevano su quel giorno usando solo pivot confermati prima della finestra. La barra è la quota di quei giorni con un pivot entro ±W giorni; la linea tratteggiata è un giorno qualsiasi; il trattino ambra è il 95° percentile del caso.':
+    'For every day since 2012 we count how many count types landed on it using only pivots confirmed before the window. The bar is the share of those days with a pivot within ±W days; the dashed line is any day; the amber tick is the 95th percentile of chance.',
+  'Pivot maggiori e pivot bersaglio': 'Major pivots and target pivots', 'Candele giornaliere Binance · zigzag {m}× ATR': 'Binance daily candles · {m}× ATR zigzag',
+  'Metodo · conteggi di Gann': 'Method · Gann counts',
+  'Ancore: pivot maggiori dello zigzag {m}× ATR(14) sulla serie giornaliera dal 2012, ciascuno con la data in cui diventa noto (conferma). Una data proiettata vale solo se la sua finestra inizia dopo la conferma dell’ancora: nessun dato futuro. Bersaglio: pivot a {n} giorni (massimo o minimo più estremo delle {k} candele centrate), finestra ±{w} giorni.':
+    'Anchors: major pivots of the {m}× ATR(14) zigzag on the daily series since 2012, each with the date it becomes known (confirmation). A projected date counts only if its window starts after the anchor is confirmed: no future data. Target: {n}-day pivot (most extreme high or low of the {k} centred candles), window ±{w} days.',
+  'Conteggi: 30, 45, 60, 90, 120, 144, 180, 270, 360 giorni; multipli lunghi 540, 720, 1080; quadrato del 9 nel tempo (numeri sulle croci cardinale e diagonale, da 21 a 400 giorni); divisioni dell’anno 1/8, 1/6, 1/4, 1/3; anniversari 1–4 anni; date stagionali fisse (equinozi, solstizi, 4 feb, 6 mag, 8 ago, 8 nov).':
+    'Counts: 30, 45, 60, 90, 120, 144, 180, 270, 360 days; long multiples 540, 720, 1080; square of nine in time (numbers on the cardinal and diagonal crosses, 21 to 400 days); year divisions 1/8, 1/6, 1/4, 1/3; anniversaries 1–4 years; fixed seasonal dates (equinoxes, solstices, Feb 4, May 6, Aug 8, Nov 8).',
+  'Test: placebo a traslazione circolare delle date proiettate (ogni spostamento ≥ {s} giorni, stessa densità e stessi grappoli) e placebo dei conteggi (stesse ancore, conteggio moltiplicato per un fattore casuale tra 0.8 e 1.2, {c} estrazioni). Correzione di Benjamini-Hochberg sui {a} test di tutte le definizioni consultabili. Verdetto: n < {mn} aneddotico; significativo e stabile solo se regge alla correzione, batte anche i conteggi vicini e vale in entrambe le metà del campione.':
+    'Tests: circular-shift placebo of the projected dates (every shift ≥ {s} days, same density and clustering) and count placebo (same anchors, count multiplied by a random factor between 0.8 and 1.2, {c} draws). Benjamini-Hochberg correction over the {a} tests of all available definitions. Verdict: n < {mn} anecdotal; significant and stable only if it survives the correction, also beats the nearby counts and holds in both halves of the sample.',
+  'Collegamenti: il quadrato del 9 sui prezzi e Fibonacci nel tempo sono testati nella sezione Astronomia e numeri; stagionalità, Fibonacci time zones e tempi di ciclo nella sezione Pivot temporali.':
+    'Related: the square of nine on prices and Fibonacci in time are tested in the Astronomy & numbers section; seasonality, Fibonacci time zones and cycle timing in the Time pivots section.',
+  'Livelli prezzo-tempo (opzionali)': 'Price-time levels (optional)', 'Strumenti grafici di Gann: la scala su BTC è arbitraria': 'Gann charting tools: the scale on BTC is arbitrary',
+  'Il quadrato del 9 ruota la radice quadrata del prezzo: +45° = +0.25 sulla radice. Gli angoli 1×1, 2×1, 1×2 richiedono una scala prezzo/tempo: qui 1×1 = pendenza media della gamba maggiore precedente (dollari al giorno). Cambiando scala cambiano tutte le linee: non sono testati qui.':
+    'The square of nine rotates the square root of price: +45° = +0.25 on the root. The 1×1, 2×1, 1×2 angles need a price/time scale: here 1×1 = average slope of the previous major leg (dollars per day). A different scale moves every line: they are not tested here.',
+  'Quadrato del 9 dal pivot {p}': 'Square of nine from the {p} pivot', '{g} giri': '{g} turns', 'Passo di 45° vicino al prezzo: circa {u}': '45° step near price: about {u}',
+  'Angoli dal pivot del {d}': 'Angles from the {d} pivot', 'Il quadrato del 9 sui prezzi è testato in Astronomia e numeri': 'The square of nine on prices is tested in Astronomy & numbers',
+
+  // Wyckoff tab
+  'Range ed eventi di Wyckoff': 'Wyckoff ranges and events', 'Candele {tf} Binance · eventi rilevati solo con candele chiuse': 'Binance {tf} candles · events detected on closed candles only',
+  'Range attuale': 'Current range', 'Nessun range attivo': 'No active range', 'Massimo': 'High', 'Minimo': 'Low', 'Ampiezza': 'Width', 'Eventi del range': 'Range events',
+  'Ultimo range: {s}, {st} il {d}.': 'Last range: {s}, {st} on {d}.', 'Accumulazioni → rialzo': 'Accumulations → up', 'Distribuzioni → ribasso': 'Distributions → down',
+  'Track record degli eventi': 'Event track record', 'Rendimento dalla chiusura della candela di conferma · {n} test corretti insieme': 'Return from the close of the confirmation candle · {n} tests corrected together',
+  'Normale = rendimento medio di tutte le candele del campione sullo stesso orizzonte. «Nella direzione» = quota di eventi seguiti da un movimento nella direzione prevista dallo schema (rialzo dopo Spring/SOS, ribasso dopo UTAD/SOW), contro la stessa quota di una candela qualsiasi. p da 2000 estrazioni casuali di candele; correzione di Benjamini-Hochberg su tutti gli eventi e orizzonti del timeframe.':
+    'Normal = average return of all sample candles over the same horizon. “In direction” = share of events followed by a move in the direction the schematic expects (up after Spring/SOS, down after UTAD/SOW), vs the same share for any candle. p from 2000 random candle draws; Benjamini-Hochberg correction across all events and horizons of the timeframe.',
+  'Media': 'Mean', 'Normale': 'Normal', 'Scarto': 'Excess', 'IC 95%': '95% CI', 'Nella direzione': 'In direction', 'accumulazione': 'accumulation', 'distribuzione': 'distribution',
+  'opposto alla teoria': 'opposite to theory', 'Scarto con intervallo di confidenza': 'Excess with confidence interval',
+  'Verde: nella direzione dello schema · ambra: contraria · grigio: n < {m}': 'Green: schematic direction · amber: opposite · grey: n < {m}',
+  'Timeline dei range': 'Range timeline', 'Ultimi {n} range rilevati su {tf}, dal più recente': 'Last {n} ranges detected on {tf}, newest first',
+  'Inizio': 'Start', 'Esito': 'Outcome', 'Range': 'Range', 'Eventi': 'Events', 'Dopo 20 candele': 'After 20 candles', 'Metodo · Wyckoff': 'Method · Wyckoff',
+  'Regole dichiarate, applicate candela per candela solo su candele chiuse (ogni evento ha la candela in cui si forma e quella in cui diventa noto). Volume relativo = volume ÷ mediana dei 50 precedenti; ATR(14) della candela precedente; campione {tf}: {s}.':
+    'Declared rules, applied candle by candle on closed candles only (each event has the candle where it forms and the one where it becomes known). Relative volume = volume ÷ median of the previous 50; ATR(14) of the previous candle; {tf} sample: {s}.',
+  'Accumulazione: SC = nuovo minimo di {lb} candele dopo un ribasso ≥ 5 ATR e ≥ {tp}%, con volume relativo ≥ 1.8 (o ≥ 1.4 e candela ≥ 1.6 ATR); AR = massimo frattale dopo lo SC (rimbalzo ≥ 2 ATR) che fissa il range; ST = ritorno nel 20% basso del range (fase B); Spring = minimo sotto il range e chiusura dentro entro 2 candele (fase C); SOS = chiusura sopra il range con volume relativo ≥ 1.2 o candela ≥ 1.2 ATR (fase D); LPS = primo minimo frattale dopo la rottura sopra metà range; fase E = nuovo massimo dopo l’LPS o range + 1 ampiezza. Distribuzione speculare (PSY, BC, AR, ST, UT ≤ 0.5 ATR, UTAD, SOW, LPSY). Due chiusure oltre il bordo opposto chiudono il range come fallito.':
+    'Accumulation: SC = new {lb}-candle low after a decline ≥ 5 ATR and ≥ {tp}%, with relative volume ≥ 1.8 (or ≥ 1.4 and candle ≥ 1.6 ATR); AR = fractal high after the SC (bounce ≥ 2 ATR) that sets the range; ST = return to the bottom 20% of the range (phase B); Spring = low below the range and close back inside within 2 candles (phase C); SOS = close above the range with relative volume ≥ 1.2 or candle ≥ 1.2 ATR (phase D); LPS = first fractal low after the breakout above mid-range; phase E = new high after the LPS or range + 1 width. Distribution mirrored (PSY, BC, AR, ST, UT ≤ 0.5 ATR, UTAD, SOW, LPSY). Two closes beyond the opposite edge close the range as failed.',
+  'I parametri (durata minima {ma} candele, ampiezza minima {mw} ATR) sono stati scelti perché i range abbiano forma e durata plausibili, non guardando i rendimenti. I campioni sono piccoli: molti eventi restano aneddotici.':
+    'The parameters (minimum duration {ma} candles, minimum width {mw} ATR) were chosen so that ranges have a plausible shape and duration, without looking at returns. Samples are small: many events remain anecdotal.',
+  'Storico dopo un {e}': 'History after a {e}', 'Media 10 g': '10 d mean',
+  'Direzione attesa dallo schema: {d}. Nella direzione nel {h} dei casi contro {b} di una candela qualsiasi.': 'Direction expected by the schematic: {d}. In that direction in {h} of cases vs {b} for any candle.',
+  'rialzo': 'up', 'ribasso': 'down',
+
+  // rhythms
+  'Che cosa vuoi verificare?': 'What do you want to check?', 'Scegli il ritmo, la definizione e il periodo «recente»: il confronto con il caso è automatico': 'Pick the rhythm, the definition and the “recent” period: the comparison with chance is automatic',
+  'Giorni 1–10': 'Days 1–10', 'Giorni 11–20': 'Days 11–20', 'Giorni 21–fine': 'Days 21–end', 'Definizione': 'Definition', 'Chiusure di segmento': 'Segment closes',
+  'Massimi e minimi': 'Highs and lows', 'Soglia': 'Threshold', 'Storico': 'History', 'Dal 2017': 'Since 2017', 'Dal 2013': 'Since 2013', 'Periodo recente da': 'Recent period from',
+  '▲/▼ = la parte chiude sopra/sotto la chiusura della parte precedente (la prima parte rispetto alla chiusura del mese prima).': '▲/▼ = the part closes above/below the close of the previous part (the first part vs the previous month’s close).',
+  '▲ = il massimo della parte supera di almeno {th}% il riferimento, ▼ = il minimo scende di almeno {th}% sotto il riferimento; il riferimento è la chiusura del mese prima e poi l’estremo della parte precedente.':
+    '▲ = the part’s high exceeds the reference by at least {th}%, ▼ = its low falls at least {th}% below the reference; the reference is the previous month’s close and then the extreme of the previous part.',
+  'Lo schema {p} compare nel {r} dei mesi ({k} su {n}) contro il {c} atteso per caso. Nel periodo recente: {kr} mesi su {nr}. Guardando {m} combinazioni possibili, il p corretto è {ps}: {v}.':
+    'The {p} pattern appears in {r} of months ({k} of {n}) vs {c} expected by chance. Recent period: {kr} months of {nr}. Looking at {m} possible combinations, the corrected p is {ps}: {v}.',
+  'Periodo recente': 'Recent period', 'Mesi completi da {d}': 'Complete months since {d}', 'Su tutto lo storico': 'Whole history', '{k} mesi su {n}': '{k} of {n} months',
+  'Atteso per caso': 'Expected by chance', 'Su {n} finestre di 30 giorni': 'Over {n} 30-day windows', 'Moneta: {c} · marginali: {m}': 'Coin flip: {c} · marginals: {m}',
+  'Mesi con lo schema ÷ caso': 'Months with the pattern ÷ chance', 'p grezzo {p} · {m} combinazioni': 'Raw p {p} · {m} combinations',
+  'Sopra il caso in ≥ 2/3 degli anni': 'Above chance in ≥ 2/3 of years', 'Instabile negli anni': 'Unstable across years',
+  'Frequenza per anno': 'Frequency by year', 'Quota dei mesi di ogni anno con lo schema · linea = caso': 'Share of each year’s months with the pattern · line = chance',
+  'Tutti gli schemi a confronto': 'All patterns compared', 'Stessa definizione: quale schema è comune per caso e quale no': 'Same definition: which pattern is common by chance and which is not',
+  'Schema': 'Pattern', 'Frequenza': 'Frequency', 'p BH': 'BH p', 'Mese per mese': 'Month by month', 'Rendimento di ogni parte (chiusura su chiusura) ed esito dello schema': 'Return of each part (close to close) and pattern outcome',
+  'Mese': 'Month', '1–10': '1–10', '11–20': '11–20', '21–fine': '21–end', 'Sì': 'Yes', 'No': 'No',
+  'Rendimento medio di ogni parte': 'Average return of each part', 'Chiusure di segmento, contro le altre due parti': 'Segment closes, vs the other two parts',
+  'Mediana {m}': 'Median {m}', 'In rialzo {u}': 'Up {u}', 'Altre parti {o}': 'Other parts {o}',
+  'Le medie sono trascinate da pochi mesi estremi: la mediana e la quota in rialzo sono più rappresentative.': 'Means are dragged by a few extreme months: the median and the share of up months are more representative.',
+  'Test di famiglia': 'Family test', 'Massimo |t| contro {n} permutazioni': 'Max |t| vs {n} permutations', 'Caselle significative': 'Significant buckets',
+  'Dopo correzione e stabili negli anni': 'After correction and stable across years', 'Casella più estrema': 'Most extreme bucket', 'Campione': 'Sample', 'Dal {d} · recente {n}': 'Since {d} · recent {n}',
+  'Rendimento medio per casella': 'Average return by bucket', 'Barre: tutto lo storico (più piene se significative) · punti: periodo recente': 'Bars: whole history (more solid if significant) · dots: recent period',
+  'Stabilità anno per anno': 'Year-by-year stability', 'Rendimento medio di ogni casella per anno · verde sopra, rosso sotto': 'Average return of each bucket by year · green above, red below',
+  'Dettaglio delle caselle': 'Bucket detail', '{n} confronti: p corretto con Benjamini-Hochberg': '{n} comparisons: p corrected with Benjamini-Hochberg',
+  'Casella': 'Bucket', 'In rialzo': 'Up', 'Anni concordi': 'Agreeing years', 'Recente': 'Recent', 'Metodo · ritmi': 'Method · rhythms',
+  'Mese in tre parti: giorni 1–10, 11–20 e 21–fine mese su candele giornaliere UTC (Binance dal 2017, serie storica unita dal 2013). Atteso per caso = frequenza dello stesso schema su tutte le finestre di 30 giorni (10 + 10 + 10) che iniziano in un giorno qualsiasi dello stesso periodo: misura quanto lo schema è comune per la sola volatilità di BTC, senza calendario. p = binomiale sui mesi di calendario; correzione di Šidák per le 104 combinazioni che lo strumento permette di guardare (26 schemi × 4 definizioni).':
+    'Month in three parts: days 1–10, 11–20 and 21–month end on UTC daily candles (Binance since 2017, merged history since 2013). Expected by chance = frequency of the same pattern over all 30-day windows (10 + 10 + 10) starting on any day of the same period: it measures how common the pattern is from BTC’s volatility alone, without the calendar. p = binomial on calendar months; Šidák correction for the 104 combinations the tool lets you browse (26 patterns × 4 definitions).',
+  'Giorno della settimana, settimana del mese, giorno del mese e ora UTC: rendimento logaritmico medio di ogni casella contro tutte le altre (t di Welch), Benjamini-Hochberg tra le caselle e test di famiglia (massimo |t| osservato contro 500 permutazioni dei rendimenti). Significativo e stabile solo se regge alla correzione e lo scarto ha lo stesso segno in almeno 2 anni su 3.':
+    'Day of week, week of month, day of month and UTC hour: average log return of each bucket vs all the others (Welch t), Benjamini-Hochberg across buckets and a family test (max observed |t| vs 500 return permutations). Significant and stable only if it survives the correction and the difference has the same sign in at least 2 years out of 3.',
+  'Limite: scegliere il periodo recente dopo aver visto i dati (es. «da agosto») è già una forma di data snooping; con pochi mesi nessun risultato recente può essere significativo. Le stagionalità per mese, settimana e giorno dell’anno sono nella sezione Pivot temporali.':
+    'Caveat: choosing the recent period after seeing the data (e.g. “since August”) is already a form of data snooping; with few months no recent result can be significant. Seasonality by month, week and day of the year is in the Time pivots section.',
+  'Mese in tre parti': 'Month in three parts', 'Giorno della settimana': 'Day of week', 'Settimana del mese': 'Week of month', 'Giorno del mese': 'Day of month',
+
+  // widgets
+  'Accumulazione': 'Accumulation', 'Distribuzione': 'Distribution',
+  'effetto significativo e stabile': 'significant and stable effect', 'effetto debole: non regge alla correzione per test multipli': 'weak effect: it does not survive multiple-testing correction',
+  'casi troppo pochi per un giudizio': 'too few cases for a verdict', 'nessun vantaggio rispetto al caso': 'no edge over chance',
+  'oggi': 'today', 'domani': 'tomorrow', 'tra {n} g': 'in {n} d', 'Nessun conteggio': 'No count',
+  'Storico per punteggio {s}: pivot nel {h} dei casi contro {c} per caso': 'History for score {s}: pivot in {h} of cases vs {c} by chance', 'Punteggio': 'Score',
+  'Hit rate delle date proiettate': 'Hit rate of projected dates', 'Banda del caso 90%': '90% chance band', 'Conteggi vicini non di Gann': 'Nearby non-Gann counts',
+  'Caso (media placebo)': 'Chance (placebo mean)', 'Pivot entro la finestra': 'Pivot within the window', 'Giorno qualsiasi': 'Any day', 'Soglia del caso (95°)': 'Chance threshold (95th)',
+  'Pivot maggiore': 'Major pivot', 'Pivot maggiori (ancore dei conteggi)': 'Major pivots (count anchors)', 'Pivot a {n} giorni (bersagli)': '{n}-day pivots (targets)',
+  'Angoli di Gann oggi (scala arbitraria)': 'Gann angles today (arbitrary scale)', 'Estremo non ancora confermato': 'Extreme not yet confirmed',
+  'Range di accumulazione': 'Accumulation range', 'Range di distribuzione': 'Distribution range', 'Range concluso': 'Closed range',
+  'Rendimento oltre il normale': 'Return above normal', 'IC 95% bootstrap': '95% bootstrap CI', '{d} giorni': '{d} days', 'Media dopo l’evento': 'Mean after the event',
+  'Direzione attesa': 'Expected direction', 'Ribasso': 'Down', 'Mesi con lo schema': 'Months with the pattern',
+  'Giorni 1–7': 'Days 1–7', 'Giorni 8–14': 'Days 8–14', 'Giorni 15–21': 'Days 15–21', 'Giorni 22–28': 'Days 22–28', 'Giorni 29–31': 'Days 29–31',
+  'Media su tutto lo storico': 'Whole-history mean', 'Media nel periodo recente': 'Recent-period mean', 'Scarto dalle altre caselle': 'Difference vs other buckets',
+  '30 giorni': '30 days', '45 giorni': '45 days', '60 giorni': '60 days', '90 giorni': '90 days', '120 giorni': '120 days', '144 giorni': '144 days', '180 giorni': '180 days',
+  '270 giorni': '270 days', '360 giorni': '360 days', 'Multipli lunghi': 'Long multiples', 'Quadrato del 9 nel tempo': 'Square of nine in time',
+  'Divisioni dell’anno': 'Year divisions', 'Anniversari': 'Anniversaries', 'Date stagionali': 'Seasonal dates',
+  'Data a 30 giorni da ogni pivot maggiore.': 'Date 30 days after each major pivot.', 'Data a 45 giorni da ogni pivot maggiore.': 'Date 45 days after each major pivot.',
+  'Data a 60 giorni da ogni pivot maggiore.': 'Date 60 days after each major pivot.', 'Data a 90 giorni da ogni pivot maggiore.': 'Date 90 days after each major pivot.',
+  'Data a 120 giorni da ogni pivot maggiore.': 'Date 120 days after each major pivot.', 'Data a 144 giorni (12²) da ogni pivot maggiore.': 'Date 144 days (12²) after each major pivot.',
+  'Data a 180 giorni da ogni pivot maggiore.': 'Date 180 days after each major pivot.', 'Data a 270 giorni da ogni pivot maggiore.': 'Date 270 days after each major pivot.',
+  'Data a 360 giorni (un giro) da ogni pivot maggiore.': 'Date 360 days (one turn) after each major pivot.', 'Date a 540, 720 e 1080 giorni da ogni pivot maggiore.': 'Dates 540, 720 and 1080 days after each major pivot.',
+  'Conteggi che cadono sulle croci cardinale e diagonale del quadrato del 9 (23, 25, 28, 31, 34 … fino a 400 giorni).': 'Counts on the cardinal and diagonal crosses of the square of nine (23, 25, 28, 31, 34 … up to 400 days).',
+  'Frazioni dell’anno dal pivot: 1/8, 1/6, 1/4 e 1/3 di 365.25 giorni (46, 61, 91, 122 giorni).': 'Fractions of the year from the pivot: 1/8, 1/6, 1/4 and 1/3 of 365.25 days (46, 61, 91, 122 days).',
+  'Stesso giorno 1, 2, 3 e 4 anni dopo ogni pivot maggiore.': 'Same day 1, 2, 3 and 4 years after each major pivot.',
+  'Date fisse del calendario: equinozi, solstizi e date intermedie (4 feb, 6 mag, 8 ago, 8 nov).': 'Fixed calendar dates: equinoxes, solstices and the dates in between (Feb 4, May 6, Aug 8, Nov 8).',
+  'Rottura': 'Break', 'Test dello Spring': 'Test of the Spring', 'Rottura al ribasso: range fallito': 'Breakdown: failed range', 'Rottura al rialzo: range fallito': 'Breakout: failed range',
+  'Nuovo minimo dopo un ribasso, volume relativo ≥ 1.8 (o ≥ 1.4 con candela ampia)': 'New low after a decline, relative volume ≥ 1.8 (or ≥ 1.4 with a wide candle)',
+  'Nuovo massimo dopo un rialzo, volume relativo ≥ 1.8 (o ≥ 1.4 con candela ampia)': 'New high after a rally, relative volume ≥ 1.8 (or ≥ 1.4 with a wide candle)',
+  'Ritorno nel 20% basso del range dopo l’AR': 'Return to the bottom 20% of the range after the AR', 'Ritorno nel 20% alto del range dopo l’AR': 'Return to the top 20% of the range after the AR',
+  'In fase B: minimo sotto il range e chiusura di nuovo dentro entro 2 candele': 'In phase B: low below the range and close back inside within 2 candles',
+  'Dopo lo Spring: minimo più alto nel 25% basso del range, volume minore': 'After the Spring: higher low in the bottom 25% of the range, lower volume',
+  'In fase B: massimo sopra il range di ≤ 0.5 ATR e chiusura di nuovo dentro': 'In phase B: high above the range by ≤ 0.5 ATR and close back inside',
+  'Upthrust più profondo di 0.5 ATR (o oltre un UT precedente) con chiusura dentro': 'Upthrust deeper than 0.5 ATR (or beyond a previous UT) with a close back inside',
+  'Chiusura sopra il range con volume relativo ≥ 1.2 o candela ampia': 'Close above the range with relative volume ≥ 1.2 or a wide candle',
+  'Chiusura sotto il range con volume relativo ≥ 1.2 o candela ampia': 'Close below the range with relative volume ≥ 1.2 or a wide candle',
+  'Primo minimo dopo la rottura che resta sopra metà range': 'First low after the breakout that holds above mid-range', 'Primo massimo dopo la rottura che resta sotto metà range': 'First high after the breakdown that stays below mid-range',
+  'Uscita al rialzo': 'Exit up', 'Uscita al ribasso': 'Exit down', 'Fallito': 'Failed', 'Scaduto': 'Expired',
+  'Arresto del trend precedente': 'Stopping the prior trend', 'Costruzione della causa': 'Building the cause', 'Test finale (Spring o UTAD)': 'Final test (Spring or UTAD)',
+  'Uscita dal range in corso': 'Leaving the range', 'Trend fuori dal range': 'Trend outside the range',
+  'Massimo range Wyckoff 1G': 'Wyckoff 1D range high', 'Minimo range Wyckoff 1G': 'Wyckoff 1D range low', 'Massimo range Wyckoff 4h': 'Wyckoff 4h range high', 'Minimo range Wyckoff 4h': 'Wyckoff 4h range low',
+  'Massimo range 1G (Struttura)': '1D range high (Structure)', 'Minimo range 1G (Struttura)': '1D range low (Structure)', 'Metà range 1G (Struttura)': '1D mid-range (Structure)',
+  'VWAP settimana precedente': 'Previous week VWAP', 'VWAP mese precedente': 'Previous month VWAP',
+  // personal alerts
+  'Massimo del range Wyckoff 1G': 'Wyckoff 1D range high', 'Minimo del range Wyckoff 1G': 'Wyckoff 1D range low',
+  'Massimo del range Wyckoff 4h': 'Wyckoff 4h range high', 'Minimo del range Wyckoff 4h': 'Wyckoff 4h range low', 'Range Wyckoff': 'Wyckoff ranges',
+  // Wyckoff terms (same in English)
+  'PS': 'PS',
+  'SC': 'SC',
+  'AR': 'AR',
+  'ST': 'ST',
+  'Spring': 'Spring',
+  'Test': 'Test',
+  'SOS': 'SOS',
+  'LPS': 'LPS',
+  'PSY': 'PSY',
+  'BC': 'BC',
+  'UT': 'UT',
+  'UTAD': 'UTAD',
+  'SOW': 'SOW',
+  'LPSY': 'LPSY',
+  'Preliminary support': 'Preliminary support',
+  'Selling climax': 'Selling climax',
+  'Automatic rally': 'Automatic rally',
+  'Secondary test': 'Secondary test',
+  'Sign of strength': 'Sign of strength',
+  'Last point of support': 'Last point of support',
+  'Preliminary supply': 'Preliminary supply',
+  'Buying climax': 'Buying climax',
+  'Automatic reaction': 'Automatic reaction',
+  'Upthrust': 'Upthrust',
+  'Upthrust after distribution': 'Upthrust after distribution',
+  'Sign of weakness': 'Sign of weakness',
+  'Last point of supply': 'Last point of supply',
+}
+export default en

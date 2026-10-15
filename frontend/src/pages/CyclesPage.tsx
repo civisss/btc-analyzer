@@ -97,10 +97,11 @@ function CurrentStatus({ d }: { d: Cycles }) {
 }
 
 function CyclesTable({ d }: { d: Cycles }) {
+  // below 1700px the half-width card cannot show 9 columns: the two phase durations (also in the chart below) are hidden
   return (
     <div className="overflow-x-auto">
       <table className="tbl">
-        <thead><tr><th>{t('Ciclo')}</th><th>Bottom</th><th>Top</th><th className="text-right">Bottom→Top</th><th className="text-right">Halving→Top</th><th className="text-right">Top→Bottom</th><th className="text-right">{t('Guadagno')}</th><th className="text-right">Drawdown</th><th>{t('Stato')}</th></tr></thead>
+        <thead><tr><th>{t('Ciclo')}</th><th>Bottom</th><th>Top</th><th className="text-right">Bottom→Top</th><th className="text-right max-[1699px]:hidden">Halving→Top</th><th className="text-right max-[1699px]:hidden">Top→Bottom</th><th className="text-right">{t('Guadagno')}</th><th className="text-right">Drawdown</th><th>{t('Stato')}</th></tr></thead>
         <tbody>
           {d.cycles.map((c) => (
             <tr key={c.n}>
@@ -108,8 +109,8 @@ function CyclesTable({ d }: { d: Cycles }) {
               <td>{date(c.bottom.time)} <span className="text-slate-400">{usdCompact(c.bottom.price, 1)}</span></td>
               <td>{c.top ? <>{date(c.top.time)} <span className="text-slate-400">{usdCompact(c.top.price, 1)}</span></> : '—'}</td>
               <td className="text-right">{c.days_bottom_to_top != null ? `${int(c.days_bottom_to_top)} ${dayUnit()}` : '—'}</td>
-              <td className="text-right">{c.days_halving_to_top != null ? `${int(c.days_halving_to_top)} ${dayUnit()}` : '—'}</td>
-              <td className="text-right">{c.days_top_to_bottom != null ? `${int(c.days_top_to_bottom)} ${dayUnit()}` : '—'}</td>
+              <td className="text-right max-[1699px]:hidden">{c.days_halving_to_top != null ? `${int(c.days_halving_to_top)} ${dayUnit()}` : '—'}</td>
+              <td className="text-right max-[1699px]:hidden">{c.days_top_to_bottom != null ? `${int(c.days_top_to_bottom)} ${dayUnit()}` : '—'}</td>
               <td className="text-right text-up">{pct(c.gain, 0)}</td>
               <td className="text-right text-down">{pct(c.drawdown, 1)}</td>
               <td className="text-slate-400">{c.status === 'in_progress' ? t('In corso') : t('Completo')}</td>

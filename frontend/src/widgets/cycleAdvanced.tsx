@@ -319,15 +319,15 @@ function BacktestCard({ d }: { d: CycleClock }) {
       <CardBody className="px-2">
         <div className="overflow-x-auto">
           <table className="tbl">
-            <thead><tr><th>{t('Evento')}</th><th>{t('Data')}</th><th className="text-right">{t('Prezzo')}</th><th className="text-right">Score</th><th className="text-right">{t('Estremo ±30 g')}</th><th className="text-right">{t('Estremo 12 mesi')}</th><th className="text-right">{t('Anticipo soglia 1')}</th><th className="text-right">{t('Anticipo soglia 2')}</th></tr></thead>
+            <thead><tr><th>{t('Evento')}</th><th>{t('Data')}</th><th className="text-right max-[1699px]:hidden">{t('Prezzo')}</th><th className="text-right">Score</th><th className="text-right max-[1699px]:hidden">{t('Estremo ±30 g')}</th><th className="text-right">{t('Estremo 12 mesi')}</th><th className="text-right">{t('Anticipo soglia 1')}</th><th className="text-right">{t('Anticipo soglia 2')}</th></tr></thead>
             <tbody>
               {bt.events.map((e) => (
                 <tr key={`${e.kind}${e.time}`}>
                   <td className="text-white">{e.kind === 'top' ? tr('Massimo', 'Top') : e.probable ? t('Minimo prob.') : tr('Minimo', 'Low')}</td>
                   <td>{date(e.time)}</td>
-                  <td className="text-right">{usd(e.price)}</td>
+                  <td className="text-right max-[1699px]:hidden">{usd(e.price)}</td>
                   <td className="text-right text-white">{ok(e.score) ? e.score.toFixed(0) : '—'}</td>
-                  <td className="text-right">{ok(e.extreme_30d) ? e.extreme_30d.toFixed(0) : '—'}</td>
+                  <td className="text-right max-[1699px]:hidden">{ok(e.extreme_30d) ? e.extreme_30d.toFixed(0) : '—'}</td>
                   <td className="text-right">{ok(e.extreme_365) ? <>{e.extreme_365.toFixed(0)} <span className="text-xs text-slate-400">{monthYear(e.extreme_365_time)}</span></> : '—'}</td>
                   <td className="text-right">{ok(e.lead_1) ? `${int(e.lead_1)} ${dayUnit()}` : <span className="text-slate-400">{t('Mai')} {e.kind === 'top' ? '≥' : '≤'}{e.thresholds[0]}</span>}</td>
                   <td className="text-right">{ok(e.lead_2) ? `${int(e.lead_2)} ${dayUnit()}` : <span className="text-slate-400">{t('Mai')} {e.kind === 'top' ? '≥' : '≤'}{e.thresholds[1]}</span>}</td>
@@ -557,7 +557,8 @@ function HitTable({ basic, momentum }: { basic: HitRow[]; momentum: HitRow[] }) 
   const cell = (hit: N, med: N) => <><b className="font-semibold text-white">{pct(hit, 0, false)}</b> <span className={clsx('text-xs', signCls(med))}>{pct(med, 0)}</span></>
   return (
     <div className="overflow-x-auto no-scrollbar">
-      <table className="tbl">
+      {/* narrow side card: headers wrap onto two lines instead of pushing columns out of view */}
+      <table className="tbl [&_th]:whitespace-normal [&_th]:leading-tight">
         <thead><tr><th>{t('Orizzonte')}</th><th className="text-right">{t('Segnale base')}</th><th className="text-right">{t('Con conferma')}</th><th className="text-right">{t('Tutti i giorni')}</th></tr></thead>
         <tbody>
           {basic.map((b, i) => {
@@ -900,17 +901,17 @@ function PhaseTable({ d }: { d: CycleLeverage }) {
       <CardBody className="px-2">
         <div className="overflow-x-auto">
           <table className="tbl">
-            <thead><tr><th>{t('Ciclo')}</th><th>{t('Fase')}</th><th>{t('Periodo')}</th><th className="text-right">{t('Giorni')}</th><th className="text-right">{t('Funding medio')}</th><th className="text-right">{t('Giorni positivi')}</th><th className="text-right">Funding p90</th><th className="text-right">Perp/spot</th></tr></thead>
+            <thead><tr><th>{t('Ciclo')}</th><th>{t('Fase')}</th><th>{t('Periodo')}</th><th className="text-right max-[1699px]:hidden">{t('Giorni')}</th><th className="text-right">{t('Funding medio')}</th><th className="text-right max-[1699px]:hidden">{t('Giorni positivi')}</th><th className="text-right max-[1699px]:hidden">Funding p90</th><th className="text-right">Perp/spot</th></tr></thead>
             <tbody>
               {d.by_phase.map((r) => (
                 <tr key={`${r.cycle}${r.phase}${r.from}`} className={r.current ? 'bg-btc/[0.06]' : undefined}>
                   <td className="font-medium text-white">{r.cycle}</td>
                   <td className={r.current ? 'text-white' : 'text-slate-300'}>{cap(r.label)}{r.current && <span className="ml-1.5 text-xs text-slate-400">({tr('Ora', 'Now')})</span>}</td>
                   <td className="text-slate-400">{monthYear(r.from)} – {monthYear(r.to)}</td>
-                  <td className="text-right">{int(r.days)}</td>
+                  <td className="text-right max-[1699px]:hidden">{int(r.days)}</td>
                   <td className={clsx('text-right font-semibold', signCls(r.funding_avg))}>{pct(r.funding_avg, 1)}</td>
-                  <td className="text-right">{pct(r.funding_pos_pct, 0, false)}</td>
-                  <td className="text-right">{pct(r.funding_p90, 1)}</td>
+                  <td className="text-right max-[1699px]:hidden">{pct(r.funding_pos_pct, 0, false)}</td>
+                  <td className="text-right max-[1699px]:hidden">{pct(r.funding_p90, 1)}</td>
                   <td className="text-right">{ok(r.spec_avg) ? `${r.spec_avg.toFixed(2)}×` : '—'}</td>
                 </tr>
               ))}
