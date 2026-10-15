@@ -20,6 +20,7 @@ export type LevelId =
   | 'vwap_y' | 'vwap_y_up1' | 'vwap_y_dn1' | 'vwap_pw' | 'vwap_pm' | 'vwap_pq' | 'vwap_py'
   | 'vp_pw_poc' | 'vp_pw_vah' | 'vp_pw_val'
   | 'wy_1d_high' | 'wy_1d_low' | 'wy_4h_high' | 'wy_4h_low'
+  | 'ew_1d_inv' | 'ew_1d_target' | 'ew_4h_inv' | 'ew_4h_target'
 
 export type RuleParams =
   | { direction: 'above' | 'below'; price: number }                                   // price_cross

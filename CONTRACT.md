@@ -2207,3 +2207,84 @@ fp?:{t, tf, bin, o,h,l,c, buy, sell, delta, poc, n, ok, p[], lbuy[], lsell[], im
 Agente `orderbook` (Grid3x3, 30 s, solo perp): `orderbook.walls` (muri più vicini cambiati), `orderbook.pulled` (ritiro ≥ 2× soglia), `orderbook.imbalance`
 (squilibrio persistente), `orderbook.cvd` (divergenza); invalida `/orderbook/status`, `/orderbook/signals` → query `['orderbook', …]`
 (heatmap `['ob-heatmap', …]` e footprint `['ob-footprint', …]` si aggiornano solo dal WS + ricarica ogni 5/2 min). Tono sempre neutro.
+
+## ELLIOTT (router: elliott.py, engine: app/analysis/elliott.py, agent: elliott, tests: backend/tests/test_elliott.py)
+Pagina `/elliott` (schede `?tab=` conteggio | alternativi | regole | backtest). Conteggio automatico delle onde di Elliott su BTC 4h/1d/1w.
+Risposte con sole chiavi e numeri: i testi (nomi dei pattern, regole, linee guida, notazione per grado) li compone il frontend.
+- Swing: `structure.zigzag_confirmed` su ATR(14) causale (`structure_analogs.causal_atr`), tre soglie per timeframe = tre gradi
+  (4h intermediate 6× · minor 4× · minute 2.5×; 1d primary 5× · intermediate 3× · minor 2×; 1w cycle 4× · primary 2.5× · intermediate 1.5×;
+  predefiniti 4h minor, 1d intermediate, 1w primary). Sotto-onde = ZigZag 0.45× la soglia vincolato alla gamba. Il conteggio usa solo
+  candele chiuse (si ricalcola alla chiusura: cache sull'ultima candela chiusa attesa, TTL 60 s); serie BTC `analogs.load(tf)` dal 2011.
+- Candidati che finiscono sull'ultimo pivot confermato m: impulse (k=1..5), diagonal (k=3..5, contraente/espansiva, iniziale/finale),
+  zigzag e flat (k=1..3; flat regular/expanded/running), triangle (k=2..5, contracting/barrier/expanding), double_zigzag e double_three
+  (k=3..7). k = onde completate; l'onda k+1 è "in corso" (dal pivot m all'estremo raggiunto). Lunghezze in log-prezzo (variazione %).
+- REGOLE (scartano): w2_start, w3_beyond_w1, w4_overlap, w3_shortest; diagonali: diag_w4_w3start, diag_contract|diag_expand (3<1, 4<2, 5<3
+  o il contrario); zigzag: zz_b_start, zz_b_lt_flat (B<90% A), zz_c_beyond_a; flat: flat_b_90 (B≥90% A), B≤138.2% A, variante
+  regular (B 90–105%, C ≥ fine A −5% di A) | expanded (B>105%, C oltre A) | running (B>100%, C non oltre A); triangolo: tri_position
+  (gamba precedente > A: solo 4/B/X), tri_c/tri_d/tri_e (contraente: C, D, E entro le fine di A, B, C; espansivo al contrario), B ≤ 150% A;
+  doppi: W/Y zigzag o flat validi, dz_x_start, double_zigzag con Y oltre W, double_three con al più uno zigzag. Le regole valgono anche
+  sull'onda in corso (es. onda 4 in corso già sotto la fine dell'onda 1 → scartato).
+- LINEE GUIDA (punteggio = 100·Σ peso·g / Σ peso sulle applicabili, `weights` nella risposta): w2_fib, w3_fib, w4_fib, w5_fib, alternation,
+  extension, channel_w4, channel_w5, time, substructure, volume, divergence, start_extreme, coverage, coherence (grado superiore),
+  truncation, overlap, diag_ratios, b_fib, c_fib, depth, tri_legs, barrier, x_fib, y_eq_w, flat_b. g ∈ [0,1] (gaussiana sui rapporti
+  tipici: ritracciamenti ±0.07, estensioni ±0.12 in log-rapporto, tempi ±0.30).
+- Invalidazione: livello di prezzo oltre il quale QUESTA etichettatura è falsa (`*_rule`: regola o `labeling` = l'onda precedente si
+  estende). Obiettivi: zona = rapporti di Fibonacci tipici, centro = media dei principali; `reached` = estremo in corso già oltre la zona.
+  Proiezione: [onda in corso, onda successiva] con tempo indicativo (mediana delle gambe dello stesso tipo, ×0.618–1.618).
+- Backtest walk-forward (cache memoria + `data/elliott_bt.json` via store.write_text, chiave = n. pivot confermati): a ogni conferma ci[m]
+  si contano le onde coi soli dati noti (test: identico sulla serie troncata). Direzione = segno del percorso proiettato a h = durata
+  mediana degli swing; baseline `base_alt` (alternanza con ampiezza/durata mediane) e `base_random` (candidato valido a caso, 400
+  estrazioni → p_*_random); p_*_alt = test del segno (McNemar esatto). `target_first` = zona toccata prima dell'invalidazione (finestra
+  fino a ci[m+2]). «Giusto a posteriori» = candidato con P[m+1] nella zona, nessuna invalidazione prima di i[m+1], errore minimo.
+  `calibration.ranks[r].p_best` = frequenza rango r giusto (Wilson 95%) → `count.prob` se n ≥ 30, altrimenti null (si mostra solo
+  `score`). verdict (valore predittivo) e rank_verdict (ordinamento vs caso): n<30 anecdotal; strong p<0.05 e stabile nelle due metà;
+  weak p<0.10; none. Ranker ML (regressione logistica, addestrata solo su istanti con esito noto ci[m+1] ≤ T, ogni 20 istanti, ≥ 80 di
+  training) adottato solo se batte le regole fuori campione (p<0.10 ed errore mediano non peggiore): `ranker` = "rule" | "ml".
+- Agente `elliott` (300 s): finding "Elliott 1D/4H/1W"; topic `elliott.count.{tf}` (al cambio di conteggio/onda), `elliott.invalidated.{tf}`
+  (prezzo live oltre l'invalidazione); tono sempre neutro. Invalida "/elliott". Avvisi personali: livelli `ew_1d_inv`, `ew_1d_target`,
+  `ew_4h_inv`, `ew_4h_target` (invalidazione più vicina e centro obiettivo del preferito).
+
+```ts
+// GET /api/elliott?tf=1d&degree=intermediate   (tf 4h|1d|1w; degree tra quelli del tf) → 400 su parametri non validi
+type EwDegree = 'supercycle'|'cycle'|'primary'|'intermediate'|'minor'|'minute'|'minuette'|'subminuette'
+type EwWave = string   // '1'..'5' | 'A'..'E' | 'W' | 'X' | 'Y' | 'a' | 'b' | 'c' (sotto-onde dei doppi) | 'next' | 'next2' | 'thrust'
+interface EwCount {
+  rank: number; id: string; pattern: 'impulse'|'diagonal'|'zigzag'|'flat'|'triangle'|'double_zigzag'|'double_three'; variant: string | null
+  direction: 'up'|'down'; state: 'complete'|'progress'; k: number; legs: number; degree: EwDegree
+  wave: EwWave /* onda in corso */; next_wave: EwWave; next_higher: boolean /* pattern completo: l'onda in corso è di grado superiore */
+  cur_dir: 'up'|'down'; score: number /* 0..100 */; ml_p: number | null
+  prob: { p: number; lo: number; hi: number; n: number; p_conf: number; ranker: 'rule'|'ml' } | null
+  points: { pos: number; time: T; price: number; label: EwWave | null; sub: boolean; kind: 'high'|'low' }[]   // pos 0 = inizio
+  waves: { label: EwWave; n_sub: number; change: number /* % */; bars: number; from: T; to: T }[]
+  pending: { time: T; price: number; label: EwWave; change: number; bars: number }
+  invalidation: { below: number | null; above: number | null; below_rule: string | null; above_rule: string | null }
+  projection: { wave: EwWave; time: T; t_lo: T; t_hi: T; price: number; lo: number; hi: number; reached: boolean
+                levels: { key: string; ratio: number | null; price: number }[] }[]          // [onda in corso, onda successiva]
+  channel: { time: T; price: number }[][] | null                                            // 2 rette (impulso: canale; diagonale: 1-3 e 2-4)
+  rules: { key: string; value: number | null; limit: number | null }[]
+  guidelines: { key: string; score: number; weight: number; value: number | (number | null)[] | null; ideal: number[] | null }[]
+}
+interface Elliott {
+  tf: '4h'|'1d'|'1w'; degree: EwDegree; degrees: { key: EwDegree; mult: number }[]; mult: number; generated_at: T; scale: 'log'
+  last: { time: T; price: number; forming: boolean; closed_time: T }; candles: { time: T; open: number; high: number; low: number; close: number }[]
+  counts: EwCount[] /* preferito + ≤ 4 alternativi */; n_valid: number; higher: EwCount | null /* preferito del grado superiore */
+  swings: { time: T; price: number; kind: 'high'|'low' }[]; weights: Record<string, number>; ranker: 'rule'|'ml'
+  backtest: EwBacktest /* senza examples */
+}
+interface EwBacktest {
+  n: number; from: T; to: T; ms: number; ranker: 'rule'|'ml'; verdict: 'none'|'weak'|'strong'|'anecdotal'; rank_verdict: 'none'|'weak'|'strong'|'anecdotal'
+  model: { hit: number; hit_ci: [number, number] | null; err_med: number; cov: number; target_first: number; invalid_first: number; best: number }   // %
+  base_alt: { hit: number; err_med: number }; base_random: { hit: number; err_med: number; target_first: number; best: number; hit_q95: number }
+  mase: N; mase_random: N; p_hit_random: number; p_hit_alt: N; p_err_random: number; p_err_alt: N; p_target_random: number; p_best_random: number
+  candidates_med: number; horizon_med: number /* candele */
+  calibration: { ranks: { rank: number; p_best: number; lo: number; hi: number; n: number; p_conf: number; n_conf: number }[]; none: number }
+  rank_halves: number[]; ml: { n_oos: number; rule_best: number; ml_best: number; rule_err_med: number; ml_err_med: number; p: N; adopted: boolean; from: T } | null
+  halves: { from: T; to: T; n: number; hit: number; base_hit: number; mase: N }[]; by_pattern: { pattern: string; n: number; hit: number; err_med: number }[]
+  examples?: { time: T; pattern: string; variant: string | null; wave: EwWave; k: number; dir: number; target: number; lo: number; hi: number
+               inv_below: N; inv_above: N; outcome: 'target'|'invalid'|'none'|'reached'; inside: boolean; actual: number; actual_time: T
+               hit: boolean; best: boolean; err: number; n_cand: number }[]                  // ultimi 40 istanti
+}
+// GET /api/elliott/backtest?mode=default|all → { generated_at: T; items: ({ tf; degree; mult } & EwBacktest)[] }   (cache 300 s)
+// GET /api/elliott/at?tf=1d&degree=intermediate&t=<unix> → conteggio storico con i soli dati fino a t
+//   { tf; degree; t: T; candles; after /* candele successive, per il confronto */; counts: EwCount[]; n_valid: number; higher: EwCount | null; ranker }
+```

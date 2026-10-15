@@ -88,6 +88,10 @@ export const LEVEL_LABEL: Record<LevelId, { label: string; group: string }> = {
   wy_1d_low: { label: 'Minimo del range Wyckoff 1G', group: 'Range Wyckoff' },
   wy_4h_high: { label: 'Massimo del range Wyckoff 4h', group: 'Range Wyckoff' },
   wy_4h_low: { label: 'Minimo del range Wyckoff 4h', group: 'Range Wyckoff' },
+  ew_1d_inv: { label: 'Invalidazione Elliott 1G', group: 'Onde di Elliott' },
+  ew_1d_target: { label: 'Obiettivo Elliott 1G', group: 'Onde di Elliott' },
+  ew_4h_inv: { label: 'Invalidazione Elliott 4h', group: 'Onde di Elliott' },
+  ew_4h_target: { label: 'Obiettivo Elliott 4h', group: 'Onde di Elliott' },
 }
 
 export const METRIC_META: Record<MetricKey, { label: string; unit: string; step: number; hint: string }> = {

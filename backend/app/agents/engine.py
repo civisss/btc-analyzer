@@ -273,6 +273,7 @@ INVALIDATES: dict[str, list[str]] = {
     "analyst": ["/insights", "/agents"],
     "vwap": ["/vwap"],
     "timing": ["/timing"],
+    "elliott": ["/elliott"],
     "anomalies": ["/anomalies", "/superchart/series"],
     "orderbook": ["/orderbook/status", "/orderbook/signals"],
 }
@@ -1140,6 +1141,93 @@ class TimingAgent(Agent):
                                  f"contro il {full.get('null') or 0:.1f}% atteso per caso; {TIMING_VERDICT_IT.get(rc.get('verdict') or 'none')}.", "neutral", 60))
 
 
+EW_PATTERN_IT = {"impulse": "impulso", "diagonal": "diagonale", "zigzag": "zigzag", "flat": "flat", "triangle": "triangolo",
+                 "double_zigzag": "doppio zigzag", "double_three": "doppia three"}
+EW_VARIANT_IT = {"expanded": "espanso", "regular": "regolare", "running": "running", "contracting": "contraente", "expanding": "espansivo",
+                 "barrier": "a barriera", "contracting_leading": "contraente iniziale", "contracting_ending": "contraente finale",
+                 "expanding_leading": "espansiva iniziale", "expanding_ending": "espansiva finale"}
+EW_DEGREE_IT = {"cycle": "Cycle", "primary": "Primary", "intermediate": "Intermediate", "minor": "Minor", "minute": "Minute"}
+EW_VERDICT_IT = {"none": "nessun vantaggio predittivo sulle baseline", "weak": "vantaggio debole", "strong": "vantaggio significativo e stabile",
+                 "anecdotal": "casi troppo pochi per un giudizio"}
+EW_RANK_IT = {"none": "non migliore del caso", "weak": "debolmente migliore del caso", "strong": "migliore del caso in modo significativo",
+              "anecdotal": "casi troppo pochi"}
+
+
+def _ew_wave_it(w: str | None) -> str:
+    if w in (None, "next"):
+        return "prima onda del movimento successivo"
+    if w == "next2":
+        return "onda successiva"
+    if w == "thrust":
+        return "spinta dopo il triangolo"
+    return f"onda {w}"
+
+
+def _ew_name(c: dict) -> str:
+    v = EW_VARIANT_IT.get(c.get("variant") or "", "")
+    return (EW_PATTERN_IT.get(c["pattern"], c["pattern"]) + (f" {v}" if v else "")
+            + (" al rialzo" if c["direction"] == "up" else " al ribasso"))
+
+
+class ElliottAgent(Agent):
+    """Onde di Elliott: conteggio preferito per 4H/1D/1W con invalidazione, obiettivi e verdetto del backtest. Solo descrizione."""
+
+    def finding(self, f: Finding) -> None:
+        for i, x in enumerate(list(self.findings)):
+            if x["title"] == f.title:
+                del self.findings[i]
+                break
+        self.findings.appendleft(f.as_dict())
+
+    def compute(self):
+        return {"o": _call("elliott", "build_overview")}
+
+    async def act(self, r):
+        price = live_price()
+        for tf in ("1d", "4h", "1w"):
+            d = (r.get("o") or {}).get(tf) or {}
+            cs = d.get("counts") or []
+            if not cs:
+                continue
+            c = cs[0]
+            tfl = {"4h": "4H", "1d": "1D", "1w": "1W"}[tf]
+            deg = EW_DEGREE_IT.get(d.get("degree"), d.get("degree"))
+            inv = c.get("invalidation") or {}
+            inv_txt = " e ".join(x for x in (
+                f"sotto ${inv['below']:,.0f}" if inv.get("below") else "", f"sopra ${inv['above']:,.0f}" if inv.get("above") else "") if x)
+            pj = (c.get("projection") or [{}])[0]
+            tgt = (f"obiettivo dell'{_ew_wave_it(c['wave'])} ${pj['lo']:,.0f}–${pj['hi']:,.0f} (centro ${pj['price']:,.0f})"
+                   if pj.get("price") else "obiettivo non stimabile")
+            prob = c.get("prob")
+            bt = d.get("backtest") or {}
+            ptxt = (f"in passato il conteggio di rango 1 è stato quello giusto a posteriori nel {prob['p']:.0f}% dei casi (n={prob['n']})"
+                    if prob else f"punteggio delle linee guida {c['score']:.0f}/100 (probabilità non calibrabile)")
+            text = (f"Elliott {tfl} (grado {deg}): conteggio preferito {_ew_name(c)}, in corso {_ew_wave_it(c['wave'])}{' di Y' if c['pattern'].startswith('double') and c['wave'] in ('a', 'b', 'c') else ''}; "
+                    f"{tgt}; invalidazione {inv_txt or 'n/d'}. Alternativi validi: {d.get('n_valid', 0) - 1}; {ptxt}. "
+                    f"Backtest: {EW_VERDICT_IT.get(bt.get('verdict'), 'n/d')}, ordinamento dei conteggi {EW_RANK_IT.get(bt.get('rank_verdict'), 'n/d')}. "
+                    "Descrizione di studio, non un segnale.")
+            self.finding(Finding(f"Elliott {tfl}", text, "neutral", 40))
+            key = f"{tf}:{c['id']}:{c['wave']}"
+            prev = self.state.get(f"ew_{tf}")
+            data = {"tf": tf, "degree": d.get("degree"), "pattern": c["pattern"], "variant": c.get("variant"), "wave": c["wave"],
+                    "direction": c["direction"], "invalid_below": inv.get("below"), "invalid_above": inv.get("above"),
+                    "target": pj.get("price"), "target_lo": pj.get("lo"), "target_hi": pj.get("hi"), "verdict": bt.get("verdict"),
+                    "rank_verdict": bt.get("rank_verdict"), "prob": prob["p"] if prob else None}
+            if prev != key:
+                pre = "Cambio di conteggio. " if prev else ""
+                await self.say(f"elliott.count.{tf}", pre + text, data=data)
+                self.state[f"ew_{tf}"] = key
+            # prezzo live oltre l'invalidazione del preferito: il conteggio va rivisto alla prossima chiusura
+            if price:
+                broken = (inv.get("below") and price < inv["below"]) or (inv.get("above") and price > inv["above"])
+                bkey = f"{key}:broken"
+                if broken and self.state.get(f"ew_b_{tf}") != bkey:
+                    lvl = inv["below"] if inv.get("below") and price < inv["below"] else inv["above"]
+                    await self.say(f"elliott.invalidated.{tf}", f"Elliott {tfl}: il prezzo (${price:,.0f}) ha superato l'invalidazione del conteggio preferito "
+                                   f"({_ew_name(c)}, ${lvl:,.0f}): il conteggio verrà ricalcolato alla chiusura della candela.", data=data)
+                    self.state[f"ew_b_{tf}"] = bkey
+
+
 class VerifierAgent(Agent):
     """Track record: confronta le previsioni degli agenti con la realtà e calcola l'affidabilità di ciascuno."""
 
@@ -1788,7 +1876,7 @@ class AnalystAgent(Agent):
 def build_team() -> list[Agent]:
     return [
         AnalystAgent("analyst", "Analista AI", "Orchestratore: raccoglie i report di tutti gli agenti, calcola il consenso e scrive la sintesi (LLM locale).",
-                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "vwap.", "timing.", "anomalies.", "orderbook.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
+                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "vwap.", "timing.", "elliott.", "anomalies.", "orderbook.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
         MarketAgent("market", "Market Data", "Monitora prezzo, range 24h e sentiment in tempo reale e avvisa gli altri agenti dei movimenti.",
                     "Activity", "#f7931a", 5, subscribes=[], publishes=["market.price", "market.alert"]),
         LevelsAgent("levels", "Pivot & Livelli", "Calcola pivot (classici, Fibonacci, Camarilla), swing e zone di supporto/resistenza; verifica confluenze su richiesta.",
@@ -1840,6 +1928,8 @@ def build_team() -> list[Agent]:
                    "MoonStar", "#9B87F5", 1800, subscribes=[], publishes=["astro.summary", "astro.soon"]),
         TimingAgent("timing", "Timing Gann · Wyckoff", "Proietta i conteggi di Gann dai pivot maggiori, riconosce fasi ed eventi di Wyckoff su 1D/4H e verifica i ritmi di calendario: annuncia date chiave, eventi e ritmi sempre con il loro track record contro il caso.",
                     "Hourglass", "#9B87F5", 600, subscribes=[], publishes=["timing.key_date", "timing.wyckoff.1d", "timing.wyckoff.4h", "timing.rhythm"]),
+        ElliottAgent("elliott", "Onde di Elliott", "Conta le onde di Elliott su 4H, 1D e 1W con regole rigide e linee guida a punteggio: comunica il conteggio preferito, l'invalidazione, gli obiettivi e i cambi di conteggio, sempre con il verdetto del backtest walk-forward. Solo descrizione, nessun segnale operativo.",
+                     "Waves", "#9B87F5", 300, subscribes=[], publishes=["elliott.count.4h", "elliott.count.1d", "elliott.count.1w", "elliott.invalidated"]),
         VerifierAgent("verifier", "Verifica", "Registra le previsioni di ogni agente, le confronta con la realtà e calcola l'affidabilità usata dall'Analista per pesare i pareri.",
                       "BadgeCheck", "#4c8dff", 1800, subscribes=[], publishes=["verifier.summary"]),
         AlertsAgent("alerts", "Avvisi", "Motore delle notifiche: valuta soglie e cooldown, evita lo spam e invia i toast per gli eventi importanti.",
@@ -1889,7 +1979,7 @@ async def start() -> None:
         bus.agents[a.id] = a
     # avvio scaglionato: prima i produttori di dati, l'analista per ultimo
     order = {"market": 1, "derivatives": 3, "levels": 5, "liquidity": 8, "correlation": 11, "cycles": 14,
-             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "vwap": 4, "timing": 60, "anomalies": 50, "orderbook": 15, "analyst": 66}
+             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "vwap": 4, "timing": 60, "elliott": 57, "anomalies": 50, "orderbook": 15, "analyst": 66}
     loop = asyncio.get_running_loop()
     for a in team:
         loop.create_task(a.inbox_loop())

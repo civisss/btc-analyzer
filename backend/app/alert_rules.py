@@ -402,6 +402,8 @@ LEVEL_IDS = (
     "vp_pw_poc", "vp_pw_vah", "vp_pw_val",
     # range di Wyckoff attivi (app/analysis/timing_wyckoff.py): massimo e minimo su 1D e 4H
     "wy_1d_high", "wy_1d_low", "wy_4h_high", "wy_4h_low",
+    # Onde di Elliott (app/analysis/elliott.py): invalidazione più vicina e centro dell'obiettivo del conteggio preferito
+    "ew_1d_inv", "ew_1d_target", "ew_4h_inv", "ew_4h_target",
 )
 
 
@@ -469,6 +471,23 @@ def named_levels() -> dict[str, dict]:
                     out[f"wy_{tf}_low"] = {"price": float(a["low"])}
         except Exception as e:  # noqa: BLE001
             log.info("livelli wyckoff: %s", e)
+        try:
+            from .analysis import elliott
+            for tf in ("1d", "4h"):
+                cs = elliott.compute(tf).get("counts") or []
+                if not cs:
+                    continue
+                c = cs[0]
+                inv = c.get("invalidation") or {}
+                px = float(store.get("k_1h")["close"].iloc[-1])
+                cand = [v for v in (inv.get("below"), inv.get("above")) if v]
+                if cand:
+                    out[f"ew_{tf}_inv"] = {"price": float(min(cand, key=lambda v: abs(v - px)))}
+                pj = (c.get("projection") or [{}])[0]
+                if pj.get("price"):
+                    out[f"ew_{tf}_target"] = {"price": float(pj["price"])}
+        except Exception as e:  # noqa: BLE001
+            log.info("livelli elliott: %s", e)
         return out
     return _cached("levels", 60, fn)
 
@@ -636,7 +655,9 @@ LEVEL_IT = {"key_r1": "R1 chiave", "key_r2": "R2 chiave", "key_r3": "R3 chiave",
             "vp_pw_poc": "POC della settimana precedente", "vp_pw_vah": "VAH (value area) della settimana precedente",
             "vp_pw_val": "VAL (value area) della settimana precedente",
             "wy_1d_high": "massimo del range Wyckoff 1G", "wy_1d_low": "minimo del range Wyckoff 1G",
-            "wy_4h_high": "massimo del range Wyckoff 4h", "wy_4h_low": "minimo del range Wyckoff 4h"}
+            "wy_4h_high": "massimo del range Wyckoff 4h", "wy_4h_low": "minimo del range Wyckoff 4h",
+            "ew_1d_inv": "invalidazione del conteggio di Elliott 1G", "ew_1d_target": "obiettivo del conteggio di Elliott 1G",
+            "ew_4h_inv": "invalidazione del conteggio di Elliott 4h", "ew_4h_target": "obiettivo del conteggio di Elliott 4h"}
 METRIC_IT = {"rsi_1h": "RSI 1h", "rsi_4h": "RSI 4h", "rsi_1d": "RSI 1G", "funding": "Funding", "oi_change_1h": "Variazione OI 1h",
              "oi_change_4h": "Variazione OI 4h", "oi_change_24h": "Variazione OI 24h", "fng": "Fear & Greed", "cycle_score": "Cycle Score",
              "usdt_d": "USDT dominance", "usdt_d_change_7d": "Variazione USDT.D 7g"}

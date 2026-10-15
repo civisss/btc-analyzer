@@ -187,7 +187,7 @@ export default function AlertsPage() {
                 {() => shown.length ? (
                   <div>{shown.map((r) => <RuleRow key={r.id} r={r} now={now} tick={q.data?.tick_s ?? 20} onTest={() => runTest(r.id)} test={tests[r.id]} testing={testing === r.id} />)}</div>
                 ) : (
-                  <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+                  <div className="mx-4 mb-2 flex flex-col items-center gap-2 rounded-xl border border-dashed border-white/[0.08] px-6 py-10 text-center sm:mx-5">
                     <Bell size={18} className="text-slate-500" />
                     <p className="max-w-sm text-sm text-slate-300">{items.length ? t('Nessuna regola in questo filtro.') : t('Nessun avviso personale. Creane uno da un modello qui sopra, dal grafico o dalla tabella dei livelli.')}</p>
                   </div>
@@ -201,8 +201,8 @@ export default function AlertsPage() {
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2">
             <Q q={hq} loading={<div className="px-5 pb-4"><Skeleton className="h-60" /></div>} isEmpty={() => false}>
               {() => !hist.length ? (
-                // same empty state as "Le tue regole", centred in the card (it is as tall as the left column)
-                <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+                // dashed "empty well" filling the card: same treatment as the empty rules list, no blank band around a floating line
+                <div className="mx-4 mb-2 flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.08] px-6 py-10 text-center sm:mx-5">
                   <History size={18} className="text-slate-500" />
                   <p className="max-w-xs text-sm text-slate-300">{t('Ancora nessun avviso personale.')}</p>
                   <p className="max-w-xs text-xs text-slate-500">{t('Qui compaiono gli avvisi scattati e le revisioni del diario, dal più recente.')}</p>

@@ -46,6 +46,7 @@ const PATH_KEYS: [string, string[]][] = [
   ['/status', ['status']],
   ['/vwap', ['vwap']],
   ['/timing', ['timing']],
+  ['/elliott', ['elliott']],
   ['/superchart', ['superchart']],
   ['/anomalies', ['anomalies']],
   ['/orderbook', ['orderbook']],   // solo stato/segnali: heatmap e footprint ('ob-heatmap', 'ob-footprint') si aggiornano dal WS dedicato

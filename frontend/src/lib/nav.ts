@@ -3,7 +3,7 @@ import {
   LayoutDashboard, CandlestickChart, Orbit, CalendarClock, Shapes, Flame, Layers, Blocks, CircleDollarSign, Telescope, Sparkles,
   Network, ScanSearch, Globe2, Waypoints, CalendarDays, ShieldCheck, Target, Scale, type LucideProps,
   BellRing, NotebookPen, Anchor,
-  MoonStar, Hourglass,
+  MoonStar, Hourglass, Waves,
   ChartNoAxesCombined,
   Grid3x3,
 } from 'lucide-react'
@@ -34,6 +34,7 @@ export const NAV: NavItem[] = [
   { to: '/eventi', label: 'Eventi', icon: CalendarDays, group: 'Cicli e tempo', keywords: 'eventi fomc cpi nfp scadenze opzioni macro calendario events expiries calendar' },
   { to: '/astronomia', label: 'Astronomia e numeri', icon: MoonStar, group: 'Cicli e tempo', keywords: 'astronomia luna piena nuova eclissi luna rossa superluna mercurio retrogrado equinozio solstizio sole macchie solari tempesta geomagnetica kp numeri tondi fibonacci gann quadrato del 9 venerdì 13 numerologia astronomy moon full new eclipse blood moon supermoon mercury retrograde equinox solstice sunspots geomagnetic storm round numbers numerology friday 13th' },
   { to: '/timing', label: 'Timing Gann · Wyckoff', icon: Hourglass, group: 'Cicli e tempo', keywords: 'timing gann wyckoff date chiave conteggi giorni quadrato del 9 angoli 1x1 anniversari accumulazione distribuzione spring utad sos sow lps fasi ritmi pattern pump dump inizio metà fine mese giorno settimana ora scenari key dates day counts square of nine angles anniversaries accumulation distribution phases rhythms seasonality start middle end of month weekday hour scenarios time cycles' },
+  { to: '/elliott', label: 'Onde di Elliott', icon: Waves, group: 'Cicli e tempo', keywords: 'elliott onde conteggio impulso correzione zigzag flat triangolo diagonale doppia three combinazione w x y fibonacci ritracciamento estensione alternanza canale invalidazione grado primary intermediate minor ew wave count impulse correction triangle diagonal combination retracement extension alternation channel invalidation degree' },
   { to: '/frattali', label: 'Frattali', icon: Shapes, group: 'Cicli e tempo', keywords: 'pattern analoghi similarità proiezione fractals similarity projection' },
   { to: '/analoghi', label: 'Analoghi', icon: ScanSearch, group: 'Cicli e tempo', keywords: 'analoghi storici confronto perché somiglia periodo spiegazione analogs historical' },
   { to: '/liquidazioni', label: 'Liquidazioni', icon: Flame, group: 'Flussi e derivati', keywords: 'heatmap cluster liquidità magnete liquidations liquidity magnet' },
