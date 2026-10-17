@@ -222,6 +222,7 @@ LIQ_FILE = DATA_DIR / "liquidations.parquet"
 LIQ_COLUMNS = ["time", "side", "price", "qty", "usd", "exchange", "symbol"]
 _liq_buffer: list[dict] = []
 _liq_lock = threading.Lock()
+LIQ_TAPS: list = []   # callback(ev) chiamate a ogni liquidazione (es. app/terminal_collector.py, per lo streaming)
 
 
 def add_liquidation(ev: dict) -> None:
@@ -229,6 +230,11 @@ def add_liquidation(ev: dict) -> None:
     `exchange` mancante = 'binance' (compatibilità con il collector originale BTCUSDT)."""
     with _liq_lock:
         _liq_buffer.append(ev)
+    for fn in LIQ_TAPS:
+        try:
+            fn(ev)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _liq_fill(df: pd.DataFrame) -> pd.DataFrame:

@@ -21,9 +21,10 @@ const windowOpts = () => WINDOW_VALUES.map((v) => ({ value: v, label: winLabel(v
 export function SignalList({ signals }: { signals: { text: string; tone: string }[] }) {
   if (!signals.length) return <EmptyState text={t('Nessun segnale')} compact />
   return (
-    <ul className="flex flex-col">
+    // rows share the card height when the card is stretched next to a chart (few signals: no blank bottom)
+    <ul className="flex flex-1 flex-col">
       {signals.map((s, i) => (
-        <li key={i} className="flex flex-col gap-1 border-t border-line py-2.5 first:border-t-0 first:pt-0">
+        <li key={i} className="flex flex-1 flex-col justify-center gap-1 border-t border-line py-2.5 first:border-t-0 first:pt-0">
           <ToneBadge tone={s.tone} className="self-start" />
           <p className="line-clamp-2 text-sm text-slate-300" title={s.text}>{s.text}</p>
         </li>

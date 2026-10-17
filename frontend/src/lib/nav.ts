@@ -6,6 +6,7 @@ import {
   MoonStar, Hourglass, Waves,
   ChartNoAxesCombined,
   Grid3x3,
+  MonitorDot,
 } from 'lucide-react'
 
 /** Accent hues (muted, used sparingly: icon badges, section kickers, sparklines). Never for up/down. */
@@ -26,6 +27,7 @@ export const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'Mercato', keywords: 'panoramica kpi prezzo market cap overview price' },
   { to: '/grafici', label: 'Grafici', icon: CandlestickChart, group: 'Mercato', keywords: 'candele ema sma bollinger vwap pivot rsi macd fibonacci charts candles' },
   { to: '/superchart', label: 'Superchart', icon: ChartNoAxesCombined, group: 'Mercato', keywords: 'superchart pannelli sincronizzati replay anomalie funding open interest liquidazioni cvd premio coinbase basis etf riserve mvrv nupl sopr fear greed usdt dominance stablecoin dxy s&p oro layout synchronized panes anomalies liquidations reserves gold' },
+  { to: '/terminale', label: 'Terminale', icon: MonitorDot, group: 'Mercato', keywords: 'terminale terminal order flow cvd delta cumulato spot perp aggregato open interest funding premio coinbase liquidazioni bolle heatmap book a scala dom order feed trade grandi trade velo flowx tempo reale cumulative volume delta premium liquidations ladder real time' },
   { to: '/vwap', label: 'VWAP', icon: Anchor, group: 'Mercato', keywords: 'vwap ancorato settimanale mensile trimestrale annuale bande deviazione standard sigma periodo precedente livelli kraken binance anchored weekly monthly quarterly yearly bands previous period' },
   { to: '/struttura', label: 'Struttura', icon: Waypoints, group: 'Mercato', keywords: 'struttura range lunedì pivot settimanali scenari swing trend structure monday range weekly pivots scenarios' },
   { to: '/insights', label: 'Sintesi', icon: Sparkles, group: 'Mercato', keywords: 'sintesi segnali chat assistente domande insights signals summary' },

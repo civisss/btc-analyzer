@@ -49,7 +49,8 @@ const PATH_KEYS: [string, string[]][] = [
   ['/elliott', ['elliott']],
   ['/superchart', ['superchart']],
   ['/anomalies', ['anomalies']],
-  ['/orderbook', ['orderbook']],   // solo stato/segnali: heatmap e footprint ('ob-heatmap', 'ob-footprint') si aggiornano dal WS dedicato
+  ['/orderbook', ['orderbook']],
+  ['/terminal', ['terminal']],   // stato/segnali del Terminale (agente "flow"); serie e live: 'term-series' + WS dedicato   // solo stato/segnali: heatmap e footprint ('ob-heatmap', 'ob-footprint') si aggiornano dal WS dedicato
 ]
 
 /** Query-key roots touched by a list of API path prefixes (unknown paths fall back to their first segment). */

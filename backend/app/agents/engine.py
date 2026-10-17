@@ -276,6 +276,7 @@ INVALIDATES: dict[str, list[str]] = {
     "elliott": ["/elliott"],
     "anomalies": ["/anomalies", "/superchart/series"],
     "orderbook": ["/orderbook/status", "/orderbook/signals"],
+    "flow": ["/terminal/status", "/terminal/signals"],
 }
 
 
@@ -1768,6 +1769,94 @@ class OrderBookAgent(Agent):
             self.state["div"] = div
 
 
+class TerminalFlowAgent(Agent):
+    """Order flow multi-exchange del Terminale (app/terminal_collector.py: trade di Binance, Bybit, OKX perp e spot + Coinbase).
+
+    Descrive, senza segnali: divergenza tra CVD spot e CVD perp aggregati nell'ultima ora (segni opposti, |delta| ≥ 5% del volume
+    spot e ≥ 3% del perp), squilibrio persistente degli acquisti/vendite aggressivi (ultimi 15 minuti: quota acquisti ≥ 58% o
+    ≤ 42% con ≥ 73% dei minuti dallo stesso lato), grandi trade (≥ $1M negli ultimi 5 minuti) e raffiche di liquidazioni reali
+    (≥ $5M di un lato in 5 minuti). Il CVD del solo perpetual Binance rispetto al prezzo resta all'agente "orderbook": quando
+    ne annuncia una divergenza, questo agente risponde con il contesto aggregato degli altri exchange (nessun doppione).
+    """
+
+    def finding(self, f: Finding) -> None:
+        for i, x in enumerate(list(self.findings)):
+            if x["title"] == f.title:
+                del self.findings[i]
+                break
+        self.findings.appendleft(f.as_dict())
+
+    def compute(self):
+        return {"sig": _call("terminal", "build_signals")}
+
+    async def act(self, r):
+        s = r["sig"]
+        if not s.get("streams_live"):
+            self.finding(Finding("Stato della raccolta", "Nessuno stream di trade connesso: order flow aggregato non disponibile.", "neutral", 30))
+            return
+        now = time.time()
+        cv = s.get("cvd")
+        if cv:
+            div = cv.get("divergence")
+            text = (f"Ultima ora ({cv['minutes']} min raccolti): CVD spot aggregato {cv['spot']:+,.0f} BTC ({cv['spot_share'] * 100:+.1f}% del volume spot), "
+                    f"CVD perp aggregato {cv['perp']:+,.0f} BTC ({cv['perp_share'] * 100:+.1f}% del volume perp), prezzo {cv['price_change_pct']:+.2f}%"
+                    + ("; lo spot compra in modo aggressivo mentre i perpetual vendono (divergenza)." if div == "spot_buy_perp_sell" else
+                       "; lo spot vende in modo aggressivo mentre i perpetual comprano (divergenza)." if div == "spot_sell_perp_buy" else "."))
+            self.finding(Finding("CVD spot vs perp", text, "neutral", 55))
+            if div and self.state.get("div") != div:
+                await self.say("flow.divergence", text, data={"divergence": div, "spot": cv["spot"], "perp": cv["perp"]})
+            self.state["div"] = div
+        else:
+            self.finding(Finding("CVD spot vs perp", "Servono almeno 30 minuti di trade raccolti da tutti gli exchange per confrontare CVD spot e perp.", "neutral", 30))
+        im = s.get("imbalance")
+        if im:
+            side = im.get("persistent")
+            text = (f"Ultimi {im['minutes']} minuti: acquisti aggressivi {im['buy_share'] * 100:.1f}% del controvalore scambiato su 7 mercati, "
+                    f"{im['minutes_buy']} minuti su {im['minutes']} a prevalenza acquisti, delta {_usd(im['delta_usd'])}"
+                    + (f"; squilibrio persistente lato {'acquisti' if side == 'buy' else 'vendite'}." if side else "; nessuno squilibrio persistente."))
+            self.finding(Finding("Squilibrio dell'order flow", text, "neutral", 50))
+            if side and self.state.get("imb") != side:
+                await self.say("flow.imbalance", text, data={"side": side, "buy_share": im["buy_share"]})
+            self.state["imb"] = side
+        lg = s.get("large") or {}
+        if lg.get("n"):
+            mx = lg.get("max") or {}
+            ex = STREAM_IT.get(mx.get("s") or "", mx.get("s") or "")
+            text = (f"{lg['n']} trade da almeno {_usd(lg['threshold'])} negli ultimi 5 minuti per {_usd(lg['usd'])} "
+                    f"({_usd(lg['buy_usd'])} in acquisto); il più grande {_usd(mx.get('u'))} su {ex} a ${(mx.get('p') or 0):,.0f}.")
+            self.finding(Finding("Grandi trade", text, "neutral", 50))
+            if now - self.state.get("large_said", 0) >= 300:
+                self.state["large_said"] = now
+                await self.say("flow.large", text, data={"n": lg["n"], "usd": lg["usd"]})
+        else:
+            self.finding(Finding("Grandi trade", f"Nessun trade da almeno {_usd(lg.get('threshold'))} negli ultimi 5 minuti.", "neutral", 40))
+        lq = s.get("liq5") or {}
+        if lq.get("burst") and now - self.state.get("liq_said", 0) >= 300:
+            side = lq["burst"]
+            text = (f"Raffica di liquidazioni reali {side} negli ultimi 5 minuti: long {_usd(lq['long_usd'])}, short {_usd(lq['short_usd'])} "
+                    f"({lq['n']} eventi su Binance, Bybit e OKX).")
+            self.finding(Finding("Liquidazioni recenti", text, "neutral", 60))
+            self.state["liq_said"] = now
+            await self.say("flow.liquidations", text, data={"side": side, "long_usd": lq["long_usd"], "short_usd": lq["short_usd"]})
+        elif lq:
+            self.finding(Finding("Liquidazioni recenti", f"Ultimi 5 minuti: long {_usd(lq.get('long_usd'))}, short {_usd(lq.get('short_usd'))} ({lq.get('n', 0)} eventi).", "neutral", 45))
+
+    async def on_message(self, m):
+        # l'agente orderbook ha visto una divergenza delta/CVD sul solo perpetual Binance: contesto aggregato (se disponibile)
+        if m["topic"] != "orderbook.cvd":
+            return
+        cv = (self.state.get("sig") or {}).get("cvd")
+        if not cv:
+            return
+        same = "conferma" if (cv["perp"] > 0) == (((m.get("data") or {}).get("cvd") or 0) > 0) else "non conferma"
+        await self.say("flow.context", f"Contesto multi-exchange: il CVD perp aggregato di Binance, Bybit e OKX nell'ultima ora è {cv['perp']:+,.0f} BTC e "
+                       f"{same} la lettura del solo Binance; CVD spot aggregato {cv['spot']:+,.0f} BTC.", to=m["from"], data={"perp": cv["perp"], "spot": cv["spot"]})
+
+
+STREAM_IT = {"binance_perp": "Binance perp", "bybit_perp": "Bybit perp", "okx_perp": "OKX perp", "binance_spot": "Binance spot",
+             "coinbase_spot": "Coinbase", "bybit_spot": "Bybit spot", "okx_spot": "OKX spot"}
+
+
 class ForecastAgent(Agent):
     def compute(self):
         out = {"f": _call("forecast", "get_forecast", horizon=90)}
@@ -1876,7 +1965,7 @@ class AnalystAgent(Agent):
 def build_team() -> list[Agent]:
     return [
         AnalystAgent("analyst", "Analista AI", "Orchestratore: raccoglie i report di tutti gli agenti, calcola il consenso e scrive la sintesi (LLM locale).",
-                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "vwap.", "timing.", "elliott.", "anomalies.", "orderbook.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
+                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "vwap.", "timing.", "elliott.", "anomalies.", "orderbook.", "flow.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
         MarketAgent("market", "Market Data", "Monitora prezzo, range 24h e sentiment in tempo reale e avvisa gli altri agenti dei movimenti.",
                     "Activity", "#f7931a", 5, subscribes=[], publishes=["market.price", "market.alert"]),
         LevelsAgent("levels", "Pivot & Livelli", "Calcola pivot (classici, Fibonacci, Camarilla), swing e zone di supporto/resistenza; verifica confluenze su richiesta.",
@@ -1961,6 +2050,8 @@ def build_team() -> list[Agent]:
                                                                         "anomalies.volume", "anomalies.etf", "anomalies.exchange"]),
         OrderBookAgent("orderbook", "Order book", "Legge il book Binance perpetual raccolto in tempo reale: muri di liquidità vicini al prezzo (soglia k× la mediana), liquidità ritirata prima del tocco, squilibri bid/ask persistenti e delta/CVD divergenti dal prezzo. Solo descrizione, nessun segnale operativo.",
                        "Grid3x3", "#5B8DEF", 30, subscribes=[], publishes=["orderbook.walls", "orderbook.pulled", "orderbook.imbalance", "orderbook.cvd"]),
+        TerminalFlowAgent("flow", "Order flow", "Segue i trade di sette mercati (Binance, Bybit e OKX perp e spot, Coinbase): divergenze tra CVD spot e perp aggregati, squilibri persistenti di acquisti e vendite aggressivi, grandi trade e raffiche di liquidazioni reali. Solo descrizione, nessun segnale operativo.",
+                          "AudioWaveform", "#3CC6B0", 60, subscribes=["orderbook.cvd"], publishes=["flow.divergence", "flow.imbalance", "flow.large", "flow.liquidations", "flow.context"]),
         ForecastAgent("forecast", "Previsioni ML", "Posizione nel ciclo + LightGBM + Monte Carlo, calibrati fuori campione: bande di probabilità da 7 a 365 giorni; previsione a 1 giorno confrontata con il naive.",
                       "TrendingUp", "#60a5fa", 600, subscribes=["pattern.projection.d1"], publishes=["forecast.targets", "forecast.check"]),
     ]
@@ -1979,7 +2070,7 @@ async def start() -> None:
         bus.agents[a.id] = a
     # avvio scaglionato: prima i produttori di dati, l'analista per ultimo
     order = {"market": 1, "derivatives": 3, "levels": 5, "liquidity": 8, "correlation": 11, "cycles": 14,
-             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "vwap": 4, "timing": 60, "elliott": 57, "anomalies": 50, "orderbook": 15, "analyst": 66}
+             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "vwap": 4, "timing": 60, "elliott": 57, "anomalies": 50, "orderbook": 15, "flow": 19, "analyst": 66}
     loop = asyncio.get_running_loop()
     for a in team:
         loop.create_task(a.inbox_loop())

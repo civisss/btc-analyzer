@@ -2288,3 +2288,66 @@ interface EwBacktest {
 // GET /api/elliott/at?tf=1d&degree=intermediate&t=<unix> → conteggio storico con i soli dati fino a t
 //   { tf; degree; t: T; candles; after /* candele successive, per il confronto */; counts: EwCount[]; n_valid: number; higher: EwCount | null; ranker }
 ```
+
+
+## TERMINAL (router: terminal.py, collector: app/terminal_collector.py, logica: app/analysis/terminal_core.py, layout: app/terminal_layouts.py, agent: flow, tests: backend/tests/test_terminal.py)
+
+Collector in-process (thread `terminal`, event loop proprio, avviato da `live.start()`; env `TERMINAL_COLLECTOR=off` lo disattiva, `TERMINAL_DEBUG=1`
+abilita `POST /api/terminal/debug/{close|flush}?stream=`). Trade pubblici di 7 mercati: `binance_perp` (fstream `/market/stream` aggTrade + ticker 24h +
+markPrice@1s), `binance_spot` (aggTrade), `bybit_perp` / `bybit_spot` (v5 publicTrade.BTCUSDT, `S` = lato del taker, `v` in BTC), `okx_perp` / `okx_spot`
+(`/ws/v5/business` trades-all, `side` = taker; SWAP `sz` in contratti × ctVal 0,01 BTC letto da `/public/instruments`), `coinbase_spot` (matches: `side` = MAKER
+→ aggressore invertito). Trade normalizzato `(ts_ms, prezzo, qty_btc, buy_aggressore, id)`; ogni id già contato è scartato (nessun doppio conteggio).
+Recupero: id continui (Binance `a`, OKX tradeId, Coinbase trade_id + heartbeat `last_trade_id`) → REST (aggTrades fromId, history-trades, /trades?after);
+Bybit → recent-trade a ogni riconnessione; riavvio < 15 min → si riparte dagli ultimi id salvati insieme alle barre; minuti non recuperati = incompleti.
+Barre 1m per stream (vb, vs BTC · qb, qs USD · nb, ns · grandi ≥ $100K lvb, lvs, lnb, lns · o h l c) + delta di gruppo spot/perp/all con estremi intra-minuto
+(per le candele del CVD). Kline 1m ufficiali di ogni stream ogni 5 min → verifica volume (atteso < 1%); Binance: anche taker buy e backfill 7 g (CVD storico);
+Coinbase: 3 g di candele 1m (premio storico). OI/funding aggregati ogni 30 s (`aggregate.live_snapshot`). Storage `DATA_DIR/terminal/` via `store.write_parquet`
+/ `write_text`: tb/tg/tk/tp/to giornalieri (retention 30 g), meta.json, kline_checks.json. Liquidazioni live da `store.LIQ_TAPS` (tap di `add_liquidation`).
+
+```ts
+type N = number | null
+type StreamKey = 'binance_perp' | 'bybit_perp' | 'okx_perp' | 'binance_spot' | 'coinbase_spot' | 'bybit_spot' | 'okx_spot'
+type Group = 'spot' | 'perp' | 'all'
+interface TermTicker { last: N; last_ts: N; mark: N; index: N; funding_rate: N /* % periodo Binance */; next_funding: N; high_24h: N; low_24h: N
+  vol_24h_btc: N; vol_24h_usd: N; change_24h: N; oi_btc: N; oi_usd: N; oi_chg_1h?: N; f8: N /* % 8 h ponderato OI */; oi_t: N
+  premium: N /* % Coinbase BTC-USD vs Binance BTCUSDT */; cb: N; bn: N }
+interface FlowW { buy_usd; sell_usd; buy_btc; sell_btc; delta_usd; delta_btc: number; buy_share: N; n_buy; n_sell: number; avg_buy_usd: N; avg_sell_usd: N
+  avg_usd: N; large_buy; large_sell; exchanges; perp_delta_usd; spot_delta_usd; perp_usd; spot_usd; win_s; cov_s: number }
+interface FeedItem { k: number; s: StreamKey; t: number /* ms */; p: N; u: number; q: number; b: 0 | 1; n: number; a: 0 | 1 /* aggregato < $10K / 250 ms */ }
+interface LiqItem { k: number; t: number; side: 'long' | 'short'; price: number; qty: number; usd: number; ex: string; sym?: string }
+interface TermDom { market: 'futures' | 'spot'; synced: boolean; step?: number; bb?: number; ba?: number; bids?: [number, number][]; asks?: [number, number][]; t?: number }
+interface TermBar { tf; t: number; cvd: Record<Group, [number, number, number]> /* delta, max, min relativi all'apertura */; v: N; vb; vs: number
+  oi?: [o, h, l, c]; f8?: N; pm?: N }
+
+// GET /api/terminal/snapshot?tf&dm=futures|spot&ds=0.1|1|5|10|25|50|100
+interface TermSnapshot { time; ticker: TermTicker; flow: { w1: FlowW; w5: FlowW; w15: FlowW }; dom: TermDom | null; feed: FeedItem[]; feed_seq: number
+  liqs: LiqItem[]; liq_seq: number; est: { price; usd; side; distance }[] /* livelli STIMATI (modello liquidazioni) */; bar: TermBar
+  streams: Record<StreamKey, { c: boolean; age: N }>; cfg: { streams; large_usd; feed_min_usd; dom_steps; tfs; okx_ct_val; enabled } }
+
+// GET /api/terminal/series?tf=1m|5m|15m|1h&from&to   (griglia = candele Binance perp REST, ≤ 1500 barre; array colonnari, senza ?lang)
+interface TermSeries { tf; from; to: number; t: number[]; o; h; l; c; v: N[]; vb; vs: N[] /* taker aggregati BTC */
+  cvd: Record<Group, { o; h; l; c: N[] }> /* cumulato in BTC dall'inizio della finestra */; oi: { o; h; l; c: N[] }; f8: N[]; pm: N[]
+  liq: { t; p; u: number[]; s: (0 | 1)[] /* 1 = long */; x: string[] }; cov: Record<StreamKey, { ws_from: N; kline_from?: N }>; multi_from: N
+  oi_info: { own_from; snap_from; est_from: N; f8_settled_fill?: boolean }; pm_info: { live_from; kline_from: N; hourly_fallback: boolean }
+  collection_start: Partial<Record<StreamKey, number>>; ms: number }
+// Fonti OI: campioni 30 s → lev_snap 5 min → stima 15 min (contratti USDT × fattore di scala); funding prima della raccolta = liquidato 8 h su [T−8h, T).
+// Minuti Binance senza flusso live o incompleti → kline ufficiali (taker buy). Premio: campioni al secondo → chiusure 1m (tk) → serie oraria (tf 1h).
+
+// GET /api/terminal/status → { time; enabled; cpu; rss_mb; storage: { total_mb; files; by_kind_mb; mb_per_day; retention_days }; flush_ms_p50
+//   okx_ct: { ct_val; ccy; ok }; premium_check: { n; median_abs_pp; max_abs_pp; last }; backfill; collection_start
+//   streams: Record<StreamKey, { ex; mkt; label; connected; msgs; trades; dupes; reconnects; last_age_s; last_price; latency_ms_p50; incomplete_minutes
+//     id_check; recoveries: { n; ok; new; last }; kline_check: { n; median_abs; p95_abs; max_abs; within_1; buy: {…}; last }; first_start; sessions }> }
+// GET /api/terminal/signals → { cvd?: { minutes; spot; perp; spot_vol; perp_vol; spot_share; perp_share; price_change_pct
+//   divergence: 'spot_buy_perp_sell' | 'spot_sell_perp_buy' | null }; imbalance?: { minutes; buy_share; minutes_buy; persistent: 'buy'|'sell'|null; delta_usd }
+//   large: { n; usd; buy_usd; max; threshold: 1e6 }; liq5: { long_usd; short_usd; n; burst: 'long'|'short'|null; threshold: 5e6; max }; streams_live }
+// GET|POST /api/terminal/layouts · PUT|DELETE /api/terminal/layouts/{id}   body { name, state }
+interface TermLayoutState { tf; tiles: { id: 'dom'|'chart'|'feed'|'flow'|'panes'|'liqs'|'integrity'; w: 3..12; h: 2..12; hidden: boolean }[]
+  panes: ('cvd_spot'|'cvd_perp'|'cvd_all'|'oi'|'funding'|'premium')[]; opts: { heat; est; bubbles; vol: boolean } }
+```
+WS `/api/ws/terminal?tf&dm&ds&dn&hm&hb&hr` (parametri modificabili inviando lo stesso JSON), un messaggio ogni 250 ms (≤ 4/s):
+`{"type":"term", time, px, trades?: FeedItem[] (nuovi, ≤ 80), liqs?: LiqItem[], dom?: TermDom (se cambiato), ticker?, flow?, bar?: TermBar, hm?: ObLiveCol[]
+(1/s: colonne della heatmap dell'order book Binance perp), streams? (ogni 5 s)}`. Fallback del frontend: GET snapshot ogni 5 s se il socket non è aperto.
+Agente `flow` (AudioWaveform, 60 s): `flow.divergence` (CVD spot vs perp di segno opposto, |Δ| ≥ 5% / 3% del volume, 60 min), `flow.imbalance` (15 min:
+quota acquisti ≥ 58% o ≤ 42% con ≥ 73% dei minuti concordi), `flow.large` (≥ $1M in 5 min, max ogni 5 min), `flow.liquidations` (≥ $5M di un lato in 5 min),
+`flow.context` (risposta a `orderbook.cvd`: contesto multi-exchange, nessun doppione con l'agente orderbook); invalida `/terminal/status`, `/terminal/signals`
+→ query `['terminal', …]` (serie `['term-series', tf]` e live dal WS). Tono sempre neutro.

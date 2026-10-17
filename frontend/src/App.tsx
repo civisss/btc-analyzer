@@ -31,6 +31,7 @@ const TimingPage = lazy(() => import('./pages/TimingPage'))
 const SuperchartPage = lazy(() => import('./pages/SuperchartPage'))
 const OrderBookPage = lazy(() => import('./pages/OrderBookPage'))
 const ElliottPage = lazy(() => import('./pages/ElliottPage'))
+const TerminalPage = lazy(() => import('./pages/TerminalPage'))
 
 class Boundary extends Component<{ children: ReactNode }, { err: Error | null }> {
   state = { err: null as Error | null }
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="elliott" element={page(<ElliottPage />)} />
         <Route path="superchart" element={page(<SuperchartPage />)} />
         <Route path="orderbook" element={page(<OrderBookPage />)} />
+        <Route path="terminale" element={page(<TerminalPage />)} />
         <Route path="affidabilita" element={page(<TrackRecordPage />)} />
         <Route path="posizionamento" element={page(<PositioningPage />)} />
         <Route path="avvisi" element={page(<AlertsPage />)} />

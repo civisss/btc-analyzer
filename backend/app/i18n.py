@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 import logging
 import re
 import threading
@@ -16,7 +17,8 @@ from pathlib import Path
 
 log = logging.getLogger("i18n")
 
-CACHE_FILE = Path(__file__).resolve().parents[1] / "data" / "i18n_en.json"
+# stessa cartella dati dello store (BTC_DATA_DIR per le istanze di test), così i test non scrivono nella cache reale
+CACHE_FILE = Path(os.environ.get("BTC_DATA_DIR") or (Path(__file__).resolve().parents[1] / "data")) / "i18n_en.json"
 _NUM = re.compile(r"[−+\-]?\$?\d[\d,.]*(?:[KMBT%×]|\s?pt)?")
 _LETTERS = re.compile(r"[A-Za-zÀ-ÿ]{2,}")
 # stringhe da non tradurre: chiavi/codici, date ISO, url, tono, unità

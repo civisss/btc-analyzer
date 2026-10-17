@@ -400,11 +400,12 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
       </Section>
 
       <Section title={t('Perché si somigliano')}>
-        <div className="grid items-start gap-3 xl:grid-cols-12">
+        {/* equal heights: the visual-similarity components spread over the height of the right column */}
+        <div className="grid gap-3 xl:grid-cols-12">
           <Card className="xl:col-span-5">
             <CardHeader title={t('Somiglianza grafica')} icon={<ScanSearch />} subtitle={t('Componenti visive (80% del punteggio)')}
               right={<span className="text-xs text-slate-400">{t('Totale')} <b className="tnum text-lg font-semibold text-white">{Math.round(m.visual_similarity)}%</b></span>} />
-            <CardBody><VisualBreakdown components={m.visual.components} /></CardBody>
+            <CardBody className="flex flex-col [&>div]:flex-1 [&>div]:justify-around"><VisualBreakdown components={m.visual.components} /></CardBody>
           </Card>
           <div className="flex flex-col gap-3 xl:col-span-7">
             <Card>

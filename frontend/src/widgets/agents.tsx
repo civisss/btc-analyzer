@@ -4,7 +4,7 @@ import {
   Radar, Network, Coins, CircleDollarSign, Waves, Sparkles, Zap, ArrowLeftRight, BadgeCheck, Bell, BellRing, CalendarClock,
   CalendarDays, CalendarRange, Clock, ImageUp, NotebookPen, Pickaxe, RefreshCcw, Route, Scale, ScanLine, ScanSearch, Sigma,
   SquareDashed, Thermometer, TrendingUp, Users, MoonStar, Anchor, Hourglass, type LucideProps,
-  Grid3x3,
+  Grid3x3, AudioWaveform,
 } from 'lucide-react'
 import { useAgentMessages, useAgents } from '../api/client'
 import { live, useLive } from '../api/live'
@@ -19,7 +19,7 @@ const ICONS: Record<string, ComponentType<LucideProps>> = {
   Network, Coins, CircleDollarSign, Waves, Sparkles, Zap, ArrowLeftRight, BadgeCheck, Bell, BellRing, CalendarClock, CalendarDays,
   CalendarRange, Clock, ImageUp, NotebookPen, Pickaxe, RefreshCcw, Route, Scale, ScanLine, ScanSearch, Sigma, SquareDashed,
   Thermometer, TrendingUp, Users, MoonStar, Anchor, Hourglass,
-  Grid3x3,
+  Grid3x3, AudioWaveform,
 }
 export function AgentIcon({ name, ...p }: { name: string } & LucideProps) {
   const I = ICONS[name] ?? Bot

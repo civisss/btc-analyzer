@@ -106,7 +106,7 @@ function DerivCharts({ d, updatedAt }: { d: Derivatives; updatedAt: number }) {
         </Card>
         <Card className="h-full xl:col-span-4">
           <CardHeader title={t('Segnali')} icon={<Signal />} />
-          <CardBody className="pt-0"><SignalList signals={d.signals} /></CardBody>
+          <CardBody className="flex flex-col pt-0"><SignalList signals={d.signals} /></CardBody>
         </Card>
       </div>
       <div className="grid gap-3 xl:grid-cols-12">

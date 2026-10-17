@@ -145,3 +145,8 @@ def start() -> None:
         ob_collector.start()
     except Exception as e:  # noqa: BLE001
         log.warning("collector order book non avviato: %s", e)
+    try:  # trade multi-exchange per il Terminale (order flow, CVD aggregato, premio Coinbase; app/terminal_collector.py)
+        from . import terminal_collector
+        terminal_collector.start()
+    except Exception as e:  # noqa: BLE001
+        log.warning("collector terminale non avviato: %s", e)
