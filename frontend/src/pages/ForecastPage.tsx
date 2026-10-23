@@ -7,6 +7,7 @@ import {
 import { useForecastOneDay, type ForecastOneDay } from '../api/forecastOneDay'
 import { useTab } from '../lib/useTab'
 import ForecastOneDayTab from './ForecastOneDayTab'
+import ForecastKronosTab from './ForecastKronosTab'
 import { CalibrationChart, DriverBars, ForecastPathChart, MEMBER_COLOR, MEMBER_ORDER, MEMBER_SHORT, WeightsByHorizon, cycleColor } from '../widgets/forecast'
 import { cap, t } from '../i18n'
 import { date, dateTime, dayUnit, usd, usdCompact } from '../lib/format'
@@ -479,7 +480,7 @@ function OneDayChip({ d }: { d: ForecastOneDay }) {
   )
 }
 
-const TABS = [{ value: 'percorso', label: 'Percorso a 12 mesi' }, { value: 'oneday', label: 'Previsione a 1 giorno' }] as const
+const TABS = [{ value: 'percorso', label: 'Percorso a 12 mesi' }, { value: 'oneday', label: 'Previsione a 1 giorno' }, { value: 'kronos', label: 'Kronos' }] as const
 type Tab = (typeof TABS)[number]['value']
 
 function PathTab() {
@@ -498,12 +499,14 @@ export default function ForecastPage() {
   return (
     <div>
       <PageTitle title={t('Previsioni')}
-        subtitle={tab === 'oneday'
+        subtitle={tab === 'kronos'
+          ? t('Foundation model per candele: percorsi probabilistici su 1h, 4h e 1G, valutati fuori campione dopo il pre-addestramento.')
+          : tab === 'oneday'
           ? t('Prezzo di domani previsto fuori campione e confrontato onestamente con il naive "domani = oggi".')
           : t('Percorso di prezzo a 12 mesi dalla posizione nel ciclo attuale e da come si sono mossi i cicli passati.')}
-        right={tab === 'oneday' ? (q1.data?.training ? <OneDayChip d={q1.data} /> : undefined) : (q.data?.training ? <TrainingChip d={q.data} /> : undefined)} />
+        right={tab === 'kronos' ? undefined : tab === 'oneday' ? (q1.data?.training ? <OneDayChip d={q1.data} /> : undefined) : (q.data?.training ? <TrainingChip d={q.data} /> : undefined)} />
       <TabBar tabs={TABS.map((x) => ({ value: x.value, label: t(x.label) }))} value={tab} onChange={setTab} />
-      {tab === 'oneday' ? <ForecastOneDayTab /> : <PathTab />}
+      {tab === 'kronos' ? <ForecastKronosTab /> : tab === 'oneday' ? <ForecastOneDayTab /> : <PathTab />}
     </div>
   )
 }

@@ -30,6 +30,7 @@ const PATH_KEYS: [string, string[]][] = [
   ['/timepivots', ['timepivots']],
   ['/macro', ['macro']],
   ['/stablecoins', ['stablecoins']],
+  ['/forecast/kronos', ['kronos']],
   ['/forecast', ['forecast']],
   ['/insights', ['insights']],
   ['/agents/messages', ['agentMessages']],

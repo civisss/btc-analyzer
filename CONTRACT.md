@@ -2351,3 +2351,99 @@ Agente `flow` (AudioWaveform, 60 s): `flow.divergence` (CVD spot vs perp di segn
 quota acquisti ≥ 58% o ≤ 42% con ≥ 73% dei minuti concordi), `flow.large` (≥ $1M in 5 min, max ogni 5 min), `flow.liquidations` (≥ $5M di un lato in 5 min),
 `flow.context` (risposta a `orderbook.cvd`: contesto multi-exchange, nessun doppione con l'agente orderbook); invalida `/terminal/status`, `/terminal/signals`
 → query `['terminal', …]` (serie `['term-series', tf]` e live dal WS). Tono sempre neutro.
+
+## KRONOS (router: kronos.py, engine: app/analysis/kronos_forecast.py, modello: app/vendor/kronos (MIT), agent: kronos, tests: backend/tests/test_kronos.py)
+Scheda `/previsioni?tab=kronos`. Kronos (Shi et al., arXiv:2508.02739, AAAI 2026; github.com/shiyu-coder/Kronos) è un foundation model
+autoregressivo per candele OHLCV. Integrazione onesta: nessuna regola di entrata/uscita, nessun segnale; ogni affermazione di
+accuratezza viene dal backtest fuori campione. Risposte con sole chiavi e numeri: i testi li compone il frontend.
+- Modello live Kronos-small (24.7M, contesto 512) + Kronos-Tokenizer-base, revisioni HF fissate (`MODELS`/`TOKENIZERS`). Pesi scaricati al
+  primo uso (thread in background, mai all'import) in `DATA_DIR/models/kronos/<repo>` (volume Docker); `KRONOS_OFFLINE=1` = nessun download.
+  torch importato pigramente: senza torch l'app parte e la scheda risponde `state: "torch_missing"`. `cuda` se disponibile, altrimenti `cpu`.
+- Input: ultime ≤ 512 candele CHIUSE BTCUSDT (`k_1h`/`k_4h`/`k_1d`: open, high, low, close, volume; amount = volume × media OHLC come
+  KronosPredictor), normalizzazione per finestra, clip ±5, feature temporali (minute, hour, weekday, day, month) dell'apertura UTC.
+  Campionamento T = 1.0, top_p = 0.9, top_k = 0; ogni percorso è una riga del batch (upstream media i campioni: qui restano separati).
+  Inferenza = `auto_regressive_inference` upstream con le teste calcolate solo sull'ultima posizione (equivalente, verificato nei test).
+- Regime (a fine orizzonte): `trend_up`/`trend_down` se quota di percorsi dalla stessa parte ≥ 65% (AGREE_MIN) E |mediana del log-rendimento|
+  ≥ 0.30 × dev. std. dei percorsi (SNR_MIN); altrimenti `choppy`. `er` = efficienza direzionale media dei percorsi (|netto| / Σ|passi|).
+- Registro live: a ogni nuova candela chiusa 1h/4h/1d (loop ogni 60 s, `KRONOS_LIVE=off` per disattivarlo) si calcola la previsione standard
+  (h 24, 100 percorsi) e la si salva in `data/kronos_live.parquet` solo se emessa entro un periodo dalla chiusura (mai ricostruita dopo);
+  la verifica legge le chiusure reali alla scadenza.
+- Backtest (pesante, in locale con GPU: `python -m app.analysis.kronos_forecast backtest`, poi `... timings` → `data/kronos_bt.parquet` +
+  `kronos_bt.json`; nell'immagine Docker copiato anche in `backend/seed/`, vince il più recente). Origini = candele che chiudono alle 00:00 UTC
+  (stesso target del modello a 1 giorno); periodo `post` (dal 2024-07-01: dopo la fine dei dati di pre-addestramento dichiarata nel paper,
+  giugno 2024) ogni giorno, periodo `pre` (2019-02 → 2024-06, possibile contaminazione) ogni 4 giorni; 32 percorsi, 24 passi. Punto Kronos =
+  media dei percorsi (come KronosPredictor); `kronos_median` = mediana. Baseline: `naive` (prezzo all'origine), `drift` (media espandente dei
+  log-rendimenti × passo), `rw_vol` (passeggiata aleatoria gaussiana, σ dei log-rendimenti delle 512 candele della finestra × √passo: bande
+  e CRPS di riferimento), `oneday` (nostro LightGBM a 1 giorno, solo al passo "1 giorno avanti": 1d passo 1, 4h passo 6, 1h passo 24).
+  Metriche come FORECAST 1 DAY; DM con varianza HAC (Newey-West, lag = passo − 1); p-value della direzione su origini non sovrapposte.
+
+```ts
+type KronosTf = '1h' | '4h' | '1d'
+type KVerdict = { code: 'edge'|'small_edge'|'no_edge'|'worse'|'worse_ns'|'baseline'|'n_a'; mase?: number|null; dm_p?: number|null;
+  direction_significant?: boolean; direction_beats_always_up?: boolean }
+interface KRegime { code: 'trend_up'|'trend_down'|'choppy'; up_share: number; agree: number; snr: number; median_ret_pct: number;
+  sd_ret_pct: number; er?: number; agree_min?: number; snr_min?: number }
+// GET /api/forecast/kronos?tf=1h&h=24&samples=100     (h ∈ 6|12|24|48, samples ∈ 20|50|100; altri valori → predefiniti)
+interface KronosForecast {
+  tf: KronosTf; h: number; samples: number
+  params: { T: number; top_p: number; top_k: number; lookback: number; model: string; clip: number }
+  candles: Candle[]                       // ultime 120 chiuse + quella in corso
+  live_price: number | null
+  ready: boolean                          // false: in coda/calcolo (poll), vedi state
+  state?: 'loading' | 'computing' | 'error' | 'torch_missing'; error?: string; eta_s?: number | null
+  stale?: boolean                         // true: previsione della candela precedente mentre si calcola la nuova
+  origin?: T; origin_close?: T; ref_price?: number; lookback?: number
+  steps?: T[]                             // apertura delle H candele previste (passo 1 = candela in corso)
+  median?: number[]; p05?: number[]; p25?: number[]; p75?: number[]; p95?: number[]; mean?: number[]
+  paths?: number[][]                      // 8 percorsi campione (chiusure)
+  end?: { median: number; mean: number; p05: number; p25: number; p75: number; p95: number; change_pct: number; mean_change_pct: number;
+          up_prob: number; width50_pct: number; width90_pct: number }
+  regime?: KRegime; computed_at?: T; seconds?: number; device?: 'cpu' | 'cuda'
+  worker?: { busy: boolean; job: { tf: string; h: number; samples: number } | null; started_at: T | null; queue: number }
+}
+// GET /api/forecast/kronos/backtest
+interface KMetrics { n: number; mae?: number; mape?: number; mase?: number|null; bias_pct?: number; corr_ret?: number|null
+  n_dir?: number; hit_rate?: number; always_up?: number; share_up_calls?: number; n_dir_indep?: number; hit_rate_indep?: number|null
+  p_dir?: number|null; p_dir_vs_up?: number|null; dm_stat?: number|null; dm_p?: number|null
+  coverage_50?: number; coverage_90?: number; width_50?: number; width_90?: number; brier?: number; brier_half?: number; brier_skill?: number|null
+  crps?: number; crps_ref?: number; crps_skill?: number|null      // CRPS in log-rendimento; skill vs rw_vol (%)
+  kronos_mase_same?: number|null; dm_vs_kronos?: number|null; dm_p_vs_kronos?: number|null   // solo riga oneday
+  verdict?: KVerdict }
+type KRowKey = 'kronos' | 'kronos_median' | 'naive' | 'drift' | 'rw_vol' | 'oneday'
+interface KRegimeEval { n: number; n_trend?: number; n_choppy?: number; share_trend?: number
+  trend?: { abs_ret_pct: number|null; er: number|null }; choppy?: { abs_ret_pct: number|null; er: number|null }
+  p_absret?: number; p_er?: number; hit_trend?: number; n_trend_indep?: number; p_hit_trend?: number|null; hit_trend_all?: number
+  spearman_disp_absret?: number|null; p_spearman?: number|null
+  verdict?: 'useful' | 'magnitude_only' | 'direction_only' | 'not_useful' | 'too_few' }
+interface KronosBacktest {
+  available: boolean
+  meta?: { version: number; created_at: T; samples: number; H: number; lookback: number; T: number; top_p: number; pretrain_end: T
+           pre_every_days: number; post_every_days: number; device: string; gpu: string|null; torch: string; models: string[]
+           seconds: Record<string, number>; origins: Record<string, { pre?: number; post?: number }>; complete: boolean
+           timings?: { tf: string; h: number; samples: number; cpu?: { seconds: number; threads: number }; cuda?: { seconds: number; name: string } } }
+  evaluation?: Record<string /*model*/, Record<KronosTf, Partial<Record<'pre'|'post', Record<string /*step*/, { from: T; to: T; rows: Partial<Record<KRowKey, KMetrics>> }>>>>>
+  curves?: Record<string, Record<KronosTf, Partial<Record<'pre'|'post', { step: number; mase: number|null; coverage_50?: number; coverage_90?: number; hit_rate?: number; dm_p?: number|null }[]>>>>
+  regime?: Record<string, Record<KronosTf, Partial<Record<'pre'|'post', KRegimeEval>>>>
+  series?: Record<string, Record<KronosTf, { t: T[]; ref: number[]; actual: number[]; mean: number[]; p05: number[]; p95: number[] }>>  // post, 1 giorno avanti
+  headline?: Record<string, Record<KronosTf, { day: KVerdict; end: KVerdict; day_mase: number|null; end_mase: number|null; day_hit: number|null
+    day_always_up: number|null; cov90_day: number|null; crps_skill_day: number|null; regime: KRegimeEval['verdict'] }>>
+  overall?: 'edge' | 'mixed' | 'no_edge' | 'worse'
+  key_steps?: Record<KronosTf, number[]>; day_step?: Record<KronosTf, number>; pretrain_end?: T
+  settings?: { agree_min: number; snr_min: number; dir_eps_pct: number }
+}
+// GET /api/forecast/kronos/track   — registro live, separato dal backtest
+interface KronosTrack { n_forecasts: number; from: T | null
+  tf: Partial<Record<KronosTf, { n_forecasts: number; last_origin?: T; steps?: Record<string, KMetrics & { pending: number }>
+    recent?: { origin: T; regime: string; ref: number; end_q50: number; end_actual: number|null; day_q50: number|null; day_actual: number|null }[] }>> }
+// GET /api/forecast/kronos/status
+interface KronosStatus { torch: boolean; torch_version: string|null; cuda: boolean|null; device: 'cpu'|'cuda'|null; gpu_name: string|null
+  threads: number|null; loaded: boolean; load_seconds: number|null; error: string|null; live_model: string
+  models: Record<string, { repo: string; rev: string; tokenizer: string; ctx: number; params_m: number }>
+  weights: Record<string /*repo*/, { state: 'absent'|'downloading'|'ready'|'error'; bytes: number; total: number|null; error: string|null; path: string|null }>
+  weights_dir: string; worker: KronosForecast['worker']; recent: { tf: string; h: number; samples: number; seconds: number; device: string; at: T }[]
+  live_enabled: boolean; pretrain_end: T; backtest_timings: KronosBacktest['meta']['timings'] | null; backtest_device: string | null
+  sources: { repo: string; paper: string; hf: string; license: string }
+  defaults: { h: number; samples: number; T: number; top_p: number; lookback: number; h_options: number[]; sample_options: number[] } }
+```
+Agente `kronos` (Sparkles, 120 s): per 1h/4h/1d finding + `kronos.forecast.<tf>` alla nuova candela chiusa (mediana, banda 90%, P(rialzo),
+regime, verdetto del backtest post-addestramento a 1 giorno). Tono sempre neutro. Invalida `/forecast/kronos` → query `['kronos', …]`.

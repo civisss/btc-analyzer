@@ -1,20 +1,30 @@
+# Dipendenze Python del backend (versioni fissate).
+# torch NON è qui: si installa a parte, così pip non scarica le build CUDA (~2 GB) nell'immagine Docker.
+#   Docker / solo CPU:   pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu   (vedi Dockerfile)
+#   Sviluppo con GPU:    pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cu130
+# Senza torch l'app funziona lo stesso: solo la scheda Kronos risponde "torch non installato".
 alembic==1.20.0
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
-astronomy-engine==2.1.19
 APScheduler==3.11.3
+astronomy-engine==2.1.19
 certifi==2026.7.22
 click==8.5.0
 cloudpickle==3.1.2
 colorama==0.4.6
 colorlog==6.12.0
+einops==0.8.2
 fastapi==0.143.0
+filelock==3.32.3
 formulaic==1.2.2
+fsspec==2026.7.0
 h11==0.16.0
+hf-xet==1.7.0
 httpcore==1.0.9
 httptools==0.9.0
 httpx==0.28.1
+huggingface_hub==1.33.0
 idna==3.20
 interface_meta==2.0.1
 joblib==1.6.0
@@ -36,6 +46,7 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.4
 python-multipart==0.0.32
 PyYAML==6.0.3
+safetensors==0.8.0
 scikit-learn==1.9.1
 scipy==1.18.1
 six==1.17.0

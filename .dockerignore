@@ -6,3 +6,4 @@ frontend/dist
 *.md
 !README.md
 backend/data/.*.tmp
+backend/data/models

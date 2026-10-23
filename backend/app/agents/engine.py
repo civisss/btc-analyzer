@@ -277,6 +277,7 @@ INVALIDATES: dict[str, list[str]] = {
     "anomalies": ["/anomalies", "/superchart/series"],
     "orderbook": ["/orderbook/status", "/orderbook/signals"],
     "flow": ["/terminal/status", "/terminal/signals"],
+    "kronos": ["/forecast/kronos"],
 }
 
 
@@ -1857,6 +1858,51 @@ STREAM_IT = {"binance_perp": "Binance perp", "bybit_perp": "Bybit perp", "okx_pe
              "coinbase_spot": "Coinbase", "bybit_spot": "Bybit spot", "okx_spot": "OKX spot"}
 
 
+class KronosAgent(Agent):
+    """Kronos (foundation model per candele): annuncia la previsione corrente 1h/4h/1D (mediana, banda 90%, regime) con il
+    verdetto del backtest fuori campione DOPO il pre-addestramento. Tono sempre neutro: descrizione, mai un segnale."""
+
+    REG = {"trend_up": "trend al rialzo", "trend_down": "trend al ribasso", "choppy": "laterale"}
+    VER = {"edge": "batte il naive in modo significativo", "small_edge": "batte il naive di poco (significativo)",
+           "no_edge": "nessun vantaggio significativo sul naive", "worse": "peggiore del naive (significativo)",
+           "worse_ns": "nessun vantaggio sul naive", "n_a": "verdetto non disponibile"}
+
+    def finding(self, f: Finding) -> None:
+        for i, x in enumerate(list(self.findings)):
+            if x["title"] == f.title:
+                del self.findings[i]
+                break
+        self.findings.appendleft(f.as_dict())
+
+    def compute(self):
+        from ..analysis import kronos_forecast as kf  # noqa: PLC0415
+        return {"s": kf.summary()}
+
+    async def act(self, r):
+        s = r.get("s") or {}
+        hl = ((s.get("backtest") or {}).get("headline") or {}).get("small", {})
+        for tf in ("1h", "4h", "1d"):
+            f = (s.get("forecasts") or {}).get(tf)
+            if not f:
+                continue
+            e, g = f["end"], f["regime"]
+            tfl = {"1h": "1h", "4h": "4h", "1d": "1G"}[tf]
+            h = hl.get(tf) or {}
+            bt = (f"Backtest dopo il pre-addestramento (dal 1 lug 2024), 1 giorno avanti: MASE {h['day_mase']:.3f}, "
+                  f"{self.VER.get((h.get('day') or {}).get('code'), 'n/d')}" if h.get("day_mase") is not None else "Backtest non ancora calcolato: nessun verdetto")
+            text = (f"Kronos {tfl} (24 candele, 100 percorsi, fino al {util_data(f['target'])}): mediana {_usd(e['median'])} "
+                    f"({e['change_pct']:+.2f}%), banda 90% {_k(e['p05'])}–{_k(e['p95'])}, P(rialzo) {e['up_prob']:.0f}%, "
+                    f"regime {self.REG.get(g['code'], g['code'])} (accordo dei percorsi {100 * g['agree']:.0f}%). {bt}. "
+                    "Descrizione statistica, non un segnale.")
+            self.finding(Finding(f"Kronos {tfl}", text, "neutral", 30))
+            key = f"{tf}:{f['origin']}"
+            if self.state.get(f"k_{tf}") != key:
+                await self.say(f"kronos.forecast.{tf}", text, data={"tf": tf, "median": e["median"], "p05": e["p05"], "p95": e["p95"],
+                                                                   "up_prob": e["up_prob"], "regime": g["code"], "agree": g["agree"],
+                                                                   "bt_day_mase": h.get("day_mase"), "bt_verdict": (h.get("day") or {}).get("code")})
+                self.state[f"k_{tf}"] = key
+
+
 class ForecastAgent(Agent):
     def compute(self):
         out = {"f": _call("forecast", "get_forecast", horizon=90)}
@@ -1965,7 +2011,7 @@ class AnalystAgent(Agent):
 def build_team() -> list[Agent]:
     return [
         AnalystAgent("analyst", "Analista AI", "Orchestratore: raccoglie i report di tutti gli agenti, calcola il consenso e scrive la sintesi (LLM locale).",
-                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "vwap.", "timing.", "elliott.", "anomalies.", "orderbook.", "flow.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
+                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "vwap.", "timing.", "elliott.", "anomalies.", "orderbook.", "flow.", "kronos.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
         MarketAgent("market", "Market Data", "Monitora prezzo, range 24h e sentiment in tempo reale e avvisa gli altri agenti dei movimenti.",
                     "Activity", "#f7931a", 5, subscribes=[], publishes=["market.price", "market.alert"]),
         LevelsAgent("levels", "Pivot & Livelli", "Calcola pivot (classici, Fibonacci, Camarilla), swing e zone di supporto/resistenza; verifica confluenze su richiesta.",
@@ -2052,6 +2098,8 @@ def build_team() -> list[Agent]:
                        "Grid3x3", "#5B8DEF", 30, subscribes=[], publishes=["orderbook.walls", "orderbook.pulled", "orderbook.imbalance", "orderbook.cvd"]),
         TerminalFlowAgent("flow", "Order flow", "Segue i trade di sette mercati (Binance, Bybit e OKX perp e spot, Coinbase): divergenze tra CVD spot e perp aggregati, squilibri persistenti di acquisti e vendite aggressivi, grandi trade e raffiche di liquidazioni reali. Solo descrizione, nessun segnale operativo.",
                           "AudioWaveform", "#3CC6B0", 60, subscribes=["orderbook.cvd"], publishes=["flow.divergence", "flow.imbalance", "flow.large", "flow.liquidations", "flow.context"]),
+        KronosAgent("kronos", "Kronos", "Foundation model per candele (Kronos-small, arXiv:2508.02739): percorsi probabilistici 1h/4h/1G con mediana, bande e regime, sempre accompagnati dal backtest fuori campione dopo il pre-addestramento.",
+                    "Sparkles", "#9B87F5", 120, subscribes=[], publishes=["kronos.forecast.1h", "kronos.forecast.4h", "kronos.forecast.1d"]),
         ForecastAgent("forecast", "Previsioni ML", "Posizione nel ciclo + LightGBM + Monte Carlo, calibrati fuori campione: bande di probabilità da 7 a 365 giorni; previsione a 1 giorno confrontata con il naive.",
                       "TrendingUp", "#60a5fa", 600, subscribes=["pattern.projection.d1"], publishes=["forecast.targets", "forecast.check"]),
     ]
@@ -2070,7 +2118,7 @@ async def start() -> None:
         bus.agents[a.id] = a
     # avvio scaglionato: prima i produttori di dati, l'analista per ultimo
     order = {"market": 1, "derivatives": 3, "levels": 5, "liquidity": 8, "correlation": 11, "cycles": 14,
-             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "vwap": 4, "timing": 60, "elliott": 57, "anomalies": 50, "orderbook": 15, "flow": 19, "analyst": 66}
+             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "vwap": 4, "timing": 60, "elliott": 57, "anomalies": 50, "orderbook": 15, "flow": 19, "kronos": 68, "analyst": 66}
     loop = asyncio.get_running_loop()
     for a in team:
         loop.create_task(a.inbox_loop())
