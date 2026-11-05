@@ -40,6 +40,22 @@ const TimePivots = lazy(() => import('./TimePivotsPage'))
 const Path = lazy(() => import('./ForecastPage'))
 const TrackRecord = lazy(() => import('./TrackRecordPage'))
 
+const SignalsActive = lazy(() => import('./SignalsPage').then((m) => ({ default: m.ActiveTab })))
+const SignalsHistory = lazy(() => import('./SignalsPage').then((m) => ({ default: m.HistoryTab })))
+const SignalsPerf = lazy(() => import('./SignalsPage').then((m) => ({ default: m.PerformanceTab })))
+const SignalsMethod = lazy(() => import('./SignalsPage').then((m) => ({ default: m.MethodTab })))
+
+export function SignalsHub() {
+  return (
+    <TabPage title="Segnali" tabs={[
+      { value: 'attivi', label: 'Attivi', subtitle: 'Segnali long e short aperti, con entry, target e stop. Seguiti sulla carta: nessun ordine, nessuna esecuzione.', render: () => <SignalsActive /> },
+      { value: 'storico', label: 'Storico', subtitle: 'Tutti i segnali emessi con la loro storia, mai modificati dopo l’emissione.', render: () => <SignalsHistory /> },
+      { value: 'performance', label: 'Performance', subtitle: 'Risultato dal vivo in R, dopo costi e funding, separato dal backtest.', render: () => <SignalsPerf /> },
+      { value: 'metodo', label: 'Backtest e metodo', subtitle: 'Risultati fuori campione, holdout, verdetti, costi e limiti.', render: () => <SignalsMethod /> },
+    ]} />
+  )
+}
+
 export function ChartsHub() {
   return (
     <TabPage title="Grafici" tabs={[

@@ -30,7 +30,7 @@ TOAST_BUDGET = (6, 600)          # al massimo 6 toast "info/warning" ogni 10 min
 SEVERITIES = ("info", "warning", "critical")
 CATEGORY_LABEL = {"price": "Prezzo", "levels": "Livelli", "liquidity": "Liquidità", "derivatives": "Derivati", "time": "Pivot temporali",
                   "cycle": "Ciclo", "onchain": "On-chain", "stablecoins": "Stablecoin", "macro": "Macro", "agents": "Agenti",
-                  "events": "Eventi", "test": "Test"}
+                  "events": "Eventi", "signals": "Segnali", "test": "Test"}
 
 # soglie (documentate in CONTRACT.md)
 TH = {
@@ -661,6 +661,7 @@ RULE_INFO = [
     {"rule": "macro_regime", "category": "macro", "severity": "warning", "threshold": "cambio Risk-on / Neutrale / Risk-off", "cooldown": "su transizione"},
     {"rule": "stablecoins", "category": "stablecoins", "severity": "info / warning", "threshold": "mint/burn netto ≥ $1B in un giorno; ≥ $3B in 7 giorni", "cooldown": "1 per giorno / settimana"},
     {"rule": "agent_alert", "category": "agents", "severity": "info", "threshold": "messaggi kind=alert degli agenti non già coperti dalle regole; aggregati per giro", "cooldown": "3 h per agente+topic"},
+    {"rule": "signal_new / signal_update", "category": "signals", "severity": "warning se validato, altrimenti info", "threshold": "nuovo segnale, entrata, TP, stop, scadenza, invalidazione (agente Segnali)", "cooldown": "1 per evento"},
     {"rule": "custom_rule", "category": "custom", "severity": "scelta dall'utente", "threshold": "regole personalizzate (/avvisi): prezzo, variazione %, zone, livelli, indicatori, Cycle Score, pivot temporali, chiusure, liquidazioni", "cooldown": "scelto per regola"},
 ]
 

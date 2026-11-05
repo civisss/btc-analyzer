@@ -3,7 +3,7 @@ import { Route, Routes, Link } from 'react-router-dom'
 import Layout from './components/Layout'
 import { Boundary, PageFallback } from './components/TabPage'
 import Dashboard from './pages/Dashboard'
-import { AnalogsHub, ChartsHub, FlowsHub, ForecastHub, MacroHub, PositioningHub, TerminalHub } from './pages/Hubs'
+import { AnalogsHub, ChartsHub, FlowsHub, ForecastHub, MacroHub, PositioningHub, TerminalHub, SignalsHub } from './pages/Hubs'
 import { OldUrl, REDIRECTS } from './lib/redirects'
 import { t } from './i18n'
 
@@ -25,6 +25,7 @@ export default function App() {
         <Route index element={page(<Dashboard />)} />
         <Route path="terminale" element={page(<TerminalHub />)} />
         <Route path="grafici" element={page(<ChartsHub />)} />
+        <Route path="segnali" element={page(<SignalsHub />)} />
         <Route path="struttura" element={page(<StructurePage />)} />
         <Route path="flussi" element={page(<FlowsHub />)} />
         <Route path="posizionamento" element={page(<PositioningHub />)} />

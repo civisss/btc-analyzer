@@ -45,6 +45,7 @@ const PATH_KEYS: [string, string[]][] = [
   ['/superchart', ['superchart']],
   ['/anomalies', ['anomalies']],
   ['/orderbook', ['orderbook']],
+  ['/signals', ['signals']],
   ['/terminal', ['terminal']],   // solo stato/segnali: serie, heatmap e footprint si aggiornano dal WS dedicato
 ]
 

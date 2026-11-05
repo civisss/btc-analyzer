@@ -1541,6 +1541,64 @@ STREAM_IT = {"binance_perp": "Binance perp", "bybit_perp": "Bybit perp", "okx_pe
              "coinbase_spot": "Coinbase", "bybit_spot": "Bybit spot", "okx_spot": "OKX spot"}
 
 
+SIGNAL_SETUP_IT = {"vwap_reclaim": "riconquista del VWAP", "vwap_reject": "rifiuto del VWAP", "band_revert": "ritorno alla media sulle bande VWAP", "sweep": "sweep di liquidità",
+                   "bos_retest": "rottura di struttura con retest", "cvd_div": "divergenza del delta spot e perp", "funding_ext": "estremo di funding", "donchian": "rottura del canale"}
+SIGNAL_EVENT_IT = {"active": "entrata eseguita", "tp1": "TP1 raggiunto", "tp2": "TP2 raggiunto", "sl": "stop raggiunto", "be": "stop a pareggio dopo TP1", "timeout": "chiuso a scadenza",
+                   "invalidated": "invalidato", "expired": "scaduto senza entrata", "canceled": "annullato"}
+
+
+class SignalsAgent(MultiAgent):
+    """Segnali seguiti sulla carta: valuta i setup a ogni chiusura di candela e controlla entrata, stop e target dei segnali aperti.
+    I segnali sperimentali restano neutrali per l'Analista: un setup non validato non pesa nel consenso del team."""
+
+    PARTS = (("tick", 15, "_tick", "_on_tick"), ("prep", 600, "_prep", "_on_prep"))
+
+    def _tick(self):
+        from .. import signals as sg
+        return {"signals": sg.tick()}
+
+    def _prep(self):
+        from .. import signals as sg
+        sg.ensure_ready()
+        return {}
+
+    async def _on_prep(self, _r):
+        pass
+
+    @staticmethod
+    def _tone(s: dict) -> Tone:
+        if s.get("tier") != "validated":
+            return "neutral"
+        return "bullish" if s.get("side") == "long" else "bearish"
+
+    async def _on_tick(self, r):
+        from .. import alerts
+        from .. import signals as sg
+        written = [e for e in r["signals"]["written"] if e["type"] not in ("leave", "comment")]
+        if not written:
+            return
+        sigs = sg.fold()
+        for e in written:
+            s = sigs.get(e["sig"])
+            if not s:
+                continue
+            tag = "sperimentale" if s["tier"] == "experimental" else "validato"
+            head = f"{s['side'].capitalize()} {s['tf']} ({tag})"
+            if e["type"] == "emitted":
+                name = SIGNAL_SETUP_IT.get(s["setup"], s["setup"])
+                text = f"{head}: {name}. Entry ${s['entry']:,.0f}, stop ${s['sl']:,.0f}, TP1 ${s['tp1']:,.0f}, TP2 ${s['tp2']:,.0f}. Segnale statistico seguito sulla carta."
+                self.finding(Finding(f"Segnale {s['family']} {s['side']}", text, self._tone(s), 50))
+                await self.say("signals.new", text, tone=self._tone(s), data={"id": s["id"]})
+                await alerts.emit(f"signal:{s['id']}:emitted", 0, alerts._alert("warning" if s["tier"] == "validated" else "info", "signals", f"Nuovo segnale {head}", text, "/segnali", {"id": s["id"]}, "signal_new"))
+                sg.comment_async(s["id"])
+            else:
+                res = f" Esito {e['data']['r']:+.2f}R." if (e.get("data") or {}).get("r") is not None else ""
+                text = f"{head}: {SIGNAL_EVENT_IT.get(e['type'], e['type'])}" + (f" a ${e['price']:,.0f}." if e.get("price") else ".") + res
+                await self.say("signals.update", text, data={"id": s["id"], "type": e["type"]})
+                await alerts.emit(f"signal:{s['id']}:{e['type']}", 0, alerts._alert("info", "signals", f"Segnale {head}: {SIGNAL_EVENT_IT.get(e['type'], e['type'])}", text, "/segnali", {"id": s["id"], "rebuilt": bool(e.get("rebuilt"))}, "signal_update"))
+        await _ws_push({"type": "invalidate", "source": self.id, "keys": ["/signals"], "time": _now()})
+
+
 class ForecastAgent(Agent):
     def compute(self):
         return {"f": _call("forecast", "get_forecast", horizon=90)}
@@ -1630,7 +1688,7 @@ def build_team() -> list[Agent]:
         AnalystAgent("analyst", "Analista AI", 120, subscribes=[
             "liquidity.", "levels.confluence", "levels.touch", "market.alert", "pattern.", "correlation.", "cycle.", "clock.", "miners.", "leverage.",
             "onchain.", "derivatives.signal", "flows.", "flow.", "orderbook.", "analogs.", "usdt_analogs.", "timepivot.", "macro.", "events.",
-            "stablecoins.", "structure.", "opening.", "scenario.", "verifier.", "options.", "holders.", "sentiment.", "forecast.", "vwap.", "anomalies."]),
+            "stablecoins.", "structure.", "opening.", "scenario.", "verifier.", "options.", "holders.", "sentiment.", "forecast.", "vwap.", "anomalies.", "signals."]),
         MarketAgent("market", "Market Data", 5),
         LevelsAgent("levels", "Pivot & Livelli", 30, subscribes=["market.price", "request.levels"]),
         VwapAgent("vwap", "VWAP ancorati", 60),
@@ -1649,6 +1707,7 @@ def build_team() -> list[Agent]:
         AnomalyAgent("anomalies", "Anomalie", 1800),
         OrderFlowAgent("orderflow", "Order flow", 30, views=4),
         ForecastAgent("forecast", "Previsioni ML", 600, subscribes=["pattern.projection.d1"]),
+        SignalsAgent("signals", "Segnali", 15),
         VerifierAgent("verifier", "Verifica", 1800),
         AlertsAgent("alerts", "Avvisi", 30, views=4),
     ]
@@ -1667,7 +1726,7 @@ async def start() -> None:
         bus.agents[a.id] = a
     # avvio scaglionato: prima i produttori di dati, l'analista per ultimo
     order = {"market": 1, "derivatives": 3, "vwap": 4, "levels": 5, "flows": 6, "liquidity": 8, "usdt": 11, "alerts": 12, "cycles": 14,
-             "orderflow": 15, "onchain": 17, "analogs": 20, "forecast": 25, "timepivots": 30, "macro": 33, "structure": 46, "anomalies": 50,
+             "orderflow": 15, "onchain": 17, "analogs": 20, "signals": 22, "forecast": 25, "timepivots": 30, "macro": 33, "structure": 46, "anomalies": 50,
              "positioning": 56, "supply_demand": 64, "analyst": 66, "verifier": 70}
     loop = asyncio.get_running_loop()
     for a in team:

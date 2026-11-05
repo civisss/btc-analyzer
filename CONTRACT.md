@@ -192,6 +192,7 @@ Agenti di sfondo: ricalcolano i dati del proprio dominio con la loro cadenza, pu
 | anomalies | anomalie del Superchart | 1800 s |
 | orderflow | book Binance, trade multi-exchange | 30 / 60 s |
 | forecast | previsione a 12 mesi | 600 s |
+| signals | setup alla chiusura delle candele, entrata, stop e target dei segnali aperti, preparazione dei dati | 15 / 600 s |
 | verifier | track record e pesi di affidabilità | 1800 s |
 | alerts | storico notifiche, regole personali | 30 / 60 s |
 
@@ -1147,7 +1148,7 @@ miners entering capitulation · macro regime label change · stablecoin net mint
 // GET  /api/alerts?limit=50&since=<id>&severity=info|warning|critical   (severity = minimum)
 // POST /api/alerts/test?severity=warning   (dev only: localhost or env ALERTS_TEST=1) -> Alert (also broadcast as toast)
 type AlertSeverity = 'info' | 'warning' | 'critical'
-type AlertCategory = 'price'|'levels'|'liquidity'|'derivatives'|'time'|'cycle'|'onchain'|'stablecoins'|'macro'|'agents'|'events'|'test'
+type AlertCategory = 'price'|'levels'|'liquidity'|'derivatives'|'time'|'cycle'|'onchain'|'stablecoins'|'macro'|'agents'|'events'|'signals'|'test'
 interface Alert {
   id: number; time: T; severity: AlertSeverity
   category: AlertCategory; category_label: string    // Italian label
@@ -2010,3 +2011,52 @@ type Moves = { events:Move[]; time:T; scanned_from:T|null; scanned_to:T|null; ru
 ```
 
 Dataset aggiunti: `fred_bamlh0a0hym2`, `fred_sofr`, `fred_iorb`, `fred_wresbal`, `fred_rrpontsyd`, `fred_wtregen`, `fred_dfii10`, `fred_dgs10`, `fred_effr` (solo con `FRED_API_KEY`), `sb_nq`, `sb_brent`, `sb_strc`, `usdc_supply`. Agenti: `analyst` (finding del tabellone, tono neutro, non pesa nel consenso), `liquidity` (mappa 7 giorni), `flows` (riepilogo 30 giorni), `orderflow` parte `moves` (topic `flow.move`, avviso informativo una volta per movimento finito da meno di 2 ore). `analyst` invalida anche `/scoreboard`.
+
+## SIGNALS (router: signals.py, registro: app/signals.py, engines: app/analysis/signal_setups.py + signal_sim.py + signal_backtest.py + signal_meta.py + signal_data.py, agent: signals, tests: backend/tests/test_signals.py)
+
+Segnali BTC seguiti solo sulla carta: nessun ordine, nessuna chiave exchange, nessuna leva o dimensione di posizione. Il rischio si esprime in R (multipli della distanza dallo stop).
+Dati: `sig_perp_5m` (Binance USDⓈ-M BTCUSDT 5m dal set 2019) e `sig_spot_15m` (spot, per il delta), TTL un'ora; il tratto recente si legge al momento. Live: candele 1m chiuse da fapi.
+Protocollo: sviluppo fino al 31 dic 2023 (walk-forward 2021, 2022, 2023), holdout dal 1 gen 2024 al 31 ott 2026, parametri congelati in `signal_setups.FROZEN`. Il backtest gira in un sottoprocesso
+(`python -m app.analysis.signal_backtest full`) se `signals_backtest.json` manca o ha più di 30 giorni; i dati successivi al congelamento finiscono in `post` e non cambiano il verdetto.
+Costi: taker 0.05% per lato, slittamento 0.02% per esecuzione, funding reale. TP1 chiude metà e porta lo stop a pareggio. Stop e target nella stessa candela: conta lo stop.
+Tier: `validated` = tutti i controlli di `signal_backtest.verdict()`; `off` = R medio non positivo in walk-forward e holdout, o meno di 20 trade in tutto, o in `signals.MANUAL_OFF`; `experimental` = il resto. `off` non emette.
+Registro: `signals_ledger.parquet`, catena di eventi con hash, append-only (`signals.append`). Lo stato si ricava con `signals.fold()`. `signals_state.json` tiene il cursore delle candele 1m.
+Un evento elaborato più di 180 s dopo la sua candela è `rebuilt`. Dopo uno spegnimento non si emettono segnali a posteriori.
+Un solo segnale aperto per famiglia e direzione. Un setup validato annulla un sperimentale ancora in attesa.
+LLM: solo l'evento `comment`, verificato con `_verified/_semantic_ok`; se LM Studio è spento il frontend usa i testi a modello. Meta-modello: `signals_meta.pkl` esiste solo se `signal_meta.keep()` lo tiene.
+
+```ts
+type SignalTier = 'validated' | 'experimental' | 'off'
+type SignalOutcome = 'tp2' | 'sl' | 'be' | 'timeout' | 'invalidated' | 'expired' | 'canceled'
+// be = stop a pareggio dopo TP1. timeout = chiuso a scadenza dopo l'entrata. expired = mai entrato. canceled = TP1 toccato prima dell'entrata, o sostituito.
+type SignalEvent = { type: 'emitted'|'active'|'tp1'|'leave'|SignalOutcome; time: T; price: number|null; rebuilt: boolean; rec: T; r?: number|null }
+interface Signal {
+  id: string; setup: string; tf: '15m'|'1h'|'4h'|'1d'; family: 'low'|'high'; side: 'long'|'short'; kind: 'market'|'limit'; tier: SignalTier
+  entry: number; sl: number; tp1: number; tp2: number; inv: number|null; rr1: number; rr2: number; risk_pct: number
+  emitted_at: T; pending_until: T; exit_by: T; reasons: { k: string; v: Record<string, number|string|null> }[]; context: Record<string, number|string|null>
+  reason_verdict: string|null; bt: { n: number|null; mean_r: number|null; win_rate: number|null }
+  status: 'pending'|'active'|'closed'; outcome: SignalOutcome|null; tp1_hit: boolean; rebuilt: boolean; comment: string|null; events: SignalEvent[]; last_event: SignalEvent|null
+  fill?: number; fill_t?: T; exit_t?: T; exit_px?: number|null; r?: number|null; gross_pct?: number|null; funding_pct?: number|null; cost_pct?: number|null; open_r?: number|null
+}
+// GET /api/signals
+interface SignalsOverview {
+  time: T; price: number|null; open: Signal[]; recent: Signal[]; enabled: { setup: string; tf: string; family: string; side: string; tier: SignalTier }[]
+  summary: { validated: number; dev_passed: number; tested: number }|null; backtest_ready: boolean; backtest_running: boolean
+  tiers: Record<SignalTier, number>; ml_active: boolean; agent: { last_tick: T|null; last_eval: Record<string, T>; bars: number }
+  integrity: { ok: boolean; rows: number; broken_at: number|null }; total: number
+}
+// GET /api/signals/history?limit=500&setup=&outcome=&tf=&side=&tier=   outcome accetta anche pending e active
+type SignalsHistory = { items: Signal[]; total: number; setups: string[] }
+// GET /api/signals/performance
+type PerfBlock = { n: number; win_rate: number|null; mean_r: number|null; total_r: number; pf: number|null; max_dd_r: number }
+interface SignalsPerformance {
+  all: PerfBlock & { curve: { time: T; value: number; id: string }[] }; validated: same; experimental: same
+  by_setup: (PerfBlock & { key: string })[]; by_tf: same; by_family: same; by_side: same
+  counts: { emitted: number; open: number; closed: number; never_filled: number; rebuilt: number }; first: T|null; costs: { fee_pct: number; slip_pct: number; cost_pct: number }
+}
+// GET /api/signals/backtest -> { status: 'ok'|'computing'|'missing', rows, protocol, summary, resolution_check, ml, frozen_ok, generated_at, data_to }
+// rows[]: { setup, tf, family, side, params, n_grid, wf, dev, holdout, post, curve: [T, number][], verdict, reason, tier }
+// wf/dev/holdout/post: { n, win_rate, mean_r, total_r, pf, max_dd_r, ci: [lo, hi], tp1_rate, by_year, by_regime, p?, q?, q_all?, pool_mean_r? }
+// GET /api/signals/{id} -> Signal & { candles: Candle[] }   404 se non esiste
+```
+Avvisi: categoria `signals` (etichetta "Segnali", silenziabile), regole `signal_new` e `signal_update`, link `/segnali`. Il WS invia `invalidate` con `keys: ["/signals"]` solo quando il registro cambia.

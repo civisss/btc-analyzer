@@ -6,7 +6,7 @@ import type { T } from './types'
 
 export type AlertSeverity = 'info' | 'warning' | 'critical'
 export type AlertCategory = 'price' | 'levels' | 'liquidity' | 'derivatives' | 'time' | 'cycle' | 'onchain' | 'stablecoins'
-  | 'macro' | 'agents' | 'events' | 'test' | 'custom'
+  | 'macro' | 'agents' | 'events' | 'signals' | 'test' | 'custom'
 
 export interface Alert {
   id: number; time: T

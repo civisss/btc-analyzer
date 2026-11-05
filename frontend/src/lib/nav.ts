@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   LayoutDashboard, CandlestickChart, Orbit, Blocks, Telescope, ScanSearch, Globe2, Waypoints, Target, type LucideProps,
-  BellRing, ArrowLeftRight, MonitorDot,
+  BellRing, ArrowLeftRight, MonitorDot, Crosshair,
 } from 'lucide-react'
 import { T } from '../theme/tokens'
 
@@ -20,6 +20,7 @@ export const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'Oggi', keywords: 'panoramica kpi prezzo market cap sintesi segnali chat assistente domande overview price insights signals summary' },
   { to: '/terminale', label: 'Terminale', icon: MonitorDot, group: 'Oggi', keywords: 'terminale terminal order flow cvd delta cumulato spot perp aggregato open interest funding premio coinbase liquidazioni bolle heatmap book a scala dom order feed trade grandi trade velo flowx tempo reale order book bookmap liquidità muri bid ask footprint poc imbalance trade aggressivi spoofing ritiro cumulative volume delta premium liquidations ladder real time liquidity walls aggressive trades depth' },
   { to: '/grafici', label: 'Grafici', icon: CandlestickChart, group: 'Oggi', keywords: 'candele ema sma bollinger pivot rsi macd fibonacci charts candles superchart pannelli sincronizzati replay anomalie funding open interest cvd premio coinbase basis etf riserve mvrv nupl sopr fear greed usdt dominance dxy s&p oro layout synchronized panes anomalies reserves gold vwap ancorato settimanale mensile trimestrale annuale bande deviazione standard sigma periodo precedente anchored weekly monthly quarterly yearly bands previous period' },
+  { to: '/segnali', label: 'Segnali', icon: Crosshair, group: 'Oggi', keywords: 'segnali long short entry take profit stop loss tp sl setup basso alto timeframe storico track record backtest validato sperimentale registro signals trading plan history' },
   { to: '/struttura', label: 'Struttura', icon: Waypoints, group: 'Mercato', keywords: 'struttura range lunedì pivot settimanali scenari swing trend structure monday range weekly pivots scenarios' },
   { to: '/flussi', label: 'Flussi', icon: ArrowLeftRight, group: 'Mercato', keywords: 'flussi spot futures taker etf ibit gbtc farside assorbimento emissione miner stablecoin usdt dominance tether ssr correlazione riserve exchange afflussi deflussi attenzione wikipedia retail domanda offerta flows supply demand reserves inflows outflows absorption attention correlation' },
   { to: '/posizionamento', label: 'Posizionamento', icon: Target, group: 'Mercato', keywords: 'posizionamento derivati funding open interest long short basis cme cot leva aggregata opzioni max pain put call skew gamma holder balene sentiment liquidazioni heatmap cluster liquidità magnete positioning derivatives leverage options whales liquidations liquidity magnet' },
