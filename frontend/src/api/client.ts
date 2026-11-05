@@ -1,6 +1,6 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import type {
-  AgentMessage, AgentsResponse, Candle, ChatMessage, Cycles, Derivatives, Forecast, Fractals, Indicators, Insights, Levels,
+  Candle, ChatMessage, Cycles, Derivatives, Forecast, Fractals, Indicators, Insights, Levels,
   LiqRange, Liquidations, OnChain, Overview, Status, Tf, UsdtAnalysis,
 } from './types'
 
@@ -22,21 +22,6 @@ function qs(params?: Params) {
   for (const [k, v] of Object.entries(params)) if (v !== undefined) s.set(k, String(v))
   const str = s.toString()
   return str ? `?${str}` : ''
-}
-
-async function postJson<R>(path: string): Promise<R> {
-  if (USE_MOCKS) {
-    const { mockPost } = await import('./mocks')
-    await new Promise((r) => setTimeout(r, 300))
-    return mockPost(path) as R
-  }
-  const res = await fetch(`/api${path}`, { method: 'POST', headers: { Accept: 'application/json' } })
-  if (!res.ok) {
-    let detail = res.statusText
-    try { const b = await res.json(); if (b?.detail) detail = String(b.detail) } catch { /* ignore */ }
-    throw new ApiError(res.status, detail || `HTTP ${res.status}`)
-  }
-  return res.json() as Promise<R>
 }
 
 async function getJson<R>(path: string, params?: Params): Promise<R> {
@@ -76,9 +61,6 @@ export const api = {
   forecast: (horizon = 90) => getJson<Forecast>('/forecast', { horizon }),
   insights: (refresh = false) => getJson<Insights>('/insights', refresh ? { refresh: 1 } : undefined),
   status: () => getJson<Status>('/status'),
-  agents: () => getJson<AgentsResponse>('/agents'),
-  agentMessages: (limit = 100, agent?: string) => getJson<AgentMessage[]>('/agents/messages', { limit, agent }),
-  runAgent: (id: string) => postJson<{ ok: boolean }>(`/agents/${encodeURIComponent(id)}/run`),
 }
 
 // ------------------------------------------------------------------ hooks
@@ -111,10 +93,6 @@ export const useInsights = () =>
 export const useStatus = () =>
   useQuery({ queryKey: ['status'], queryFn: api.status, refetchInterval: 30 * S, retry: 0 })
 
-export const useAgents = () =>
-  useQuery({ queryKey: ['agents'], queryFn: api.agents, refetchInterval: 20 * S, ...common })
-export const useAgentMessages = (limit = 100, agent?: string) =>
-  useQuery({ queryKey: ['agentMessages', limit, agent], queryFn: () => api.agentMessages(limit, agent), refetchInterval: 60 * S, ...common })
 
 // ------------------------------------------------------------------ chat (SSE over fetch)
 export async function streamChat(

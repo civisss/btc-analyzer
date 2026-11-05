@@ -1,10 +1,13 @@
 # Bitcoin Analyzer
 
-Piattaforma di studio di Bitcoin in tempo reale: cicli (orologio del ciclo, miner, leva), pivot temporali e stagionalità,
-struttura e scenari, pivot e livelli, liquidazioni multi-exchange, frattali, analoghi grafici (anche da screenshot),
-derivati (basis, CME COT, leva aggregata), posizionamento (opzioni, holder, sentiment), domanda e offerta, USDT e
-stablecoin, macro, eventi, previsioni con track record, avvisi personali, diario di studio e un team di 35 agenti
-che collaborano tra loro. Interfaccia IT/EN, notifiche e aggiornamenti in tempo reale.
+Piattaforma di studio di Bitcoin in tempo reale, in 12 pagine:
+
+- **Oggi:** Dashboard con la sintesi dei segnali, Terminale (order flow, heatmap del book, footprint), Grafici (candele, Superchart con replay e anomalie, VWAP).
+- **Mercato:** Struttura (range, pivot di apertura, scenari), Flussi (spot vs futures, ETF, stablecoin, riserve exchange), Posizionamento (derivati, opzioni, holder e sentiment, liquidazioni).
+- **Contesto:** Macro ed eventi, On-Chain, Cicli.
+- **Studio:** Analoghi (grafici, frattali, USDT.D, di struttura, da immagine, pivot temporali), Previsioni con track record, Avvisi personali.
+
+Interfaccia IT/EN, assistente AI locale, notifiche e aggiornamenti in tempo reale.
 
 ## Avvio e arresto
 
@@ -29,7 +32,7 @@ Lo storico resta salvato nel volume `btc-data`.
 
 Senza LM Studio l'app funziona lo stesso: gli insight passano alla versione a regole, la chat mostra le istruzioni e i testi in inglese restano in italiano finché il traduttore non riparte.
 
-Opzionale: `FRED_API_KEY` in `docker-compose.yml` per M2 e bilancio Fed (pagina Macro).
+Opzionale: `FRED_API_KEY=...` nel file `.env` nella cartella del progetto (escluso da git) per i dati FRED della pagina Macro.
 
 ## Sviluppo locale
 
@@ -44,10 +47,10 @@ cd frontend && npm run dev:mock   # UI con dati simulati, senza backend
 
 ## Architettura
 - `backend/app/data`: fetch da Binance (spot e futures), Bitstamp, CoinMetrics, alternative.me, CoinGecko e mempool.space, con cache in parquet.
-- `backend/app/routers`: API REST (`CONTRACT.md`) e WebSocket `/api/ws`, che inoltra in tempo reale ticker, candele, mark/funding, liquidazioni e messaggi degli agenti.
-- `backend/app/agents`: 35 agenti autonomi, uno per modulo (mercato, livelli, liquidazioni, frattali, analoghi, USDT, stablecoin, cicli, orologio del ciclo, miner, leva, on-chain, derivati, flussi, struttura, pivot di apertura, scenari, pivot temporali, eventi, opzioni, holder, sentiment, macro, domanda e offerta, basis futures, CME COT, leva aggregata, ricerca da immagine, previsioni, verifica, avvisi, avvisi personali, diario e Analista AI) che comunicano su un bus di messaggi; l'Analista pesa i pareri con il track record.
+- `backend/app/routers`: API REST (`CONTRACT.md`) e WebSocket `/api/ws`, che inoltra in tempo reale ticker, candele, mark/funding, liquidazioni, notifiche e invalidazioni.
+- `backend/app/agents`: 21 agenti di sfondo che ricalcolano i moduli, alimentano sintesi e avvisi, comunicano su un bus di messaggi e dicono al browser quali dati ricaricare; l'Analista pesa i pareri con il track record.
 - `backend/app/i18n.py`: traduzione IT→EN dei testi generati (LLM locale + cache), `backend/app/alerts.py`: notifiche, `backend/app/tracking.py`: affidabilità.
-  Ogni nuovo modulo deve avere il proprio agente in `engine.py`.
+  Un nuovo modulo si aggancia a un agente in `engine.py`, che aggiorna i dati e invia l'invalidazione.
 - `frontend/`: React, Vite, Tailwind, lightweight-charts ed ECharts.
 
 > Analisi statistiche a scopo di studio: non costituiscono consulenza finanziaria.

@@ -10,6 +10,7 @@ import { months } from '../../i18n'
 import { C, FONT, hexA } from './theme'
 import { PILL_H, layoutPills, mix, priceTicks, timeLogical, timeTicks, usdP } from './vwapAxis'
 import { clsx } from '../ui'
+import { T, alpha } from '../../theme/tokens'
 
 /*
  * Single VWAP chart ("Grafico unico"): candles + current W/M/Q/Y VWAPs evolving from their anchor, current ±1σ (VAH/VAL)
@@ -30,11 +31,11 @@ type Bar = { time: number; open: number; high: number; low: number; close: numbe
 type Level = { id: string; name: string; short: string; value: number; color: string; kind: 'cur' | 'curBand' | 'prev' | 'prevBand'; from: number }
 
 const PERIODS: VwapPeriod[] = ['w', 'm', 'q', 'y']
-export const PERIOD_COLOR: Record<VwapPeriod, string> = { w: '#3CC6B0', m: '#5B8DEF', q: '#9B87F5', y: '#E8B04B' }
+export const PERIOD_COLOR: Record<VwapPeriod, string> = { w: T.steel, m: T.accent, q: T.mauve, y: T.sand }
 const NAME: Record<VwapPeriod, string> = { w: 'Week', m: 'Month', q: 'Quarter', y: 'Year' }
 const TAG: Record<VwapPeriod, string> = { w: 'W', m: 'M', q: 'Q', y: 'Y' }
 const AXIS_W = 78
-const PROFILE = { bar: 'rgba(200,210,232,0.10)', va: 'rgba(200,210,232,0.20)', poc: 'rgba(232,236,244,0.55)', line: 'rgba(200,210,232,0.55)', text: '#B3BCD0' }
+const PROFILE = { bar: alpha(T.fg3, 0.10), va: alpha(T.fg3, 0.20), poc: alpha(T.fg, 0.55), line: alpha(T.fg3, 0.55), text: T.fg2 }
 const p2 = (n: number) => String(n).padStart(2, '0')
 
 const lineData = (t: number[], v: (number | null)[]): (LineData | WhitespaceData)[] =>
@@ -124,7 +125,7 @@ class OverlayPrimitive implements ISeriesPrimitive<Time> {
           .filter((r): r is { k: string; v: number; y: number } => r.y != null)
         ctx.setLineDash([3, 3])
         for (const r of rows) {
-          ctx.strokeStyle = r.k === 'POC' ? 'rgba(232,236,244,0.75)' : PROFILE.line
+          ctx.strokeStyle = r.k === 'POC' ? alpha(T.fg, 0.75) : PROFILE.line
           ctx.lineWidth = 1
           ctx.beginPath()
           ctx.moveTo(Math.max(0, xa), Math.round(r.y) + 0.5)
@@ -142,9 +143,9 @@ class OverlayPrimitive implements ISeriesPrimitive<Time> {
           const tx = inside ? Math.max(2, xa) + 3 : xa - 3
           const text = inside ? `◂ ${r.k}` : `${r.k} ▸`
           const tw = ctx.measureText(text).width
-          ctx.fillStyle = 'rgba(14,20,36,0.82)'
+          ctx.fillStyle = alpha(T.surface, 0.82)
           ctx.fillRect(inside ? tx - 2 : tx - tw - 2, r.y - 6, tw + 4, 12)
-          ctx.fillStyle = r.k === 'POC' ? '#E8ECF4' : PROFILE.text
+          ctx.fillStyle = r.k === 'POC' ? T.fg : PROFILE.text
           ctx.fillText(text, tx, r.y)
         }
       })
@@ -239,13 +240,13 @@ export default function VwapOverviewChart({ data, opts, showProfile, fitSignal, 
     const chart = createChart(el, {
       width: el.clientWidth, height: el.clientHeight,
       layout: { background: { color: 'transparent' }, textColor: 'transparent', fontFamily: FONT, fontSize: 11, attributionLogo: false },
-      grid: { vertLines: { color: 'rgba(148,163,210,0.035)' }, horzLines: { color: C.grid } },
+      grid: { vertLines: { color: alpha(T.fg3, 0.035) }, horzLines: { color: C.grid } },
       rightPriceScale: { borderColor: C.axis, scaleMargins: { top: 0.06, bottom: 0.05 }, minimumWidth: AXIS_W },
       timeScale: { borderColor: C.axis, rightOffset: 0, timeVisible: true, secondsVisible: false, minBarSpacing: 0.3 },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: 'rgba(160,175,225,0.35)', labelBackgroundColor: '#1E2840', style: LineStyle.Dashed },
-        horzLine: { color: 'rgba(160,175,225,0.35)', labelBackgroundColor: '#1E2840', style: LineStyle.Dashed },
+        vertLine: { color: alpha(T.fg3, 0.35), labelBackgroundColor: T.overlay, style: LineStyle.Dashed },
+        horzLine: { color: alpha(T.fg3, 0.35), labelBackgroundColor: T.overlay, style: LineStyle.Dashed },
       },
       localization: {
         locale: 'en-US',
@@ -450,12 +451,12 @@ export default function VwapOverviewChart({ data, opts, showProfile, fitSignal, 
   return (
     <div className="relative h-full w-full">
       <div ref={elRef} className="absolute inset-0" />
-      <div className="pointer-events-none absolute inset-0 z-[4] overflow-hidden text-[11px] text-[#6E7894]" aria-hidden>
+      <div className="pointer-events-none absolute inset-0 z-[4] overflow-hidden text-[11px] text-fg-4" aria-hidden>
         {ticks.py.map((tk) => (
           <span key={`p${tk.label}`} className="tnum absolute right-0 -translate-y-1/2 pr-2 text-right" style={{ top: tk.y, width: axisW }}>{tk.label}</span>
         ))}
         {ticks.tx.map((tk) => (
-          <span key={`t${tk.x}`} className={clsx('tnum absolute -translate-x-1/2 whitespace-nowrap', tk.major && 'font-medium text-[#B3BCD0]')} style={{ left: tk.x, top: ticks.axisY + 7 }}>{tk.label}</span>
+          <span key={`t${tk.x}`} className={clsx('tnum absolute -translate-x-1/2 whitespace-nowrap', tk.major && 'font-medium text-fg-2')} style={{ left: tk.x, top: ticks.axisY + 7 }}>{tk.label}</span>
         ))}
       </div>
       <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden" aria-hidden>
@@ -463,7 +464,7 @@ export default function VwapOverviewChart({ data, opts, showProfile, fitSignal, 
           if (!L) {
             return (
               <div key="price" className="tnum absolute right-0 flex text-[10px] font-semibold leading-none" style={{ top: y - PILL_H / 2, height: PILL_H }}>
-                <span className="flex items-center justify-end rounded-[4px] px-1.5" style={{ width: axisW, background: up ? C.up : C.down, color: '#0B1020' }}>{usdP(price)}</span>
+                <span className="flex items-center justify-end rounded-[4px] px-1.5" style={{ width: axisW, background: up ? C.up : C.down, color: T.bg }}>{usdP(price)}</span>
               </div>
             )
           }
@@ -476,7 +477,7 @@ export default function VwapOverviewChart({ data, opts, showProfile, fitSignal, 
                 {name}
               </span>
               <span className="flex items-center justify-end rounded-r-[4px] px-1.5"
-                style={{ width: axisW, background: L.kind === 'cur' ? L.color : L.kind === 'prev' ? mix(L.color, 0.72) : mix(L.color, 0.38), color: L.kind === 'cur' || L.kind === 'prev' ? '#0B1020' : '#E8ECF4' }}>
+                style={{ width: axisW, background: L.kind === 'cur' ? L.color : L.kind === 'prev' ? mix(L.color, 0.72) : mix(L.color, 0.38), color: L.kind === 'cur' || L.kind === 'prev' ? T.bg : T.fg }}>
                 {usdP(L.value)}
               </span>
             </div>

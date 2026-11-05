@@ -10,9 +10,9 @@ import { t, tr } from '../i18n'
 type Num = number | null | undefined
 const fin = (v: Num): v is number => typeof v === 'number' && Number.isFinite(v)
 const pctU = (v: Num, d = 0) => (fin(v) ? `${v.toFixed(d)}%` : '—')
-const signCls = (v: Num) => (!fin(v) || v === 0 ? 'text-slate-400' : v > 0 ? 'text-up' : 'text-down')
+const signCls = (v: Num) => (!fin(v) || v === 0 ? 'text-fg-3' : v > 0 ? 'text-up' : 'text-down')
 /** Hit rate colour: green only when clearly better than a coin flip, red when clearly worse. */
-const hitCls = (v: Num, n = 0) => (!fin(v) || n < 20 ? 'text-slate-300' : v >= 55 ? 'text-up' : v <= 45 ? 'text-down' : 'text-slate-200')
+const hitCls = (v: Num, n = 0) => (!fin(v) || n < 20 ? 'text-fg-2' : v >= 55 ? 'text-accent' : v <= 45 ? 'text-warn' : 'text-fg')
 
 export const MODE_LABEL: Record<string, string> = { live: 'Live', backtest: 'Backtest' }
 
@@ -51,32 +51,32 @@ export function SourceTable({ sources, selected, onSelect }: { sources: SourceSt
             return (
               <tr key={k} onClick={() => onSelect?.(k)} className={clsx(onSelect && 'cursor-pointer', selected === k && '[&>td]:bg-white/[0.035]')} title={s.note}>
                 <td className="pl-4 sm:pl-5">
-                  <div className={clsx('font-medium', selected === k ? 'text-white' : 'text-slate-200')}>{s.label}</div>
-                  <div className="text-2xs text-slate-400">{t('Agente {name}', { name: s.agent_label })}</div>
+                  <div className={clsx('font-medium', selected === k ? 'text-white' : 'text-fg')}>{s.label}</div>
+                  <div className="text-2xs text-fg-3">{t('Agente {name}', { name: s.agent_label })}</div>
                 </td>
-                <td className="text-xs text-slate-400">{s.horizon}</td>
+                <td className="text-xs text-fg-3">{s.horizon}</td>
                 <td><ModeTag mode={s.mode} /></td>
-                <td className="text-right text-slate-300">{s.n_resolved.toLocaleString('en-US')}{s.n_pending > 0 && <span className="ml-1.5 text-2xs text-slate-400">{t('In attesa: {n}', { n: s.n_pending })}</span>}</td>
+                <td className="text-right text-fg-2">{s.n_resolved.toLocaleString('en-US')}{s.n_pending > 0 && <span className="ml-1.5 text-2xs text-fg-3">{t('In attesa: {n}', { n: s.n_pending })}</span>}</td>
                 <td className={clsx('text-right font-medium', hitCls(s.hit_rate, s.n_dir))}>{pctU(s.hit_rate, 1)}</td>
-                <td className="text-right text-slate-200">{fin(s.brier) ? s.brier.toFixed(3) : '—'}</td>
+                <td className="text-right text-fg">{fin(s.brier) ? s.brier.toFixed(3) : '—'}</td>
                 <td className={clsx('text-right', signCls(s.brier_skill))}>{pct(s.brier_skill, 0)}</td>
-                <td className="text-right text-slate-300">{fin(s.ece) ? `${s.ece.toFixed(1)} pt` : '—'}</td>
-                <td className="text-right text-slate-300">{pctU(s.mae_pct, 1)}</td>
-                <td className="text-right text-slate-300">{pctU(s.coverage)}{fin(s.band_nominal) && <span className="ml-1 text-2xs text-slate-400">({s.band_nominal.toFixed(0)}%)</span>}</td>
-                <td className={clsx('pr-4 text-right sm:pr-5', hitCls(s.last90.hit_rate, s.last90.n))}>{pctU(s.last90.hit_rate)}<span className="ml-1 text-2xs text-slate-400">n={s.last90.n}</span></td>
+                <td className="text-right text-fg-2">{fin(s.ece) ? `${s.ece.toFixed(1)} pt` : '—'}</td>
+                <td className="text-right text-fg-2">{pctU(s.mae_pct, 1)}</td>
+                <td className="text-right text-fg-2">{pctU(s.coverage)}{fin(s.band_nominal) && <span className="ml-1 text-2xs text-fg-3">({s.band_nominal.toFixed(0)}%)</span>}</td>
+                <td className={clsx('pr-4 text-right sm:pr-5', hitCls(s.last90.hit_rate, s.last90.n))}>{pctU(s.last90.hit_rate)}<span className="ml-1 text-2xs text-fg-3">n={s.last90.n}</span></td>
               </tr>
             )
           })}
           {waiting.length >= 2 && (
             <tr className="cursor-pointer" onClick={() => setOpen(!open)}>
               <td className="pl-4 sm:pl-5" colSpan={3}>
-                <span className="inline-flex items-center gap-1.5 text-slate-300">
+                <span className="inline-flex items-center gap-1.5 text-fg-2">
                   <ChevronDown size={14} className={clsx('transition-transform', open && 'rotate-180')} />
                   {t('{n} fonti live in attesa di esito', { n: waiting.length })}
                 </span>
               </td>
-              <td className="text-right text-xs text-slate-400">{t('In attesa: {n}', { n: pendingTotal })}</td>
-              <td className="pr-4 text-right text-xs text-slate-400 sm:pr-5" colSpan={7}>{open ? t('Nascondi') : t('Mostra')}</td>
+              <td className="text-right text-xs text-fg-3">{t('In attesa: {n}', { n: pendingTotal })}</td>
+              <td className="pr-4 text-right text-xs text-fg-3 sm:pr-5" colSpan={7}>{open ? t('Nascondi') : t('Mostra')}</td>
             </tr>
           )}
         </tbody>
@@ -134,11 +134,11 @@ export function ReliabilityMulti({ items, overall, selected, onSelect, wide }: {
         <div key={it.key} role="button" tabIndex={0} onClick={() => onSelect?.(it.key)} onKeyDown={(e) => { if (e.key === 'Enter') onSelect?.(it.key) }}
           className={clsx('min-w-0 cursor-pointer px-3 pb-1 pt-2.5 text-left transition-colors', selected === it.key ? 'bg-white/[0.035]' : 'hover:bg-white/[0.02]')}>
           <div className="flex min-w-0 items-baseline justify-between gap-2">
-            <span className={clsx('truncate text-sm font-medium', selected === it.key ? 'text-white' : 'text-slate-200')}>{it.name}</span>
-            <span className="tnum shrink-0 text-2xs text-slate-400">{it.sub}</span>
+            <span className={clsx('truncate text-sm font-medium', selected === it.key ? 'text-white' : 'text-fg')}>{it.name}</span>
+            <span className="tnum shrink-0 text-2xs text-fg-3">{it.sub}</span>
           </div>
           <ReliabilityChart compact height={190}
-            series={[{ name: t('Tutte le fonti'), color: C.grey2, buckets: overall }, { name: it.name, color: C.blue, buckets: it.buckets }]} />
+            series={[{ name: t('Tutte le fonti'), color: C.grey2, buckets: overall }, { name: it.name, color: C.accent, buckets: it.buckets }]} />
         </div>
       ))}
     </div>
@@ -164,30 +164,30 @@ export function PredictionList({ items, empty }: { items: Prediction[]; empty?: 
         <tbody>
           {items.map((p) => (
             <tr key={p.id}>
-              <td className="pl-4 sm:pl-5"><span className="text-slate-200">{p.label}</span> <ModeTag mode={p.mode} /></td>
-              <td className="text-xs text-slate-400">{date(p.made_at)}</td>
-              <td className="text-xs text-slate-400">{date(p.due_at)}</td>
+              <td className="pl-4 sm:pl-5"><span className="text-fg">{p.label}</span> <ModeTag mode={p.mode} /></td>
+              <td className="text-xs text-fg-3">{date(p.made_at)}</td>
+              <td className="text-xs text-fg-3">{date(p.due_at)}</td>
               <td className="text-xs">
                 <span className="inline-flex flex-wrap items-center gap-1.5">
                   <ToneBadge tone={DIR_TONE[p.direction]} label={dirLabel[p.direction]} />
-                  {fin(p.up_prob) && <span className="tnum text-slate-400">{p.up_prob.toFixed(0)}%</span>}
-                  {p.context && <span className="text-slate-500">· {p.context}</span>}
+                  {fin(p.up_prob) && <span className="tnum text-fg-3">{p.up_prob.toFixed(0)}%</span>}
+                  {p.context && <span className="text-fg-4">· {p.context}</span>}
                 </span>
               </td>
-              <td className="text-right text-slate-300">{usd(p.price0)}</td>
+              <td className="text-right text-fg-2">{usd(p.price0)}</td>
               {p.resolved ? (
                 <>
-                  <td className="text-right text-slate-200">{usd(p.actual)} <span className={clsx('text-xs', signCls(p.change))}>{pct(p.change, 1)}</span></td>
+                  <td className="text-right text-fg">{usd(p.actual)} <span className={clsx('text-xs', signCls(p.change))}>{pct(p.change, 1)}</span></td>
                   <td className="pr-4 text-right sm:pr-5">
-                    {fin(p.err_pct) && <span className="mr-1.5 text-2xs text-slate-400">{t('Err. {v}%', { v: p.err_pct.toFixed(1) })}</span>}
+                    {fin(p.err_pct) && <span className="mr-1.5 text-2xs text-fg-3">{t('Err. {v}%', { v: p.err_pct.toFixed(1) })}</span>}
                     {p.hit === null ? <Badge>{tr('Neutrale', 'Neutral')}</Badge>
-                      : <Badge color={p.hit ? 'up' : 'down'}>{p.hit ? tr('Corretta', 'Hit') : tr('Errata', 'Miss')}</Badge>}
+                      : <Badge color={p.hit ? 'slate' : 'warn'}>{p.hit ? tr('Corretta', 'Hit') : tr('Errata', 'Miss')}</Badge>}
                   </td>
                 </>
               ) : (
                 <>
-                  <td className="text-right text-slate-200">{usd(p.median)}</td>
-                  <td className="pr-4 text-right text-slate-300 sm:pr-5">{pctU(p.up_prob)}</td>
+                  <td className="text-right text-fg">{usd(p.median)}</td>
+                  <td className="pr-4 text-right text-fg-2 sm:pr-5">{pctU(p.up_prob)}</td>
                 </>
               )}
             </tr>
@@ -206,11 +206,11 @@ export function WeightsList({ weights, labels, className }: { weights: Record<st
       {rows.map(([k, w]) => (
         <li key={k} className="-mb-px flex flex-col justify-center gap-1.5 border-b border-line py-2.5">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-200">{labels[k] ?? k}</span>
-            <span className={clsx('tnum font-medium', w > 0.52 ? 'text-up' : w < 0.48 ? 'text-down' : 'text-slate-400')}>{w.toFixed(2)}</span>
+            <span className="text-fg">{labels[k] ?? k}</span>
+            <span className={clsx('tnum font-medium', w > 0.52 ? 'text-accent' : w < 0.48 ? 'text-warn' : 'text-fg-3')}>{w.toFixed(2)}</span>
           </div>
           <div className="relative">
-            <ProgressBar value={w * 100} color={w > 0.52 ? C.up : w < 0.48 ? C.down : undefined} />
+            <ProgressBar value={w * 100} color={w > 0.52 ? C.accent : w < 0.48 ? C.warn : undefined} />
             <span aria-hidden className="absolute -top-0.5 left-1/2 h-2.5 w-px bg-white/30" />
           </div>
         </li>
@@ -219,4 +219,4 @@ export function WeightsList({ weights, labels, className }: { weights: Record<st
   )
 }
 
-export const SOURCE_COLORS = [C.blue, C.purple, C.teal, C.grey, C.primary, C.grey2]
+export const SOURCE_COLORS = [C.accent, C.steel, C.sand, C.mauve, C.grey, C.grey2]

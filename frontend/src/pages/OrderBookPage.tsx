@@ -6,12 +6,10 @@ import {
   useObFootprint, useObHeatmap, useObLive, useObSignals, useObStatus,
   type ObEvent, type ObLiveMsg, type ObMarket, type ObMarketStatus, type ObSignals, type ObStatus, type ObTf,
 } from '../api/orderbook'
-import {
-  Badge, Card, CardBody, CardHeader, EmptyState, ErrorState, KpiCell, KpiStrip, MethodNote, PageTitle, Segmented, Skeleton, TabBar, Toggle, clsx,
-} from '../components/ui'
+import { HEAT, T, alpha } from '../theme/tokens'
+import { Badge, Card, CardBody, CardHeader, EmptyState, ErrorState, KpiCell, KpiStrip, MethodNote, Segmented, Skeleton, Toggle, clsx, PageActions, SettingsPanel, SettingRow } from '../components/ui'
 import HeatmapCanvas, { appendLive, buildStore, type HeatmapHandle, type HeatmapOpts, type HmStore } from '../widgets/orderbookHeatmap'
 import FootprintCanvas, { applyLiveFp, buildFp, type FpHandle, type FpStore } from '../widgets/orderbookFootprint'
-import { useTab } from '../lib/useTab'
 import { agoSeconds, dateTime, dayUnit, pct, usd } from '../lib/format'
 import { t } from '../i18n'
 
@@ -77,22 +75,13 @@ const signedBtc = (v: number | null | undefined, d = 1) => (v == null || !Number
 interface LiveInfo { mid: number | null; bb: number | null; ba: number | null; imb: number | null; fpDelta: number | null; fpPoc: number | null; fpT: number | null; at: number }
 
 // ------------------------------------------------------------------ toolbar
-function Seg<V extends string | number>({ label, ...p }: { label: string; options: { value: V; label: ReactNode }[]; value: V; onChange: (v: V) => void }) {
-  return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <span className="label">{label}</span>
-      <Segmented {...p} />
-    </div>
-  )
-}
-
 function LivePill({ open, synced }: { open: boolean; synced: boolean }) {
   const state = !open ? 'off' : synced ? 'live' : 'sync'
   const txt = state === 'live' ? t('Live') : state === 'sync' ? t('Sincronizzazione') : t('Riconnessione')
   return (
     <span className={clsx('inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium ring-1 ring-inset',
-      state === 'live' ? 'bg-up/10 text-up ring-up/20' : state === 'sync' ? 'bg-amber-400/10 text-amber-400 ring-amber-400/20' : 'bg-white/[0.04] text-slate-400 ring-white/10')}>
-      <span className={clsx('h-1.5 w-1.5 rounded-full', state === 'live' ? 'animate-pulse bg-up' : state === 'sync' ? 'bg-amber-400' : 'bg-slate-500')} />
+      state === 'live' ? 'bg-accent/10 text-accent-hi ring-accent/25' : state === 'sync' ? 'bg-warn/10 text-warn ring-warn/20' : 'bg-white/[0.04] text-fg-3 ring-line')}>
+      <span className={clsx('h-1.5 w-1.5 rounded-full', state === 'live' ? 'live-dot bg-accent' : state === 'sync' ? 'bg-warn' : 'bg-fg-4')} />
       {txt}
     </span>
   )
@@ -101,9 +90,9 @@ function LivePill({ open, synced }: { open: boolean; synced: boolean }) {
 // ------------------------------------------------------------------ integrity card
 function Row({ k, v, tone }: { k: ReactNode; v: ReactNode; tone?: 'ok' | 'warn' | 'bad' }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-white/[0.04] py-1.5 last:border-0">
-      <span className="min-w-0 text-slate-400">{k}</span>
-      <span className={clsx('tnum shrink-0 text-right font-medium', tone === 'ok' ? 'text-up' : tone === 'warn' ? 'text-amber-400' : tone === 'bad' ? 'text-down' : 'text-white')}>{v}</span>
+    <div className="flex items-baseline justify-between gap-3 border-b border-line-subtle py-1.5 last:border-0">
+      <span className="min-w-0 text-fg-3">{k}</span>
+      <span className={clsx('tnum shrink-0 text-right font-medium', tone === 'warn' || tone === 'bad' ? 'text-warn' : 'text-white')}>{v}</span>
     </div>
   )
 }
@@ -131,12 +120,12 @@ function IntegrityBody({ m, st }: { m: ObMarketStatus; st: ObStatus }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-1.5">
-        <Badge color={m.depth_connected ? 'up' : 'down'}>{t('Book')} {m.depth_connected ? t('connesso') : t('disconnesso')}</Badge>
-        <Badge color={m.trade_connected ? 'up' : 'down'}>{t('Trade')} {m.trade_connected ? t('connessi') : t('disconnessi')}</Badge>
-        <Badge color={m.synced ? 'up' : 'slate'}>{m.synced ? t('Sincronizzato') : t('In sincronizzazione')}</Badge>
+        <Badge color={m.depth_connected ? 'slate' : 'btc'}>{t('Book')} {m.depth_connected ? t('connesso') : t('disconnesso')}</Badge>
+        <Badge color={m.trade_connected ? 'slate' : 'btc'}>{t('Trade')} {m.trade_connected ? t('connessi') : t('disconnessi')}</Badge>
+        <Badge color={m.synced ? 'slate' : 'btc'}>{m.synced ? t('Sincronizzato') : t('In sincronizzazione')}</Badge>
       </div>
       <div>
-        <div className="label mb-1 flex items-center gap-1.5">{vOk ? <CheckCircle2 size={12} className="text-up" /> : <AlertTriangle size={12} className="text-amber-400" />}{t('Book vs snapshot REST')}</div>
+        <div className="label mb-1 flex items-center gap-1.5">{vOk ? <CheckCircle2 size={12} className="text-accent" /> : <AlertTriangle size={12} className="text-warn" />}{t('Book vs snapshot REST')}</div>
         <Row k={t('Verifiche superate')} v={v.n ? `${v.ok}/${v.n}` : t('In attesa')} tone={v.n ? (vOk ? 'ok' : 'warn') : undefined} />
         <Row k={t('Livelli confrontati · differenze')} v={`${v.levels_compared.toLocaleString('en-US')} · ${v.range_mismatch}`} tone={v.n ? (v.range_mismatch === 0 ? 'ok' : 'warn') : undefined} />
         <Row k={t('Best bid/ask · primi 20 livelli')} v={v.last ? `${v.last.best_match ? t('identici') : t('diversi')} · ${v.top_mismatch} ${t('diff.')}` : '—'} />
@@ -144,7 +133,7 @@ function IntegrityBody({ m, st }: { m: ObMarketStatus; st: ObStatus }) {
         <Row k={t('Ultima verifica')} v={v.last ? agoSeconds(Date.now() / 1000 - v.last.t) : '—'} />
       </div>
       <div>
-        <div className="label mb-1 flex items-center gap-1.5">{kOk ? <CheckCircle2 size={12} className="text-up" /> : <AlertTriangle size={12} className="text-amber-400" />}{t('Footprint vs kline 1m ufficiali')}</div>
+        <div className="label mb-1 flex items-center gap-1.5">{kOk ? <CheckCircle2 size={12} className="text-accent" /> : <AlertTriangle size={12} className="text-warn" />}{t('Footprint vs kline 1m ufficiali')}</div>
         <Row k={t('Minuti confrontati')} v={kc.n || t('In attesa')} />
         <Row k={t('Scarto volume mediano · max')} v={kc.n ? `${(kc.median_abs ?? 0).toFixed(3)}% · ${(kc.max_abs ?? 0).toFixed(3)}%` : '—'} tone={kc.n ? ((kc.max_abs ?? 0) < 0.5 ? 'ok' : 'warn') : undefined} />
         <Row k={t('Minuti entro 0.5%')} v={kc.n ? pct((kc.within_05 ?? 0) * 100, 1, false) : '—'} />
@@ -188,10 +177,10 @@ function WallsCard({ sig, className }: { sig: ObSignals | undefined; className?:
                     <span className={clsx('tnum', w.side === 'bid' ? 'text-up' : 'text-down')}>{w.side === 'bid' ? t('Bid') : t('Ask')} · {pct(w.dist_pct, 2)}</span>
                   </div>
                   <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.05]">
-                    <div className="h-full rounded-full" style={{ width: `${(w.q / max) * 100}%`, background: w.side === 'bid' ? 'rgba(46.189.133.0.75)' : 'rgba(239.84.102.0.75)' }} />
+                    <div className="h-full rounded-full" style={{ width: `${(w.q / max) * 100}%`, background: w.side === 'bid' ? alpha(T.up, 0.75) : alpha(T.down, 0.75) }} />
                   </div>
                 </div>
-                <div className="tnum w-20 text-right text-slate-300">{btc(w.q, w.q < 100 ? 1 : 0)}<div className="text-2xs text-slate-500">{agoSeconds(w.age_s).replace(/ (fa|ago)$/, '')}</div></div>
+                <div className="tnum w-20 text-right text-fg-2">{btc(w.q, w.q < 100 ? 1 : 0)}<div className="text-2xs text-fg-4">{agoSeconds(w.age_s).replace(/ (fa|ago)$/, '')}</div></div>
               </div>
             ))}
           </div>
@@ -216,13 +205,13 @@ function EventsCard({ sig, className }: { sig: ObSignals | undefined; className?
               <thead><tr><th className="text-left">{t('Orario')}</th><th className="text-left">{t('Livello')}</th><th className="text-left">{t('Esito')}</th><th className="text-right">{t('Liquidità')}</th><th className="hidden text-right sm:table-cell">{t('Durata')}</th></tr></thead>
               <tbody>
                 {evs.map((e, i) => (
-                  <tr key={`${e.t}-${e.price}-${i}`} className="border-t border-white/[0.04]">
-                    <td className="tnum px-2 py-1.5 text-slate-400 sm:px-3">{new Date(e.t * 1000).toLocaleTimeString('en-GB')}</td>
+                  <tr key={`${e.t}-${e.price}-${i}`} className="border-t border-line-subtle">
+                    <td className="tnum px-2 py-1.5 text-fg-3 sm:px-3">{new Date(e.t * 1000).toLocaleTimeString('en-GB')}</td>
                     <td className="tnum px-2 py-1.5 sm:px-3"><span className="text-white">{usd(e.price, 0)}</span> <span className={e.side === 'bid' ? 'text-up' : 'text-down'}>{e.side === 'bid' ? t('Bid') : t('Ask')}</span></td>
-                    <td className="px-2 py-1.5 sm:px-3"><span className={clsx('inline-flex items-center gap-1.5', e.kind === 'pulled' ? 'text-amber-400' : 'text-slate-300')}>
-                      <span className={clsx('h-1.5 w-1.5 rounded-full', e.kind === 'pulled' ? 'bg-amber-400' : 'bg-slate-300')} />{t(KIND_LABEL[e.kind])}</span></td>
-                    <td className="tnum px-2 py-1.5 text-right text-slate-300 sm:px-3">{e.qmax.toFixed(1)} → {e.q.toFixed(1)}</td>
-                    <td className="tnum hidden px-2 py-1.5 text-right text-slate-400 sm:table-cell sm:px-3">{e.age_s}s</td>
+                    <td className="px-2 py-1.5 sm:px-3"><span className={clsx('inline-flex items-center gap-1.5', e.kind === 'pulled' ? 'text-warn' : 'text-fg-2')}>
+                      <span className={clsx('h-1.5 w-1.5 rounded-full', e.kind === 'pulled' ? 'bg-warn' : 'bg-fg-2')} />{t(KIND_LABEL[e.kind])}</span></td>
+                    <td className="tnum px-2 py-1.5 text-right text-fg-2 sm:px-3">{e.qmax.toFixed(1)} → {e.q.toFixed(1)}</td>
+                    <td className="tnum hidden px-2 py-1.5 text-right text-fg-3 sm:table-cell sm:px-3">{e.age_s}s</td>
                   </tr>
                 ))}
               </tbody>
@@ -258,11 +247,11 @@ function CoverageCard({ m, className }: { m: ObMarketStatus | undefined; classNa
                 {segs.map(([s, e]) => {
                   const a = Math.max(s, from), b = Math.min(e, now)
                   if (b <= a) return null
-                  return <div key={s} className="absolute inset-y-0 bg-accent-teal/70" style={{ left: `${((a - from) / (now - from)) * 100}%`, width: `${Math.max(0.15, ((b - a) / (now - from)) * 100)}%` }} />
+                  return <div key={s} className="absolute inset-y-0 bg-accent/70" style={{ left: `${((a - from) / (now - from)) * 100}%`, width: `${Math.max(0.15, ((b - a) / (now - from)) * 100)}%` }} />
                 })}
                 {days.slice(1, -1).map((d) => <div key={d} className="absolute inset-y-0 w-px bg-white/10" style={{ left: `${((d - from) / (now - from)) * 100}%` }} />)}
               </div>
-              <div className="tnum mt-1 flex justify-between text-2xs text-slate-500">
+              <div className="tnum mt-1 flex justify-between text-2xs text-fg-4">
                 <span>{dateTime(from).split(' ').slice(0, 2).join(' ')}</span><span>{t('Ora')}</span>
               </div>
             </div>
@@ -270,15 +259,15 @@ function CoverageCard({ m, className }: { m: ObMarketStatus | undefined; classNa
               <div className="label mb-1.5">{t('Sessioni di raccolta recenti')}</div>
               <div className="flex flex-col">
                 {[...(m.sessions ?? [])].reverse().slice(0, 8).map(([a, b]) => (
-                  <div key={a} className="tnum flex items-baseline justify-between gap-3 border-b border-white/[0.04] py-1 text-xs last:border-0">
-                    <span className="text-slate-300">{dateTime(a)} → {now - b < 120 ? t('in corso') : dateTime(b)}</span>
-                    <span className="text-slate-500">{fmtDur(Math.min(b, now) - a)}</span>
+                  <div key={a} className="tnum flex items-baseline justify-between gap-3 border-b border-line-subtle py-1 text-xs last:border-0">
+                    <span className="text-fg-2">{dateTime(a)} → {now - b < 120 ? t('in corso') : dateTime(b)}</span>
+                    <span className="text-fg-4">{fmtDur(Math.min(b, now) - a)}</span>
                   </div>
                 ))}
               </div>
             </div>
             {/* note anchored to the bottom: the card is as tall as the events table next to it */}
-            <p className="mt-auto border-t border-line pt-3 text-xs leading-relaxed text-slate-400">
+            <p className="mt-auto border-t border-line pt-3 text-xs leading-relaxed text-fg-3">
               {t('I buchi (app spenta o book non sincronizzato) restano vuoti nella heatmap: il book passato non è ricostruibile. I trade persi in una disconnessione breve vengono recuperati via REST; altrimenti la candela è marcata parziale.')}
             </p>
           </>
@@ -289,7 +278,7 @@ function CoverageCard({ m, className }: { m: ObMarketStatus | undefined; classNa
 }
 const fmtDur = (s: number) => (s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${(s / 3600).toFixed(1)} h` : `${(s / 86400).toFixed(1)} ${dayUnit()}`)
 const MiniStat = ({ label, value }: { label: string; value: ReactNode }) => (
-  <div className="min-w-0 rounded-xl border border-line bg-white/[0.02] px-3 py-2">
+  <div className="min-w-0 tile px-3 py-2">
     <div className="label truncate">{label}</div>
     <div className="tnum mt-0.5 truncate text-sm font-semibold text-white">{value}</div>
   </div>
@@ -321,8 +310,7 @@ function Kpis({ live, sig, market }: { live: LiveInfo; sig: ObSignals | undefine
 }
 
 // ------------------------------------------------------------------ page
-export default function OrderBookPage() {
-  const [tab, setTab] = useTab(['heatmap', 'footprint'] as const, 'heatmap')
+export default function OrderBookPage({ tab }: { tab: 'heatmap' | 'footprint' }) {
   const [market, setMarket] = usePersist<ObMarket>('ob.market', 'futures', ['futures', 'spot'])
   const [span, setSpan] = usePersist<number>('ob.span', 3600, SPANS.map((s) => s.v))
   const [bucket, setBucket] = usePersist<number>('ob.bucket', 10, BUCKETS)
@@ -386,54 +374,47 @@ export default function OrderBookPage() {
 
   return (
     <div>
-      <PageTitle title={t('Order book')} subtitle={t('Liquidità resting nel tempo e trade aggressivi per livello di prezzo, dal book Binance raccolto in tempo reale.')} />
-      <TabBar tabs={[{ value: 'heatmap', label: t('Heatmap') }, { value: 'footprint', label: t('Footprint') }]} value={tab} onChange={setTab} />
 
       <div className="flex flex-col gap-3">
-        {/* barra comandi */}
-        <Card className="px-4 py-3 sm:px-5">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-            <Seg label={t('Mercato')} value={market} onChange={setMarket}
-              options={(st?.enabled ?? ['futures', 'spot']).map((m) => ({ value: m, label: MARKET_LABEL[m] }))} />
+        <PageActions>
+          <Segmented value={market} onChange={setMarket} options={(st?.enabled ?? ['futures', 'spot']).map((m) => ({ value: m, label: MARKET_LABEL[m] }))} />
+          {tab === 'heatmap'
+            ? <Segmented value={span} onChange={setSpan} options={SPANS.map((s) => ({ value: s.v, label: spanLabel(s.l) }))} />
+            : <Segmented value={tf} onChange={setTf} options={FP_TFS.map((x) => ({ value: x, label: x }))} />}
+          <SettingsPanel>
             {tab === 'heatmap' ? (
               <>
-                <Seg label={t('Intervallo')} value={span} onChange={setSpan} options={SPANS.map((s) => ({ value: s.v, label: spanLabel(s.l) }))} />
-                <Seg label={t('Bucket')} value={bucket} onChange={setBucket} options={BUCKETS.map((b) => ({ value: b, label: `$${b}` }))} />
-                <Seg label={t('Banda prezzi')} value={range} onChange={setRange} options={RANGES.map((r) => ({ value: r, label: `±${r}%` }))} />
-                <Seg label={t('Contrasto')} value={contrast} onChange={setContrast} options={CONTRASTS.map((c) => ({ value: c, label: `p${c}` }))} />
-                <div className="flex flex-wrap items-center gap-2">
+                <SettingRow label={t('Bucket')}><Segmented value={bucket} onChange={setBucket} options={BUCKETS.map((b) => ({ value: b, label: `$${b}` }))} /></SettingRow>
+                <SettingRow label={t('Banda prezzi')}><Segmented value={range} onChange={setRange} options={RANGES.map((r) => ({ value: r, label: `±${r}%` }))} /></SettingRow>
+                <SettingRow label={t('Contrasto')}><Segmented value={contrast} onChange={setContrast} options={CONTRASTS.map((c) => ({ value: c, label: `p${c}` }))} /></SettingRow>
+                <SettingRow label={t('Mostra')}>
                   <Toggle on={bubbles} onClick={() => setBubbles(!bubbles)}>{t('Bolle trade')}</Toggle>
                   <Toggle on={events} onClick={() => setEvents(!events)}>{t('Muri spariti')}</Toggle>
                   <Toggle on={priceLine} onClick={() => setPriceLine(!priceLine)}>{t('Prezzo')}</Toggle>
-                </div>
+                </SettingRow>
               </>
             ) : (
-              <>
-                <Seg label={t('Timeframe')} value={tf} onChange={setTf} options={FP_TFS.map((x) => ({ value: x, label: x }))} />
-                <Seg label={t('Bin')} value={bin} onChange={setBin} options={FP_BINS.map((b) => ({ value: b, label: `$${b}` }))} />
-              </>
+              <SettingRow label={t('Bin')}><Segmented value={bin} onChange={setBin} options={FP_BINS.map((b) => ({ value: b, label: `$${b}` }))} /></SettingRow>
             )}
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              <LivePill open={wsOpen} synced={synced || !!ms?.synced} />
-              <button className="btn-ghost" onClick={() => (tab === 'heatmap' ? hmRef.current?.reset() : fpHandle.current?.reset())}><ScanLine size={14} />{t('Adatta')}</button>
-              <button className="btn-ghost" onClick={() => (tab === 'heatmap' ? hq.refetch() : fq.refetch())} disabled={hq.isFetching || fq.isFetching}>
-                <RefreshCw size={14} className={clsx((hq.isFetching || fq.isFetching) && 'animate-spin')} />{t('Ricarica')}</button>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-white/[0.05] pt-2.5 text-xs text-slate-400">
+          </SettingsPanel>
+          <LivePill open={wsOpen} synced={synced || !!ms?.synced} />
+          <button className="btn-ghost" onClick={() => (tab === 'heatmap' ? hmRef.current?.reset() : fpHandle.current?.reset())}><ScanLine size={14} />{t('Adatta')}</button>
+          <button className="btn-ghost" onClick={() => (tab === 'heatmap' ? hq.refetch() : fq.refetch())} disabled={hq.isFetching || fq.isFetching}>
+            <RefreshCw size={14} className={clsx((hq.isFetching || fq.isFetching) && 'animate-spin')} />{t('Ricarica')}</button>
+        </PageActions>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 text-xs text-fg-3">
             <span className="flex flex-wrap items-center gap-x-2">
-              <span className="font-semibold tracking-wide text-slate-200">{MARKET_VENUE[market]}</span>
+              <span className="font-semibold tracking-wide text-fg">{MARKET_VENUE[market]}</span>
               <span>{tab === 'heatmap'
                 ? t('Book campionato ogni secondo in bucket da $10 entro ±1.5% dal mid')
                 : t('Trade aggressivi (aggTrade) per candela e livello · imbalance diagonali ≥ 3:1')}</span>
             </span>
             <span className="flex flex-wrap items-center gap-x-3">
-              {autoBucket && tab === 'heatmap' && <span className="text-amber-400">{t('Bucket portato a ${b} per l\'ampiezza dell\'intervallo', { b: autoBucket })}</span>}
+              {autoBucket && tab === 'heatmap' && <span className="text-warn">{t('Bucket portato a ${b} per l\'ampiezza dell\'intervallo', { b: autoBucket })}</span>}
               {tab === 'heatmap' && hq.data && <span>{hq.data.tier === 's' ? t('Risoluzione {s} s', { s: Math.max(1, Math.round(hq.data.dt)) }) : t('Risoluzione {m} min (medie al minuto)', { m: Math.max(1, Math.round(hq.data.dt / 60)) })}</span>}
               <span className="hidden sm:inline">{t('Rotella: zoom tempo · Shift o asse prezzi: zoom prezzo · Trascina: sposta · Doppio clic: adatta')}</span>
             </span>
           </div>
-        </Card>
 
         <Kpis live={live} sig={sig.data} market={market} />
 
@@ -458,7 +439,7 @@ export default function OrderBookPage() {
                   <FootprintCanvas ref={fpHandle} store={fpStore} compactUi={mobile} />
                 )}
               </div>
-              {tab === 'heatmap' && isLong && <p className="mt-2 text-xs text-slate-500">{t('Intervalli oltre 6 ore usano le medie al minuto: i muri di pochi secondi si attenuano.')}</p>}
+              {tab === 'heatmap' && isLong && <p className="mt-2 text-xs text-fg-4">{t('Intervalli oltre 6 ore usano le medie al minuto: i muri di pochi secondi si attenuano.')}</p>}
             </CardBody>
           </Card>
           <div className="grid gap-3 md:grid-cols-2 xl:flex xl:flex-col">
@@ -474,12 +455,12 @@ export default function OrderBookPage() {
         </div>
 
         <MethodNote title={t('Metodo, fonti e limiti')}>
-          <p><b className="text-slate-300">{t('Fonte')}.</b> {t('Binance USDⓈ-M BTCUSDT (perpetual) e Binance spot BTCUSDT, WebSocket pubblici: diff depth @100ms e aggTrade. Il book locale segue la procedura ufficiale Binance: snapshot REST, scarto degli eventi più vecchi, controllo della continuità degli update id (pu/U) e risincronizzazione automatica a ogni buco.')}</p>
-          <p><b className="text-slate-300">{t('Verifiche')}.</b> {t('Ogni 2 minuti (futures) o 5 minuti (spot) un nuovo snapshot REST viene portato allo stesso update id del book locale e confrontato livello per livello: le differenze attese sono 0 e i livelli dello snapshot riparano il book. Ogni 5 minuti il volume aggressivo raccolto per minuto viene confrontato con il volume delle kline 1m ufficiali.')}</p>
-          <p><b className="text-slate-300">{t('Campionamento e storage')}.</b> {t('Ogni secondo la liquidità entro ±1.5% dal mid viene sommata in bucket da $10 (ri-aggregabili a $20, $50, $100, $250) e salvata in parquet orari; medie al minuto per gli intervalli lunghi. Retention: campioni al secondo 7 giorni, medie al minuto e footprint 30 giorni. Footprint in bin da $5 per minuto, ri-aggregati per timeframe e bin.')}</p>
-          <p><b className="text-slate-300">{t('Muri e ritiri')}.</b> {t('Un bucket è un muro se supera k = 5 volte la mediana dei bucket entro ±1% (e almeno 2 BTC sul perpetual, 1 BTC sullo spot) per almeno 20 secondi. Se scende sotto il 30% del massimo con il prezzo entro lo 0.15% e senza scambi corrispondenti è segnalato come liquidità ritirata prima del tocco; con scambi o prezzo sul livello come consumato.')}</p>
-          <p><b className="text-slate-300">{t('Footprint')}.</b> {t('Lato aggressore dal campo m di aggTrade (m = vero: il compratore è maker, quindi è una vendita aggressiva). Imbalance diagonale: acquisti a un livello ≥ 3 volte le vendite del livello sotto (e viceversa); con lato opposto nullo serve almeno l\'1% del volume della candela. Tre o più livelli consecutivi formano una zona impilata. CVD cumulato dalla prima candela caricata.')}</p>
-          <p><b className="text-slate-300">{t('Limiti')}.</b> {t('Book di un solo exchange (Binance), non aggregato multi-exchange. La liquidità visibile non rivela le intenzioni: gli ordini possono essere spostati o cancellati in qualsiasi momento e gli ordini iceberg non sono visibili. Sul perpetual lo snapshot REST copre solo i 1000 livelli più vicini (circa ±0.15%): oltre, il book è ricostruito dal diff stream e le zone non ancora coperte da uno snapshot sono più scure. Lo storico esiste solo da quando l\'app è accesa; i periodi spenti restano buchi.')}</p>
+          <p><b className="text-fg-2">{t('Fonte')}.</b> {t('Binance USDⓈ-M BTCUSDT (perpetual) e Binance spot BTCUSDT, WebSocket pubblici: diff depth @100ms e aggTrade. Il book locale segue la procedura ufficiale Binance: snapshot REST, scarto degli eventi più vecchi, controllo della continuità degli update id (pu/U) e risincronizzazione automatica a ogni buco.')}</p>
+          <p><b className="text-fg-2">{t('Verifiche')}.</b> {t('Ogni 2 minuti (futures) o 5 minuti (spot) un nuovo snapshot REST viene portato allo stesso update id del book locale e confrontato livello per livello: le differenze attese sono 0 e i livelli dello snapshot riparano il book. Ogni 5 minuti il volume aggressivo raccolto per minuto viene confrontato con il volume delle kline 1m ufficiali.')}</p>
+          <p><b className="text-fg-2">{t('Campionamento e storage')}.</b> {t('Ogni secondo la liquidità entro ±1.5% dal mid viene sommata in bucket da $10 (ri-aggregabili a $20, $50, $100, $250) e salvata in parquet orari; medie al minuto per gli intervalli lunghi. Retention: campioni al secondo 7 giorni, medie al minuto e footprint 30 giorni. Footprint in bin da $5 per minuto, ri-aggregati per timeframe e bin.')}</p>
+          <p><b className="text-fg-2">{t('Muri e ritiri')}.</b> {t('Un bucket è un muro se supera k = 5 volte la mediana dei bucket entro ±1% (e almeno 2 BTC sul perpetual, 1 BTC sullo spot) per almeno 20 secondi. Se scende sotto il 30% del massimo con il prezzo entro lo 0.15% e senza scambi corrispondenti è segnalato come liquidità ritirata prima del tocco; con scambi o prezzo sul livello come consumato.')}</p>
+          <p><b className="text-fg-2">{t('Footprint')}.</b> {t('Lato aggressore dal campo m di aggTrade (m = vero: il compratore è maker, quindi è una vendita aggressiva). Imbalance diagonale: acquisti a un livello ≥ 3 volte le vendite del livello sotto (e viceversa); con lato opposto nullo serve almeno l\'1% del volume della candela. Tre o più livelli consecutivi formano una zona impilata. CVD cumulato dalla prima candela caricata.')}</p>
+          <p><b className="text-fg-2">{t('Limiti')}.</b> {t('Book di un solo exchange (Binance), non aggregato multi-exchange. La liquidità visibile non rivela le intenzioni: gli ordini possono essere spostati o cancellati in qualsiasi momento e gli ordini iceberg non sono visibili. Sul perpetual lo snapshot REST copre solo i 1000 livelli più vicini (circa ±0.15%): oltre, il book è ricostruito dal diff stream e le zone non ancora coperte da uno snapshot sono più scure. Lo storico esiste solo da quando l\'app è accesa; i periodi spenti restano buchi.')}</p>
         </MethodNote>
       </div>
     </div>
@@ -488,19 +469,19 @@ export default function OrderBookPage() {
 
 function HeatLegend() {
   return (
-    <div className="flex items-center gap-2 text-2xs text-slate-400">
+    <div className="flex items-center gap-2 text-2xs text-fg-3">
       <span>{t('Poca')}</span>
-      <span className="h-2 w-24 rounded-full" style={{ background: 'linear-gradient(90deg,#0A0E17,#51127c,#b73779,#fc8961,#fcfdbf)' }} />
+      <span className="h-2 w-24 rounded-full" style={{ background: `linear-gradient(90deg,${HEAT.join(',')})` }} />
       <span>{t('Molta liquidità')}</span>
     </div>
   )
 }
 function FpLegend() {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-slate-400">
-      <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[#4BE0A6]" />{t('Imbalance acquisto')}</span>
-      <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[#FF7A88]" />{t('Imbalance vendita')}</span>
-      <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm ring-1 ring-amber-400" />POC</span>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-fg-3">
+      <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-up-hi" />{t('Imbalance acquisto')}</span>
+      <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-down-hi" />{t('Imbalance vendita')}</span>
+      <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm ring-1 ring-warn" />POC</span>
     </div>
   )
 }

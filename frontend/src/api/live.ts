@@ -2,7 +2,7 @@
  * with exponential backoff. In mock mode a local emitter produces the same messages. */
 import { useSyncExternalStore } from 'react'
 import { USE_MOCKS } from './client'
-import type { AgentMessage, AgentStatusMsg, Candle, T } from './types'
+import type { Candle, T } from './types'
 import { getLang } from '../i18n'
 import type { Alert } from './alerts'
 
@@ -22,8 +22,6 @@ export type LiveMsg =
   | KlineMsg
   | PerpKlineMsg
   | VwapTickMsg
-  | ({ type: 'agent_message' } & AgentMessage)
-  | ({ type: 'agent_status' } & AgentStatusMsg)
   | { type: 'invalidate'; source?: string; keys: string[]; time?: T }
   | ({ type: 'toast' } & Alert)
 
@@ -37,20 +35,17 @@ export interface LiveState {
   mark: Mark | null
   klines: Partial<Record<LiveTf, Candle>>
   liquidations: LiveLiq[] // most recent first, ring buffer
-  agentMessages: AgentMessage[] // most recent first, ring buffer
-  agentStatus: Partial<Record<string, AgentStatusMsg>>
 }
 
 const LIQ_MAX = 200
 
 class LiveStore {
-  state: LiveState = { conn: 'connecting', lastMessageAt: null, ticker: null, prevPrice: null, mark: null, klines: {}, liquidations: [], agentMessages: [], agentStatus: {} }
+  state: LiveState = { conn: 'connecting', lastMessageAt: null, ticker: null, prevPrice: null, mark: null, klines: {}, liquidations: [] }
   private listeners = new Set<() => void>()
   private klineListeners = new Set<(m: KlineMsg) => void>()
   private liqListeners = new Set<(l: LiveLiq) => void>()
   private perpKlineListeners = new Set<(m: PerpKlineMsg) => void>()
   private vwapTickListeners = new Set<(m: VwapTickMsg) => void>()
-  private agentListeners = new Set<(m: AgentMessage) => void>()
   private invalidateListeners = new Set<(keys: string[]) => void>()
   private toastListeners = new Set<(a: Alert) => void>()
   private ws: WebSocket | null = null
@@ -145,15 +140,6 @@ class LiveStore {
         this.liqListeners.forEach((fn) => fn(l))
         break
       }
-      case 'agent_message': {
-        const { type: _t, ...am } = m
-        void _t
-        const cur = this.peek().agentMessages
-        if (cur.some((x) => x.id === am.id)) break
-        this.set({ agentMessages: [am, ...cur].slice(0, 300), lastMessageAt: now })
-        this.agentListeners.forEach((fn) => fn(am))
-        break
-      }
       case 'toast': {
         const { type: _t, ...a } = m
         void _t
@@ -162,12 +148,6 @@ class LiveStore {
       }
       case 'invalidate': {
         if (Array.isArray(m.keys) && m.keys.length) this.invalidateListeners.forEach((fn) => fn(m.keys))
-        break
-      }
-      case 'agent_status': {
-        const { type: _t, ...st } = m
-        void _t
-        this.set({ agentStatus: { ...this.peek().agentStatus, [st.id]: st }, lastMessageAt: now })
         break
       }
     }
@@ -239,15 +219,9 @@ class LiveStore {
       this.toastListeners.delete(fn)
     }
   }
-  /** Ask the server to translate pushed texts (agent messages, toasts). */
+  /** Ask the server to translate pushed texts (toasts). */
   setLang(lang: 'it' | 'en') {
     this.send({ lang })
-  }
-  onAgentMessage(fn: (m: AgentMessage) => void) {
-    this.agentListeners.add(fn)
-    return () => {
-      this.agentListeners.delete(fn)
-    }
   }
   getSnapshot = () => this.state
 }
@@ -259,5 +233,4 @@ export function useLive<S>(selector: (s: LiveState) => S): S {
   return useSyncExternalStore(live.subscribe, () => selector(live.getSnapshot()))
 }
 
-export const useLivePrice = () => useLive((s) => s.ticker?.price ?? null)
 export const useConn = () => useLive((s) => s.conn)

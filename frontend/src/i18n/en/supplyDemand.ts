@@ -9,7 +9,6 @@ const en: Record<string, string> = {
     'BTC reserves on exchanges, daily inflows and outflows, flow regimes and forward returns.',
   'Flussi giornalieri degli ETF spot USA per emittente e assorbimento dei BTC emessi dai miner.':
     'Daily flows of US spot ETFs by issuer and absorption of the BTC issued by miners.',
-  'Attenzione retail misurata dalle visite alla pagina Bitcoin di Wikipedia.': 'Retail attention measured by visits to the Bitcoin page on Wikipedia.',
   'Deflussi forti': 'Strong outflows',
   Deflussi: 'Outflows',
   Neutro: 'Neutral',

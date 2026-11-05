@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { ArrowRight, CalendarClock, ListChecks } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useTimePivots } from '../api/timepivots'
-import { Card, CardBody, CardHeader, Fill, PageTitle, Q, Segmented, Skeleton, TabBar } from '../components/ui'
+import { Card, CardBody, CardHeader, Fill, Q, Segmented, Skeleton, PageActions } from '../components/ui'
 import { useTab } from '../lib/useTab'
 import { dayUnit } from '../lib/format'
 import { t } from '../i18n'
@@ -26,7 +26,7 @@ const TABS: { value: Tab; label: string }[] = [
 
 export default function TimePivotsPage() {
   const [horizon, setHorizon] = useState(90)
-  const [tab, setTab] = useTab<Tab>(TABS.map((x) => x.value), 'calendar')
+  const [tab, setTab] = useTab<Tab>(TABS.map((x) => x.value), 'calendar', 'view')
   const q = useTimePivots(horizon)
   const [open, setOpen] = useState<string | null>(null)
   const select = useCallback((id: string) => {
@@ -36,9 +36,10 @@ export default function TimePivotsPage() {
   }, [setTab])
   return (
     <div>
-      <PageTitle title={t('Pivot temporali')} subtitle={t('Date in cui BTC ha storicamente invertito o accelerato.')}
-        right={<Link to="/eventi" className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-slate-300 transition-colors hover:border-white/20 hover:text-white">{t('Calendario eventi')}<ArrowRight size={14} /></Link>} />
-      <TabBar tabs={TABS.map((x) => ({ ...x, label: t(x.label) }))} value={tab} onChange={setTab} />
+      <PageActions>
+        <Segmented value={tab} onChange={setTab} options={TABS.map((x) => ({ value: x.value, label: t(x.label) }))} />
+        <Link to="/macro?tab=eventi" className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-fg-2 transition-colors hover:border-line-strong hover:text-white">{t('Calendario eventi')}<ArrowRight size={14} /></Link>
+      </PageActions>
       <Q q={q} loading={<Loading />} isEmpty={(d) => !d.seasonality}>
         {(d) => (
           <div className="flex flex-col gap-3">

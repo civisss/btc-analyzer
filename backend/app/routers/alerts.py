@@ -17,7 +17,7 @@ async def alerts_route(limit: int = Query(50, ge=1, le=500), since: int | None =
     if severity is not None and severity not in al.SEVERITIES:
         raise HTTPException(400, "severity non valida (info | warning | critical)")
     al.start()  # fallback: avvia il motore se main.py non l'ha ancora fatto (idempotente)
-    if category:  # filtro per categoria (es. "custom,journal" per la pagina Avvisi)
+    if category:  # filtro per categoria (es. "custom" per la pagina Avvisi)
         cats = set(category.split(","))
         return {"items": [a for a in al.history(500, since, severity) if a.get("category") in cats][:limit], **al.status()}
     return {"items": al.history(limit, since, severity), **al.status()}

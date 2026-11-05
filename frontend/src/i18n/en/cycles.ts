@@ -4,13 +4,10 @@ const en: Record<string, string> = {
   "Panoramica": "Overview",
   "Orologio del ciclo": "Cycle clock",
   "Miner": "Miners",
-  "Confronto cicli": "Cycle comparison",
   "Leva": "Leverage",
   "Halving, durate, proiezioni e modelli di lungo periodo.": "Halvings, durations, projections and long-term models.",
   "Cycle Score 0–100 da 9 indicatori, con backtest sui cicli passati.": "Cycle Score 0–100 from 9 indicators, backtested on past cycles.",
   "Hash Ribbons, difficoltà e ricavi dei miner.": "Hash Ribbons, difficulty and miner revenue.",
-  "I cicli precedenti allo stesso punto del ciclo attuale.": "Previous cycles at the same point as the current one.",
-  "Funding, perp/spot e open interest per fase del ciclo.": "Funding, perp/spot and open interest by cycle phase.",
   "Blocco {n}": "Block {n}",
   "Tra {n} giorni (stima)": "In {n} days (est.)",
   "Confidenza {v}%": "Confidence {v}%",
@@ -230,8 +227,5 @@ const en: Record<string, string> = {
   "Tratteggio = funding 0% e 10.95% (0.01%/8h, base Binance)": "Dashed = funding 0% and 10.95% (0.01%/8h, Binance base)",
   "Giorni per fase · barre tratteggiate = ciclo in corso (stima)": "Days per phase · dashed bars = current cycle (est.)",
   "Confronto delle durate per ciclo; un colore per metrica. Le barre tratteggiate sono la stima per il ciclo in corso, ottenuta dalla tendenza dei cicli precedenti.": "Durations by cycle, one colour per metric. Dashed bars are the estimate for the current cycle, derived from the trend of previous cycles.",
-  "Soglie: massimi 80 / 90, minimi 20 / 10. \"Estremo 12 mesi\" = punto più alto (massimi) o più basso (minimi) dello score nei 365 g prima dell'evento.": "Thresholds: tops 80 / 90, lows 20 / 10. \"12-month extreme\" = highest (tops) or lowest (lows) score in the 365 days before the event.",
-  "Multiplo = prezzo del giorno / prezzo all'ancora (halving, massimo o minimo).": "Multiple = price on the day / price at the anchor (halving, top or low).",
-  "Lo score storico è quello walk-forward (senza dati futuri) dell'Orologio del ciclo.": "The historical score is the walk-forward one (no future data) from the Cycle clock.",
 }
 export default en

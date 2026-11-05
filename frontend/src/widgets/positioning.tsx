@@ -7,6 +7,7 @@ import { C, FONT, areaGradient, axisLabel, hexA, legendBase, lineSeries, tooltip
 import { Badge, clsx } from '../components/ui'
 import { cap, t, tr } from '../i18n'
 import { DASH, date, dayUnit, pct, usd, usdCompact } from '../lib/format'
+import { T, alpha } from '../theme/tokens'
 
 type Num = number | null | undefined
 export const fin = (v: Num): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -24,8 +25,8 @@ function row(color: string, name: string, val: string) {
 }
 const head = (s: string) => `<div style="color:${C.muted};margin-bottom:4px">${s}</div>`
 const priceLine = (x: number, label: string) => ({
-  xAxis: x, lineStyle: { color: C.btc, type: 'solid', width: 1 },
-  label: { formatter: label, color: C.btc, fontSize: 11, fontFamily: FONT, position: 'end', rotate: 0, distance: 4 },
+  xAxis: x, lineStyle: { color: C.accent, type: 'solid', width: 1 },
+  label: { formatter: label, color: C.accent, fontSize: 11, fontFamily: FONT, position: 'end', rotate: 0, distance: 4 },
 })
 const greyLine = (x: number, label: string) => ({
   xAxis: x, lineStyle: { color: hexA(C.grey, 0.7), type: 'dashed', width: 1 },
@@ -56,9 +57,9 @@ export function OiStrikeChart({ strikes, price, maxPain, unit, range, height = 3
         axisLabel: { ...axisLabel, formatter: strikeFmt, hideOverlap: true } },
       yAxis: valueAxis({ scale: false, axisLabel: { ...axisLabel, formatter: (v: number) => (unit === 'usd' ? usdCompact(Math.abs(v), 1).replace(/\.0(?=[KMBT]?$)/, '') : Math.abs(v).toLocaleString('en-US')) } }),
       series: [
-        { name: 'Call', type: 'bar', data: strikes.map((s) => [s.strike, val(s, 'calls')]), itemStyle: { color: C.blue }, barMaxWidth: 10, barGap: '-100%',
+        { name: 'Call', type: 'bar', data: strikes.map((s) => [s.strike, val(s, 'calls')]), itemStyle: { color: C.accent }, barMaxWidth: 10, barGap: '-100%',
           markLine: { symbol: 'none', silent: true, data: marks } },
-        { name: 'Put', type: 'bar', data: strikes.map((s) => [s.strike, -val(s, 'puts')]), itemStyle: { color: C.purple }, barMaxWidth: 10 },
+        { name: 'Put', type: 'bar', data: strikes.map((s) => [s.strike, -val(s, 'puts')]), itemStyle: { color: C.steel }, barMaxWidth: 10 },
       ],
     }
   }, [strikes, price, maxPain, unit, range])
@@ -80,9 +81,9 @@ export function GammaChart({ profile, price, height = 260 }: { profile: OptionsD
       axisLabel: { ...axisLabel, formatter: strikeFmt, hideOverlap: true } },
     yAxis: valueAxis({ scale: false, axisLabel: { ...axisLabel, formatter: (v: number) => usdCompact(v, 0) } }),
     series: [
-      { name: 'Gamma call', type: 'bar', stack: 'g', data: profile.map((p) => [p.strike, p.calls]), itemStyle: { color: C.blue }, barMaxWidth: 10,
+      { name: 'Gamma call', type: 'bar', stack: 'g', data: profile.map((p) => [p.strike, p.calls]), itemStyle: { color: C.accent }, barMaxWidth: 10,
         markLine: { symbol: 'none', silent: true, data: [priceLine(price, t('Prezzo'))] } },
-      { name: 'Gamma put', type: 'bar', stack: 'g', data: profile.map((p) => [p.strike, p.puts]), itemStyle: { color: C.purple }, barMaxWidth: 10 },
+      { name: 'Gamma put', type: 'bar', stack: 'g', data: profile.map((p) => [p.strike, p.puts]), itemStyle: { color: C.steel }, barMaxWidth: 10 },
     ],
   }), [profile, price])
   return <EChart option={option} height={height} />
@@ -90,7 +91,7 @@ export function GammaChart({ profile, price, height = 260 }: { profile: OptionsD
 
 // ------------------------------------------------------------------ smile IV
 // nearest expiries overlap the most: blue and teal for them, violet for the far one
-const SMILE_COLORS = [C.blue, C.teal, C.purple]
+const SMILE_COLORS = [C.accent, C.sand, C.steel]
 export function SmileChart({ smiles, height = 280 }: { smiles: OptionsData['smiles']; height?: number | string }) {
   const option = useMemo(() => {
     const names = smiles.map((s) => `${date(s.expiry, false)} · ${Math.round(s.days)}${dayUnit()}`)
@@ -133,8 +134,8 @@ export function TermChart({ term, height = 280 }: { term: OptionsData['term_stru
         valueAxis({ position: 'right', splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: (v: number) => sfx(v, 1) } }),
       ],
       series: [
-        lineSeries(nIv, term.filter((x) => fin(x.atm_iv)).map((x) => [x.days, x.atm_iv, x.expiry]), C.blue, {
-          showSymbol: true, symbol: 'circle', symbolSize: 5, areaStyle: { color: areaGradient(C.blue, 0.18, 0) } }),
+        lineSeries(nIv, term.filter((x) => fin(x.atm_iv)).map((x) => [x.days, x.atm_iv, x.expiry]), C.accent, {
+          showSymbol: true, symbol: 'circle', symbolSize: 5, areaStyle: { color: areaGradient(C.accent, 0.18, 0) } }),
         lineSeries(nSk, term.filter((x) => fin(x.skew_25d)).map((x) => [x.days, x.skew_25d, x.expiry]), C.grey, {
           yAxisIndex: 1, showSymbol: true, symbol: 'circle', symbolSize: 4, lineStyle: { width: 1.25, color: C.grey, type: 'dashed' },
           markLine: { symbol: 'none', silent: true, data: [{ yAxis: 0, lineStyle: { color: hexA(C.grey, 0.35), type: 'dotted' }, label: { show: false } }] },
@@ -172,16 +173,16 @@ export function ExpiryTable({ rows }: { rows: ExpiryRow[] }) {
             const big = r.kind === 'mensile' || r.kind === 'trimestrale'
             return (
               <tr key={r.expiry}>
-                <td className={clsx(TL, big ? 'font-medium text-white' : 'text-slate-200')}>{date(r.expiry)}</td>
-                <td className={big ? 'text-slate-200' : 'text-slate-400'}>{kindLabel(r.kind)}</td>
-                <td className="text-right text-slate-300">{r.days < 1 ? `${Math.max(1, Math.round(r.days * 24))}h` : `${Math.round(r.days)}${dayUnit()}`}</td>
+                <td className={clsx(TL, big ? 'font-medium text-white' : 'text-fg')}>{date(r.expiry)}</td>
+                <td className={big ? 'text-fg' : 'text-fg-3'}>{kindLabel(r.kind)}</td>
+                <td className="text-right text-fg-2">{r.days < 1 ? `${Math.max(1, Math.round(r.days * 24))}h` : `${Math.round(r.days)}${dayUnit()}`}</td>
                 <td className="text-right font-medium text-white">{usd(r.max_pain)}</td>
-                <td className="text-right text-slate-300">{pct(r.max_pain_dist, 1)}</td>
-                <td className="text-right text-slate-200">{usdCompact(r.notional_usd, 2)}</td>
-                <td className="text-right text-slate-300">{Math.round(r.oi_calls).toLocaleString('en-US')} / {Math.round(r.oi_puts).toLocaleString('en-US')}</td>
-                <td className="text-right text-slate-200">{fx(r.pc_oi)}</td>
-                <td className="text-right text-slate-300">{fin(r.atm_iv) ? `${r.atm_iv.toFixed(1)}%` : DASH}</td>
-                <td className={clsx(TR, 'text-slate-300')}>{fin(r.skew_25d) ? `${sfx(r.skew_25d)} pt` : DASH}</td>
+                <td className="text-right text-fg-2">{pct(r.max_pain_dist, 1)}</td>
+                <td className="text-right text-fg">{usdCompact(r.notional_usd, 2)}</td>
+                <td className="text-right text-fg-2">{Math.round(r.oi_calls).toLocaleString('en-US')} / {Math.round(r.oi_puts).toLocaleString('en-US')}</td>
+                <td className="text-right text-fg">{fx(r.pc_oi)}</td>
+                <td className="text-right text-fg-2">{fin(r.atm_iv) ? `${r.atm_iv.toFixed(1)}%` : DASH}</td>
+                <td className={clsx(TR, 'text-fg-2')}>{fin(r.skew_25d) ? `${sfx(r.skew_25d)} pt` : DASH}</td>
               </tr>
             )
           })}
@@ -197,7 +198,7 @@ export const SENT_ZONES = [
   { lo: 0, hi: 25, label: 'Paura estrema' }, { lo: 25, hi: 40, label: 'Paura' }, { lo: 40, hi: 60, label: 'Neutrale' },
   { lo: 60, hi: 75, label: 'Avidità' }, { lo: 75, hi: 100, label: 'Euforia' },
 ]
-const ZONE_GRAD = 'linear-gradient(90deg, rgba(239,84,102,0.55), rgba(239,84,102,0.16) 32%, rgba(140,150,173,0.16) 50%, rgba(46,189,133,0.16) 68%, rgba(46,189,133,0.55))'
+const ZONE_GRAD = `linear-gradient(90deg, ${alpha(T.down, 0.55)}, ${alpha(T.down, 0.16)} 32%, ${alpha(T.fg3, 0.16)} 50%, ${alpha(T.up, 0.16)} 68%, ${alpha(T.up, 0.55)})`
 export function SentimentTrack({ value }: { value: number }) {
   const v = Math.max(0, Math.min(100, value))
   return (
@@ -206,7 +207,7 @@ export function SentimentTrack({ value }: { value: number }) {
         {[25, 40, 60, 75].map((b) => <div key={b} className="absolute inset-y-0 w-px bg-black/50" style={{ left: `${b}%` }} />)}
         <div className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-bg bg-white shadow" style={{ left: `${v}%` }} />
       </div>
-      <div className="relative mt-1.5 h-4 text-2xs text-slate-400">
+      <div className="relative mt-1.5 h-4 text-2xs text-fg-3">
         {SENT_ZONES.map((z, i) => (
           <span key={z.label} className={clsx('absolute whitespace-nowrap', i === 0 ? 'left-0' : i === SENT_ZONES.length - 1 ? 'right-0' : '-translate-x-1/2', (i === 1 || i === 3) && 'hidden sm:inline')}
             style={i === 0 || i === SENT_ZONES.length - 1 ? undefined : { left: `${(z.lo + z.hi) / 2}%` }}>{t(z.label)}</span>
@@ -221,19 +222,19 @@ export function ScoreTrack({ score }: { score: Num }) {
   const s = fin(score) ? Math.max(0, Math.min(100, score)) : null
   return (
     <div className="relative h-1 w-full overflow-hidden rounded-full bg-white/[0.05]">
-      {s != null && <div className="absolute inset-y-0 left-0 rounded-full bg-slate-300/60" style={{ width: `${s}%` }} />}
+      {s != null && <div className="absolute inset-y-0 left-0 rounded-full bg-fg-2/60" style={{ width: `${s}%` }} />}
     </div>
   )
 }
 
 // ------------------------------------------------------------------ backtest
-const ret = (v: Num) => { const z = fin(v) && Math.abs(v) < 0.05; return <span className={clsx('tnum', !fin(v) || z ? 'text-slate-400' : v >= 0 ? 'text-up' : 'text-down')}>{pct(z ? 0 : v, 1)}</span> }
-const hit = (v: Num) => <span className="tnum text-slate-300">{fin(v) ? `${v.toFixed(0)}%` : DASH}</span>
+const ret = (v: Num) => { const z = fin(v) && Math.abs(v) < 0.05; return <span className={clsx('tnum', !fin(v) || z ? 'text-fg-3' : v >= 0 ? 'text-up' : 'text-down')}>{pct(z ? 0 : v, 1)}</span> }
+const hit = (v: Num) => <span className="tnum text-fg-2">{fin(v) ? `${v.toFixed(0)}%` : DASH}</span>
 const med = (n: number) => t('{n}g mediana', { n })
 
 export function ZoneBacktestTable({ bt, currentZone }: { bt: SentimentData['backtest']; currentZone: string }) {
   const rows: { label: ReactNode; b: BacktestBlock; cur?: boolean; base?: boolean }[] = [
-    ...bt.zones.map((z) => ({ label: <>{t(z.zone)} <span className="text-slate-400">{z.lo}–{z.hi}</span></>, b: z, cur: z.zone === currentZone })),
+    ...bt.zones.map((z) => ({ label: <>{t(z.zone)} <span className="text-fg-3">{z.lo}–{z.hi}</span></>, b: z, cur: z.zone === currentZone })),
     { label: t('Tutti i giorni'), b: bt.baseline, base: true },
   ]
   return (
@@ -254,9 +255,9 @@ export function ZoneBacktestTable({ bt, currentZone }: { bt: SentimentData['back
         <tbody>
           {rows.map((r, i) => (
             <tr key={i} className={clsx(r.base && '[&_td]:border-t-white/15')}>
-              <td className={clsx(TL, 'whitespace-nowrap', r.cur ? 'font-medium text-white' : 'text-slate-200')}>{r.label}{r.cur && <Badge color="blue" className="ml-2">{tr('Ora', 'Now')}</Badge>}</td>
-              <td className="text-right text-slate-300">{r.b.days.toLocaleString('en-US')}</td>
-              <td className="text-right text-slate-300">{r.base ? DASH : r.b.episodes}</td>
+              <td className={clsx(TL, 'whitespace-nowrap', r.cur ? 'font-medium text-white' : 'text-fg')}>{r.label}{r.cur && <Badge color="blue" className="ml-2">{tr('Ora', 'Now')}</Badge>}</td>
+              <td className="text-right text-fg-2">{r.b.days.toLocaleString('en-US')}</td>
+              <td className="text-right text-fg-2">{r.base ? DASH : r.b.episodes}</td>
               <td className="text-right">{ret(r.b.r7_median)}</td>
               <td className="text-right">{ret(r.b.r30_median)}</td>
               <td className="text-right">{hit(r.b.hit30)}</td>
@@ -288,18 +289,18 @@ export function ComponentBacktestTable({ bt }: { bt: SentimentData['backtest'] }
         <tbody>
           {bt.components.map((c) => (
             <tr key={c.key}>
-              <td className={clsx(TL, 'whitespace-nowrap text-slate-200')}>{c.label}</td>
+              <td className={clsx(TL, 'whitespace-nowrap text-fg')}>{c.label}</td>
               {c.enough && c.fear && c.greed ? (
                 <>
-                  <td className="text-right text-slate-300">{c.fear.episodes}</td>
+                  <td className="text-right text-fg-2">{c.fear.episodes}</td>
                   <td className="text-right">{ret(c.fear.r30_median)}</td>
-                  <td className="text-right">{ret(c.fear.r90_median)} <span className="text-slate-400">·</span> {hit(c.fear.hit90)}</td>
-                  <td className="text-right text-slate-300">{c.greed.episodes}</td>
+                  <td className="text-right">{ret(c.fear.r90_median)} <span className="text-fg-3">·</span> {hit(c.fear.hit90)}</td>
+                  <td className="text-right text-fg-2">{c.greed.episodes}</td>
                   <td className="text-right">{ret(c.greed.r30_median)}</td>
-                  <td className={TR}>{ret(c.greed.r90_median)} <span className="text-slate-400">·</span> {hit(c.greed.hit90)}</td>
+                  <td className={TR}>{ret(c.greed.r90_median)} <span className="text-fg-3">·</span> {hit(c.greed.hit90)}</td>
                 </>
               ) : (
-                <td colSpan={6} className={clsx(TR, 'text-slate-400')}>{c.since ? t('Storico insufficiente (dal {d})', { d: date(c.since) }) : t('Storico insufficiente')}</td>
+                <td colSpan={6} className={clsx(TR, 'text-fg-3')}>{c.since ? t('Storico insufficiente (dal {d})', { d: date(c.since) }) : t('Storico insufficiente')}</td>
               )}
             </tr>
           ))}

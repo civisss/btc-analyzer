@@ -39,7 +39,7 @@ function Templates({ price }: { price: number | null }) {
     <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 sm:flex-wrap">
       {items.map((it) => (
         <button key={it.label} onClick={it.open} disabled={!price} className="chip chip-off disabled:opacity-40">
-          <it.icon size={13} className="text-slate-500" />{it.label}
+          <it.icon size={13} className="text-fg-4" />{it.label}
         </button>
       ))}
     </div>
@@ -64,17 +64,17 @@ function RuleRow({ r, now, onTest, test, testing, tick }: { r: AlertRule; now: n
     ? (r.cooldown_until && r.cooldown_until > now ? t('Cooldown fino alle {h}', { h: dateTime(r.cooldown_until).split(' ').pop() }) : nextIn(r, now, tick))
     : r.status === 'expired' ? t('Scaduta il {d}', { d: dateTime(r.expires_at) }) : '—'
   return (
-    <div className={clsx('border-t border-white/[0.05] px-4 py-3 first:border-t-0 sm:px-5', r.status !== 'active' && 'opacity-[0.78]')}>
+    <div className={clsx('border-t border-line-subtle px-4 py-3 first:border-t-0 sm:px-5', r.status !== 'active' && 'opacity-[0.78]')}>
       <div className="grid grid-cols-1 items-center gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_auto]">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-white/[0.04] text-slate-400 ring-1 ring-inset ring-white/[0.06]"><M.icon size={15} /></span>
+          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.04] text-fg-3 ring-1 ring-inset ring-line-subtle"><M.icon size={15} /></span>
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate text-sm font-medium text-white" title={r.name}>{r.name}</span>
               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: sev.hex }} title={t(sev.label)} />
             </div>
-            <div className="truncate text-xs text-slate-400" title={ruleSummary(r)}>{cap(ruleSummary(r))}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-slate-500">
+            <div className="truncate text-xs text-fg-3" title={ruleSummary(r)}>{cap(ruleSummary(r))}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-fg-4">
               <span className="inline-flex items-center gap-1.5"><span className={clsx('h-1.5 w-1.5 rounded-full', st.dot, r.status === 'active' && 'live-dot')} />{t(st.label)}</span>
               <span>·</span><span>{r.repeat ? t('Ripetibile') : t('Una volta')}</span>
               <span>·</span><span>{t('Cooldown {c}', { c: r.cooldown_min < 60 ? `${r.cooldown_min} min` : r.cooldown_min < 1440 ? `${r.cooldown_min / 60} h` : `${r.cooldown_min / 1440} ${dayUnit()}` })}</span>
@@ -84,20 +84,20 @@ function RuleRow({ r, now, onTest, test, testing, tick }: { r: AlertRule; now: n
         </div>
         <div className="hidden min-w-0 lg:block">
           <div className="label">{t('Valore attuale')}</div>
-          <div className="tnum truncate text-sm text-slate-200">
+          <div className="tnum truncate text-sm text-fg">
             {fmtRuleValue(r.type, r.params, r.current.value)}
-            {r.current.condition != null && <span className={clsx('ml-1.5 text-2xs', r.current.condition ? 'text-amber-400' : 'text-slate-500')}>{r.current.condition ? t('vera') : t('falsa')}</span>}
+            {r.current.condition != null && <span className={clsx('ml-1.5 text-2xs', r.current.condition ? 'text-warn' : 'text-fg-4')}>{r.current.condition ? t('vera') : t('falsa')}</span>}
           </div>
         </div>
         <div className="hidden min-w-0 lg:block">
           <div className="label">{t('Ultimo avviso')}</div>
-          <div className="tnum truncate text-sm text-slate-200" title={r.last_fired ? dateTime(r.last_fired) : undefined}>
-            {r.last_fired ? relAgo(r.last_fired, now) : t('Mai')}{r.fire_count > 0 && <span className="ml-1.5 text-2xs text-slate-500">×{r.fire_count}</span>}
+          <div className="tnum truncate text-sm text-fg" title={r.last_fired ? dateTime(r.last_fired) : undefined}>
+            {r.last_fired ? relAgo(r.last_fired, now) : t('Mai')}{r.fire_count > 0 && <span className="ml-1.5 text-2xs text-fg-4">×{r.fire_count}</span>}
           </div>
         </div>
         <div className="hidden min-w-0 lg:block">
           <div className="label">{t('Prossimo controllo')}</div>
-          <div className="tnum truncate text-sm text-slate-300">{next}</div>
+          <div className="tnum truncate text-sm text-fg-2">{next}</div>
         </div>
         <div className="flex items-center justify-start gap-1.5 sm:justify-end">
           <IconBtn icon={<FlaskConical size={14} />} label={t('Verifica ora')} onClick={onTest} active={!!test} disabled={testing} />
@@ -106,18 +106,18 @@ function RuleRow({ r, now, onTest, test, testing, tick }: { r: AlertRule; now: n
           <Switch on={r.enabled && r.status !== 'expired'} onChange={toggle} label={r.enabled ? t('Metti in pausa') : t('Attiva')} disabled={update.isPending} />
         </div>
         {/* compact meta on phones / tablets */}
-        <div className="tnum flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400 sm:col-span-2 lg:hidden">
-          <span>{t('Valore')} <b className="font-medium text-slate-200">{fmtRuleValue(r.type, r.params, r.current.value)}</b></span>
-          <span>{t('Ultimo avviso')} <b className="font-medium text-slate-200">{r.last_fired ? relAgo(r.last_fired, now) : t('Mai')}</b></span>
+        <div className="tnum flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-3 sm:col-span-2 lg:hidden">
+          <span>{t('Valore')} <b className="font-medium text-fg">{fmtRuleValue(r.type, r.params, r.current.value)}</b></span>
+          <span>{t('Ultimo avviso')} <b className="font-medium text-fg">{r.last_fired ? relAgo(r.last_fired, now) : t('Mai')}</b></span>
           <span>{next}</span>
         </div>
       </div>
       {test && (
-        <div className={clsx('mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl px-3 py-2 text-xs ring-1 ring-inset', test.would_fire ? 'bg-amber-400/[0.07] ring-amber-400/20' : 'bg-white/[0.025] ring-white/[0.06]')}>
-          <span className="tnum text-slate-300">{t('Valore')} <b className="font-medium text-white">{fmtRuleValue(r.type, r.params, test.value)}</b></span>
-          {test.threshold != null && <span className="tnum text-slate-300">{t('Soglia')} <b className="font-medium text-white">{fmtRuleValue(r.type, r.params, test.threshold)}</b></span>}
-          <span className={test.would_fire ? 'font-medium text-amber-300' : 'text-slate-400'}>{test.would_fire ? t('Scatterebbe ora') : t('Non scatterebbe ora')}</span>
-          <span className="min-w-0 text-slate-400">{reasonText(test.reason)}</span>
+        <div className={clsx('mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl px-3 py-2 text-xs ring-1 ring-inset', test.would_fire ? 'bg-warn/[0.07] ring-warn/20' : 'bg-white/[0.025] ring-line-subtle')}>
+          <span className="tnum text-fg-2">{t('Valore')} <b className="font-medium text-white">{fmtRuleValue(r.type, r.params, test.value)}</b></span>
+          {test.threshold != null && <span className="tnum text-fg-2">{t('Soglia')} <b className="font-medium text-white">{fmtRuleValue(r.type, r.params, test.threshold)}</b></span>}
+          <span className={test.would_fire ? 'font-medium text-warn' : 'text-fg-3'}>{test.would_fire ? t('Scatterebbe ora') : t('Non scatterebbe ora')}</span>
+          <span className="min-w-0 text-fg-3">{reasonText(test.reason)}</span>
         </div>
       )}
     </div>
@@ -135,12 +135,12 @@ export default function AlertsPage() {
   const [testing, setTesting] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
   // a custom toast means a rule changed state (last fired / one-shot): refresh right away
-  useEffect(() => live.onToast((a) => { if (a.category === 'custom' || a.category === 'journal') { qc.invalidateQueries({ queryKey: ['alertRules'] }); qc.invalidateQueries({ queryKey: ['alerts', 'custom'] }) } }), [qc])
+  useEffect(() => live.onToast((a) => { if (a.category === 'custom') { qc.invalidateQueries({ queryKey: ['alertRules'] }); qc.invalidateQueries({ queryKey: ['alerts', 'custom'] }) } }), [qc])
 
   const items = q.data?.items ?? []
   const shown = items.filter((r) => filter === 'all' || (filter === 'active' ? r.status === 'active' : r.status !== 'active'))
   const active = items.filter((r) => r.status === 'active').length
-  const hist = useMemo(() => (hq.data?.items ?? []).filter((a) => a.category === 'custom' || a.category === 'journal'), [hq.data])
+  const hist = useMemo(() => (hq.data?.items ?? []).filter((a) => a.category === 'custom'), [hq.data])
   const today = hist.filter((a) => now - a.time < 86400).length
   const last = hist[0]
   const lastEval = q.data?.last_eval ?? null
@@ -173,10 +173,10 @@ export default function AlertsPage() {
           <Card>
             <CardHeader title={t('Le tue regole')} icon={<Bell />} accent="amber" updatedAt={q.dataUpdatedAt} interval={20_000}
               right={
-                <div className="seg flex rounded-[10px] p-0.5">
+                <div className="seg flex rounded-lg p-0.5">
                   {(['all', 'active', 'inactive'] as const).map((f) => (
                     <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f}
-                      className={clsx('h-8 rounded-lg px-2.5 text-xs font-medium sm:h-6', filter === f ? 'seg-pill text-white' : 'text-slate-400 hover:text-white')}>
+                      className={clsx('h-8 rounded-lg px-2.5 text-xs font-medium sm:h-6', filter === f ? 'seg-pill text-white' : 'text-fg-3 hover:text-white')}>
                       {f === 'all' ? t('Tutte') : f === 'active' ? t('Attive') : t('Non attive')}
                     </button>
                   ))}
@@ -187,9 +187,9 @@ export default function AlertsPage() {
                 {() => shown.length ? (
                   <div>{shown.map((r) => <RuleRow key={r.id} r={r} now={now} tick={q.data?.tick_s ?? 20} onTest={() => runTest(r.id)} test={tests[r.id]} testing={testing === r.id} />)}</div>
                 ) : (
-                  <div className="mx-4 mb-2 flex flex-col items-center gap-2 rounded-xl border border-dashed border-white/[0.08] px-6 py-10 text-center sm:mx-5">
-                    <Bell size={18} className="text-slate-500" />
-                    <p className="max-w-sm text-sm text-slate-300">{items.length ? t('Nessuna regola in questo filtro.') : t('Nessun avviso personale. Creane uno da un modello qui sopra, dal grafico o dalla tabella dei livelli.')}</p>
+                  <div className="mx-4 mb-2 flex flex-col items-center gap-2 rounded-xl border border-dashed border-line px-6 py-10 text-center sm:mx-5">
+                    <Bell size={18} className="text-fg-4" />
+                    <p className="max-w-sm text-sm text-fg-2">{items.length ? t('Nessuna regola in questo filtro.') : t('Nessun avviso personale. Creane uno da un modello qui sopra, dal grafico o dalla tabella dei livelli.')}</p>
                   </div>
                 )}
               </Q>
@@ -202,27 +202,27 @@ export default function AlertsPage() {
             <Q q={hq} loading={<div className="px-5 pb-4"><Skeleton className="h-60" /></div>} isEmpty={() => false}>
               {() => !hist.length ? (
                 // dashed "empty well" filling the card: same treatment as the empty rules list, no blank band around a floating line
-                <div className="mx-4 mb-2 flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.08] px-6 py-10 text-center sm:mx-5">
-                  <History size={18} className="text-slate-500" />
-                  <p className="max-w-xs text-sm text-slate-300">{t('Ancora nessun avviso personale.')}</p>
-                  <p className="max-w-xs text-xs text-slate-500">{t('Qui compaiono gli avvisi scattati e le revisioni del diario, dal più recente.')}</p>
+                <div className="mx-4 mb-2 flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line px-6 py-10 text-center sm:mx-5">
+                  <History size={18} className="text-fg-4" />
+                  <p className="max-w-xs text-sm text-fg-2">{t('Ancora nessun avviso personale.')}</p>
+                  <p className="max-w-xs text-xs text-fg-4">{t('Qui compaiono gli avvisi scattati e le revisioni del diario, dal più recente.')}</p>
                 </div>
               ) : (
                 <div>
                   {hist.map((a) => {
                     const sev = SEVERITY_META[a.severity] ?? SEVERITY_META.info
                     return (
-                      <button key={a.id} onClick={() => a.link && nav(a.link)} className="flex w-full gap-3 border-t border-white/[0.05] px-4 py-2.5 text-left transition-colors first:border-t-0 hover:bg-white/[0.03] sm:px-5">
+                      <button key={a.id} onClick={() => a.link && nav(a.link)} className="flex w-full gap-3 border-t border-line-subtle px-4 py-2.5 text-left transition-colors first:border-t-0 hover:bg-white/[0.03] sm:px-5">
                         <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: sev.hex, boxShadow: `0 0 8px ${sev.hex}99` }} title={t(sev.label)} />
                         <span className="min-w-0 flex-1">
                           <span className="flex items-baseline justify-between gap-2">
-                            <span className="min-w-0 truncate text-sm font-medium text-slate-100">{a.title}</span>
-                            <span className="tnum shrink-0 text-2xs text-slate-500" title={dateTime(a.time)}>{relAgo(a.time, now)}</span>
+                            <span className="min-w-0 truncate text-sm font-medium text-fg">{a.title}</span>
+                            <span className="tnum shrink-0 text-2xs text-fg-4" title={dateTime(a.time)}>{relAgo(a.time, now)}</span>
                           </span>
-                          {a.text && <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-slate-400">{cap(a.text)}</span>}
-                          <span className="mt-1 flex items-center gap-1.5 text-2xs text-slate-500">
-                            <span>{a.category === 'journal' ? t('Diario') : t('Avvisi personali')}</span>
-                            {a.silent && <span className="text-slate-600">· {t('Solo storico')}</span>}
+                          {a.text && <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-fg-3">{cap(a.text)}</span>}
+                          <span className="mt-1 flex items-center gap-1.5 text-2xs text-fg-4">
+                            <span>{t('Avvisi personali')}</span>
+                            {a.silent && <span className="text-fg-off">· {t('Solo storico')}</span>}
                           </span>
                         </span>
                       </button>

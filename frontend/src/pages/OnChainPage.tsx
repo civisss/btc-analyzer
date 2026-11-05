@@ -8,6 +8,7 @@ import { C } from '../components/charts/theme'
 import { Card, CardBody, CardHeader, Change, Fill, PageTitle, ProgressBar, Q, Skeleton, Toggle, clsx } from '../components/ui'
 import { TimeLinesChart } from '../widgets/charts'
 import { compact, date, dayUnit, daysUntil, int, usdCompact, pct } from '../lib/format'
+import { T, alpha } from '../theme/tokens'
 
 // ------------------------------------------------------------------ copy & formatting (front-end only, never truncated)
 // Italian source strings: translated at the use site with t().
@@ -99,9 +100,9 @@ function ZonesCard({ metrics, active, onSelect }: { metrics: OnChainMetric[]; ac
             <button key={m.key} onClick={() => onSelect(m.key)} aria-pressed={on}
               className={clsx('-mx-2 flex min-w-0 flex-col gap-1.5 rounded-lg border-t border-line px-2 py-2.5 text-left transition-colors first:border-t-0 hover:bg-white/[0.03]', on && 'bg-white/[0.04]')}>
               <span className="flex items-baseline justify-between gap-2 text-sm">
-                <span className={clsx('min-w-0 truncate', on ? 'text-white' : 'text-slate-300')}>{LABEL[m.key] ? t(LABEL[m.key]) : m.label}</span>
+                <span className={clsx('min-w-0 truncate', on ? 'text-white' : 'text-fg-2')}>{LABEL[m.key] ? t(LABEL[m.key]) : m.label}</span>
                 <span className="flex shrink-0 items-baseline gap-2 whitespace-nowrap">
-                  <span className="text-2xs text-slate-400">{t(zoneOf(m.key, m.value))}</span>
+                  <span className="text-2xs text-fg-3">{t(zoneOf(m.key, m.value))}</span>
                   <span className="tnum font-medium text-white">{z.fmt(m.value)}</span>
                 </span>
               </span>
@@ -110,7 +111,7 @@ function ZonesCard({ metrics, active, onSelect }: { metrics: OnChainMetric[]; ac
                 <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-bg bg-white" style={{ left: `${pos(m.value)}%` }} />
               </span>
               {/* thresholds only (the current zone sits next to the value): fits the narrow 1440 column without overflowing */}
-              <span className="tnum flex min-w-0 justify-between gap-2 whitespace-nowrap text-2xs text-slate-400">
+              <span className="tnum flex min-w-0 justify-between gap-2 whitespace-nowrap text-2xs text-fg-3">
                 <span className="min-w-0 truncate">{t('{l} < {v}', { l: t(z.loLabel), v: z.fmt(z.lo) })}</span>
                 <span className="min-w-0 truncate text-right">{t('{l} > {v}', { l: t(z.hiLabel), v: z.fmt(z.hi) })}</span>
               </span>
@@ -127,15 +128,15 @@ function MetricCell({ m, active, onClick }: { m: OnChainMetric; active: boolean;
   const status = shortStatus(m.status)
   return (
     <div className={clsx('relative min-w-0', active ? 'bg-raised' : 'bg-surface')}>
-      {active && <span className="absolute inset-x-0 top-0 h-0.5 bg-accent-blue" />}
+      {active && <span className="absolute inset-x-0 top-0 h-0.5 bg-accent" />}
       <button onClick={onClick} aria-pressed={active} title={INFO[m.key] ? `${m.label}: ${t(INFO[m.key])}` : m.label}
         className="flex h-full w-full min-w-0 flex-col px-4 py-3 text-left transition-colors hover:bg-white/[0.02]">
-        <span className={clsx('label', active && 'text-slate-200')}>{label}</span>
+        <span className={clsx('label', active && 'text-fg')}>{label}</span>
         <span className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-2">
           <span className="tnum whitespace-nowrap text-xl font-semibold text-white">{display(m)}</span>
           <Change value={m.change_30d} digits={1} suffix={`30${dayUnit()}`} className="text-xs" />
         </span>
-        <span className={clsx('mt-0.5 text-xs', isExtreme(m) ? 'text-amber-400' : 'text-slate-400')}>{status}</span>
+        <span className={clsx('mt-0.5 text-xs', isExtreme(m) ? 'text-warn' : 'text-fg-3')}>{status}</span>
         <span className="mt-2 block h-8"><Sparkline data={m.spark} height={32} /></span>
       </button>
     </div>
@@ -146,10 +147,10 @@ function Row({ k, children, foot }: { k: string; children: ReactNode; foot?: str
   return (
     <div className="border-t border-line py-2 first:border-t-0 first:pt-0">
       <div className="flex min-h-6 items-center justify-between gap-3 text-sm">
-        <span className="min-w-0 text-slate-400">{k}</span>
+        <span className="min-w-0 text-fg-3">{k}</span>
         <span className="tnum whitespace-nowrap font-medium text-white">{children}</span>
       </div>
-      {foot && <div className="text-right text-2xs text-slate-400">{foot}</div>}
+      {foot && <div className="text-right text-2xs text-fg-3">{foot}</div>}
     </div>
   )
 }
@@ -195,12 +196,12 @@ export default function OnChainPage() {
                   <CardBody className="flex flex-col">
                     <Fill min={440}><TimeLinesChart height="100%" zoom log={log}
                       lines={[
-                        { name: label, data: series, color: C.blue, axis: 1, area: true },
-                        { name: t('Prezzo BTC'), data: (d.series.price ?? []).filter((x) => x.time >= FROM), color: C.btc, axis: 0 },
+                        { name: label, data: series, color: C.accent, axis: 1, area: true },
+                        { name: t('Prezzo BTC'), data: (d.series.price ?? []).filter((x) => x.time >= FROM), color: C.price, axis: 0 },
                       ]}
                       markLines={zone ? [
-                        { y: zone.lo, color: 'rgba(148,163,184,0.55)', label: `${t(zone.loLabel)} ${zone.fmt(zone.lo)}` },
-                        { y: zone.hi, color: 'rgba(148,163,184,0.55)', label: `${t(zone.hiLabel)} ${zone.fmt(zone.hi)}` },
+                        { y: zone.lo, color: alpha(T.fg3, 0.55), label: `${t(zone.loLabel)} ${zone.fmt(zone.lo)}` },
+                        { y: zone.hi, color: alpha(T.fg3, 0.55), label: `${t(zone.hiLabel)} ${zone.fmt(zone.hi)}` },
                       ] : undefined}
                       y2Fmt={(v) => compact(v, 2)} /></Fill>
                   </CardBody>
@@ -212,12 +213,12 @@ export default function OnChainPage() {
                   <CardBody>
                     <Row k={t('Altezza blocco')}>{n.block_height != null ? int(n.block_height) : '—'}</Row>
                     <Row k={t('Commissioni (sat/vB)')} foot={n.fees ? t('Veloce · 1 ora · economica') : undefined}>{n.fees ? `${n.fees.fastest} · ${n.fees.hour} · ${n.fees.economy}` : '—'}</Row>
-                    <Row k={t('Prossima difficoltà')}><span className="text-slate-300">{n.difficulty_change != null ? pct(n.difficulty_change, 2) : '—'}</span></Row>
+                    <Row k={t('Prossima difficoltà')}><span className="text-fg-2">{n.difficulty_change != null ? pct(n.difficulty_change, 2) : '—'}</span></Row>
                     <Row k={t('Data aggiustamento')}>{n.next_retarget ? date(n.next_retarget) : '—'}</Row>
                     <div className="mt-3 border-t border-line pt-3">
                       <div className="label">{t('Prossimo halving')}</div>
                       <div className="tnum mt-1.5 text-3xl font-semibold text-white">{halvDays != null ? `${int(halvDays)} ${dayUnit()}` : '—'}</div>
-                      <div className="tnum mt-1 text-xs text-slate-400">{n.halving_eta ? t('Stima {d}', { d: date(n.halving_eta) }) : ''}{n.blocks_to_halving != null && ` · ${t('{n} blocchi', { n: int(n.blocks_to_halving) })}`}</div>
+                      <div className="tnum mt-1 text-xs text-fg-3">{n.halving_eta ? t('Stima {d}', { d: date(n.halving_eta) }) : ''}{n.blocks_to_halving != null && ` · ${t('{n} blocchi', { n: int(n.blocks_to_halving) })}`}</div>
                       {n.blocks_to_halving != null && <ProgressBar className="mt-3" value={100 - (n.blocks_to_halving / 210000) * 100} />}
                     </div>
                   </CardBody>

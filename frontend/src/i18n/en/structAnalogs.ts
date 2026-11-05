@@ -122,7 +122,6 @@ const en: Record<string, string> = {
   'p = quota di estrazioni casuali con errore medio non peggiore': 'p = share of random draws with a mean error no worse',
   'Test del segno': 'Sign test',
   'Vs ampiezza mediana': 'Vs median swing',
-  "Quante volte l'errore è minore di quello della baseline, contro il 50% atteso": 'How often the error is below the baseline’s, against 50% expected',
   '2° pivot': '2nd pivot',
   'Etichetta corretta del secondo pivot proiettato': 'Correct label of the second projected pivot',
   'Stabilità nel tempo': 'Stability over time',

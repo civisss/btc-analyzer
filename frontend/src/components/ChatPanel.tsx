@@ -90,9 +90,9 @@ export default function ChatPanel({ className }: { className?: string }) {
 
   return (
     <div className={clsx('flex min-h-0 flex-col gap-3', className)}>
-      <form className="flex items-start gap-2 rounded-md border border-line bg-bg px-3 py-1.5 focus-within:border-white/20"
+      <form className="flex items-start gap-2 rounded-md border border-line bg-bg px-3 py-1.5 focus-within:border-line-strong"
         onSubmit={(e) => { e.preventDefault(); send(input) }}>
-        <span aria-hidden className="select-none pt-1 font-mono text-sm text-slate-400">›</span>
+        <span aria-hidden className="select-none pt-1 font-mono text-sm text-fg-3">›</span>
         <textarea
           ref={inputRef}
           value={input}
@@ -101,7 +101,7 @@ export default function ChatPanel({ className }: { className?: string }) {
           rows={1}
           aria-label={t('Domanda')}
           placeholder={t('Fai una domanda sui dati…')}
-          className="max-h-32 min-h-[28px] flex-1 resize-none bg-transparent py-1 text-sm text-white placeholder:text-slate-400 focus:outline-none"
+          className="max-h-32 min-h-[28px] flex-1 resize-none bg-transparent py-1 text-sm text-white placeholder:text-fg-3 focus:outline-none"
         />
         {busy ? (
           <button type="button" onClick={() => abortRef.current?.abort()} className="btn-ghost h-8">{t('Interrompi')}</button>
@@ -110,7 +110,7 @@ export default function ChatPanel({ className }: { className?: string }) {
         )}
       </form>
 
-      {error && <p className="text-xs text-amber-400">{error}</p>}
+      {error && <p className="text-xs text-warn">{error}</p>}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {exchanges.length === 0 ? (
@@ -119,12 +119,12 @@ export default function ChatPanel({ className }: { className?: string }) {
             <div className="label mb-1">{t('Domande suggerite')}</div>
             <div className="flex flex-col">
               {SUGGESTIONS.map((s) => t(s)).map((s) => (
-                <button key={s} onClick={() => send(s)} className="flex min-h-9 items-center gap-2 border-t border-line text-left text-sm text-slate-400 transition-colors first:border-t-0 hover:text-white">
+                <button key={s} onClick={() => send(s)} className="flex min-h-9 items-center gap-2 border-t border-line text-left text-sm text-fg-3 transition-colors first:border-t-0 hover:text-white">
                   <span aria-hidden className="font-mono">›</span>{s}
                 </button>
               ))}
             </div>
-            <p className="mt-auto pt-4 text-xs leading-relaxed text-slate-500">
+            <p className="mt-auto pt-4 text-xs leading-relaxed text-fg-4">
               {t("Le risposte usano i dati live dell'app: prezzo, cicli, on-chain, derivati, liquidazioni e macro. Non è consulenza finanziaria.")}
             </p>
           </div>
@@ -132,11 +132,11 @@ export default function ChatPanel({ className }: { className?: string }) {
           <div className="flex flex-col">
             {exchanges.map((x, i) => (
               <div key={exchanges.length - i} className="border-t border-line py-3 first:border-t-0 first:pt-0">
-                <p className="flex gap-2 font-mono text-xs text-slate-400"><span aria-hidden>›</span><span className="whitespace-pre-wrap">{x.q}</span></p>
-                <div className="mt-1.5 text-sm text-slate-200">
+                <p className="flex gap-2 font-mono text-xs text-fg-3"><span aria-hidden>›</span><span className="whitespace-pre-wrap">{x.q}</span></p>
+                <div className="mt-1.5 text-sm text-fg">
                   {x.a ? (
                     <div className="md"><ReactMarkdown remarkPlugins={[remarkGfm]}>{x.a}</ReactMarkdown></div>
-                  ) : x.pending ? <span className="text-slate-400">{t('Elaborazione…')}</span> : <span className="text-slate-400">{t('Nessuna risposta.')}</span>}
+                  ) : x.pending ? <span className="text-fg-3">{t('Elaborazione…')}</span> : <span className="text-fg-3">{t('Nessuna risposta.')}</span>}
                 </div>
               </div>
             ))}

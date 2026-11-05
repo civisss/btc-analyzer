@@ -40,11 +40,9 @@ const en: Record<string, string> = {
   Oggi: 'Today',
   // Liquidations page
   Liquidazioni: 'Liquidations',
-  'Livelli di liquidazione stimati, cluster vicini al prezzo e flusso in tempo reale.': 'Estimated liquidation levels, clusters near the price and the real-time feed.',
   'Mostra meno': 'Show less',
   'Mostra tutti ({n})': 'Show all ({n})',
   'Grande liquidazione': 'Large liquidation',
-  'Storico liquidazioni in raccolta dal {d}: i totali coprono solo il periodo raccolto.': 'Liquidation history collected since {d}: totals only cover the collected period.',
   'Long liquidati 24h': 'Longs liquidated 24h',
   'Short liquidati 24h': 'Shorts liquidated 24h',
   'Long liquidati 7g': 'Longs liquidated 7d',
@@ -53,7 +51,6 @@ const en: Record<string, string> = {
   'Ultima ora (live)': 'Last hour (live)',
   'Nessuna liquidazione': 'No liquidations',
   'Heatmap liquidazioni': 'Liquidation heatmap',
-  'Livelli stimati (leva 10–100×) con candele sovrapposte': 'Estimated levels (10–100× leverage) with candles overlaid',
   'Stima dei prezzi a cui verrebbero liquidate le posizioni aperte, con leve tipiche tra 10× e 100×. Colori più chiari = maggiore concentrazione stimata.':
     'Estimated prices at which open positions would be liquidated, at typical leverage between 10× and 100×. Lighter colours = higher estimated concentration.',
   'Heatmap non disponibile': 'Heatmap unavailable',

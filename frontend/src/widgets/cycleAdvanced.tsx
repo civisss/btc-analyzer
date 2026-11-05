@@ -17,12 +17,13 @@ import {
 import { Card, CardBody, CardHeader, Fill, IconBox, KpiCell, KpiStrip, MethodNote as SharedMethodNote, ProgressBar, Q, Segmented, Skeleton, Toggle, clsx } from '../components/ui'
 import { date, dayUnit, int, monthYear, num, pct, usd, usdCompact, zoneName } from '../lib/format'
 import { getLang, t, tr } from '../i18n'
+import { SEQ, T, alpha } from '../theme/tokens'
 
 // ------------------------------------------------------------------ helpers
 const ok = (v: N | undefined): v is number => typeof v === 'number' && Number.isFinite(v)
-const signCls = (v: N | undefined) => (!ok(v) ? 'text-slate-400' : v > 0 ? 'text-up' : v < 0 ? 'text-down' : 'text-slate-300')
-/** Cycle zones are an ordered scale, not categories: single blue ramp (dim → bright). */
-const ZONE_RAMP = ['#2B4F86', '#3A68B0', '#5B8DEF', '#7AA9FF', '#A9C8FF']
+const signCls = (v: N | undefined) => (!ok(v) ? 'text-fg-3' : v > 0 ? 'text-up' : v < 0 ? 'text-down' : 'text-fg-2')
+/** Cycle zones are an ordered scale, not categories: single orange ramp (dim → bright). */
+const ZONE_RAMP = [SEQ[2], SEQ[3], SEQ[4], SEQ[5], SEQ[6]]
 /** Re-colour zones coming from the API with the ramp. */
 export const rampZones = (zones: Zone[]) => zones.map((z, i) => ({ ...z, color: ZONE_RAMP[Math.min(ZONE_RAMP.length - 1, Math.round((i * (ZONE_RAMP.length - 1)) / Math.max(1, zones.length - 1)))] }))
 const DEFAULT_ZONES: Zone[] = [
@@ -42,7 +43,7 @@ const ordSfx = (n: number) => (getLang() !== 'en' ? '°' : n % 100 >= 11 && n % 
 const ord = (v: N | undefined) => (ok(v) ? `${v.toFixed(0)}${ordSfx(Math.round(v))}` : '—')
 const cap = (s: string | null | undefined) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—')
 /** Phase bands are categorical: distinct hues from the theme palette (no green/red — not up/down values). */
-export const PHASE_COLOR: Record<PhaseKey, string> = { accumulation: C.teal, bull: C.blue, distribution: C.purple, bear: C.grey }
+export const PHASE_COLOR: Record<PhaseKey, string> = { accumulation: C.sand, bull: C.accent, distribution: C.steel, bear: C.grey }
 const PHASE_EN: Record<PhaseKey, string> = { accumulation: 'Accumulation', bull: 'Bull', distribution: 'Distribution', bear: 'Bear' }
 const PHASE_IT: Record<PhaseKey, string> = { accumulation: 'Accumulo', bull: 'Rialzo', distribution: 'Distribuzione', bear: 'Ribasso' }
 const phaseName = (p: PhaseKey) => tr(PHASE_IT[p], PHASE_EN[p])
@@ -58,10 +59,10 @@ export function Bullets({ items, max = 3 }: { items: string[]; max?: number }) {
   const more = items.length > max || items.some((x) => x.length > 70)
   return (
     <div className="flex min-w-0 max-w-[72ch] flex-col">
-      <ul className="flex min-w-0 flex-col text-sm text-slate-300">
+      <ul className="flex min-w-0 flex-col text-sm text-fg-2">
         {shown.map((x, i) => (
           <li key={i} className="flex min-w-0 gap-2 border-t border-line py-1.5 first:border-t-0" title={all ? undefined : x}>
-            <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-slate-500" />
+            <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-fg-4" />
             <span className={clsx('min-w-0', !all && 'truncate')}>{x}</span>
           </li>
         ))}
@@ -82,7 +83,7 @@ function MethodNote({ text, extra }: { text: string; extra?: string[] }) {
 
 const tipRow = (color: string, name: string, val: string) =>
   `<div style="display:flex;justify-content:space-between;gap:16px"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px"></span>${name}</span><b>${val}</b></div>`
-const tipHead = (s: string) => `<div style="color:#94a3b8;margin-bottom:4px">${s}</div>`
+const tipHead = (s: string) => `<div style="color:${T.fg3};margin-bottom:4px">${s}</div>`
 
 // ------------------------------------------------------------------ Gauge "orologio"
 const START = 210, SWEEP = 240
@@ -105,7 +106,7 @@ export function CycleClockGauge({ score, zones = DEFAULT_ZONES, size = 240, show
   const [nx, ny] = polar(cx, cy, r - 18, v ?? 0)
   return (
     <svg viewBox="0 0 200 172" width={size} height={(size * 172) / 200} role="img" aria-label={t('Cycle Score {v} su 100', { v: v != null ? v.toFixed(0) : t('n/d') })}>
-      <path d={arcPath(cx, cy, r, 0, 100)} stroke="rgba(148,163,184,0.10)" strokeWidth="16" fill="none" />
+      <path d={arcPath(cx, cy, r, 0, 100)} stroke={alpha(T.fg3, 0.10)} strokeWidth="16" fill="none" />
       {zones.map((z) => {
         const active = v != null && v >= z.from && (v < z.to || (z.to >= 100 && v <= 100))
         return (
@@ -116,21 +117,21 @@ export function CycleClockGauge({ score, zones = DEFAULT_ZONES, size = 240, show
       {Array.from({ length: 21 }).map((_, i) => {
         const t = i * 5
         const [x0, y0] = polar(cx, cy, r - 11, t), [x1, y1] = polar(cx, cy, r - (i % 4 === 0 ? 17 : 14), t)
-        return <line key={i} x1={x0} y1={y0} x2={x1} y2={y1} stroke="rgba(148,163,184,0.45)" strokeWidth={i % 4 === 0 ? 1.4 : 0.8} />
+        return <line key={i} x1={x0} y1={y0} x2={x1} y2={y1} stroke={alpha(T.fg3, 0.45)} strokeWidth={i % 4 === 0 ? 1.4 : 0.8} />
       })}
       {showLabels && [0, 20, 40, 60, 80, 100].map((t) => {
         const [x, y] = polar(cx, cy, r + 15, t)
-        return <text key={t} x={x} y={y + 3} textAnchor="middle" fontSize="11" fill="#8B94A7" fontFamily={FONT}>{t}</text>
+        return <text key={t} x={x} y={y + 3} textAnchor="middle" fontSize="11" fill={T.fg3} fontFamily={FONT}>{t}</text>
       })}
       {v != null && (
         <>
-          <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#E6E9EF" strokeWidth="2.5" strokeLinecap="round" />
-          <circle cx={cx} cy={cy} r="5" fill="#E6E9EF" />
+          <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx={cx} cy={cy} r="5" fill={T.fg} />
           <circle cx={cx} cy={cy} r="2.5" fill={col} />
         </>
       )}
-      <text x={cx} y={cy + 40} textAnchor="middle" fontSize="30" fontWeight="600" fill="#E6E9EF" fontFamily={FONT}>{v != null ? v.toFixed(0) : '—'}</text>
-      <text x={cx} y={cy + 56} textAnchor="middle" fontSize="11" fill="#8B94A7" fontFamily={FONT}>SCORE / 100</text>
+      <text x={cx} y={cy + 40} textAnchor="middle" fontSize="30" fontWeight="600" fill={T.fg} fontFamily={FONT}>{v != null ? v.toFixed(0) : '—'}</text>
+      <text x={cx} y={cy + 56} textAnchor="middle" fontSize="11" fill={T.fg3} fontFamily={FONT}>SCORE / 100</text>
     </svg>
   )
 }
@@ -143,15 +144,15 @@ export function CycleClockMini({ className }: { className?: string }) {
   return (
     <Card className={clsx('h-full overflow-hidden p-4', className)}>
       <div className="flex h-8 items-center gap-2.5">
-        <IconBox icon={<AlarmClock />} color={col === C.muted ? C.purple : col} />
-        <span className="truncate text-sm font-medium text-slate-300">{t('Orologio del ciclo')}</span>
-        <span className="ml-auto shrink-0 rounded bg-white/[0.05] px-1.5 text-2xs font-medium leading-5 text-slate-400">0–100</span>
+        <IconBox icon={<AlarmClock />} color={col === C.muted ? C.steel : col} />
+        <span className="truncate text-sm font-medium text-fg-2">{t('Orologio del ciclo')}</span>
+        <span className="ml-auto shrink-0 rounded bg-white/[0.05] px-1.5 text-2xs font-medium leading-5 text-fg-3">0–100</span>
       </div>
       <div className="mt-3 flex items-end gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex h-8 items-center">
             {c ? <span className="tnum truncate text-3xl font-bold leading-8 tracking-tight" style={{ color: col }}>{ok(c.score) ? c.score.toFixed(0) : '—'}</span>
-              : q.isError ? <span className="text-sm text-slate-400">—</span> : <Skeleton className="h-7 w-14" />}
+              : q.isError ? <span className="text-sm text-fg-3">—</span> : <Skeleton className="h-7 w-14" />}
           </div>
           <div className="mt-1 flex h-5 items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm">
             {c && <><span className="truncate font-medium" style={{ color: col }}>{zoneName(c.zone, c.zone_label)}</span>
@@ -172,7 +173,7 @@ function ClockCard({ d, updatedAt }: { d: CycleClock; updatedAt?: number }) {
   return (
     <Card className="h-full">
       <CardHeader title={t('Orologio del ciclo')} icon={<AlarmClock />} updatedAt={updatedAt} subtitle={t('Cycle Score composito: 0 = zona di minimo, 100 = zona di massimo')}
-        right={c.live ? <span className="inline-flex items-center gap-1.5 text-xs text-slate-400"><span className="h-1.5 w-1.5 rounded-full bg-up" />{t('Live')}</span> : undefined} />
+        right={c.live ? <span className="inline-flex items-center gap-1.5 text-xs text-fg-3"><span className="live-dot h-1.5 w-1.5 rounded-full bg-accent" />{t('Live')}</span> : undefined} />
       <CardBody className="flex flex-col items-center gap-4">
         <div className="flex w-full flex-col items-center">
           <CycleClockGauge score={c.score} zones={d.zones} size={220} />
@@ -181,8 +182,8 @@ function ClockCard({ d, updatedAt }: { d: CycleClock; updatedAt?: number }) {
         <div className="grid w-full grid-cols-3 gap-2 text-center">
           {([[7, c.change_7d], [30, c.change_30d], [90, c.change_90d]] as const).map(([n, v]) => (
             <div key={n} className="px-2 py-1">
-              <div className={clsx('tnum text-lg font-semibold', signCls(v))}>{ok(v) ? `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}` : '—'} <span className="text-xs font-normal text-slate-500">pt</span></div>
-              <div className="text-2xs text-slate-400">{t('In {n} giorni', { n })}</div>
+              <div className={clsx('tnum text-lg font-semibold', signCls(v))}>{ok(v) ? `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}` : '—'} <span className="text-xs font-normal text-fg-4">pt</span></div>
+              <div className="text-2xs text-fg-3">{t('In {n} giorni', { n })}</div>
             </div>
           ))}
         </div>
@@ -190,12 +191,12 @@ function ClockCard({ d, updatedAt }: { d: CycleClock; updatedAt?: number }) {
           <div className="flex h-2 w-full overflow-hidden rounded-full">
             {rampZones(d.zones).map((z) => <div key={z.key} style={{ width: `${z.to - z.from}%`, background: z.color }} />)}
           </div>
-          <div className="mt-1.5 grid grid-cols-5 text-center text-2xs leading-3 text-slate-400">
+          <div className="mt-1.5 grid grid-cols-5 text-center text-2xs leading-3 text-fg-3">
             {d.zones.map((z) => <span key={z.key}>{zoneName(z.key, z.label)}</span>)}
           </div>
         </div>
         <div className="w-full"><Bullets items={c.text} /></div>
-        {ok(c.score_equal) && <div className="w-full text-xs text-slate-400">{t('Variante a pesi uguali:')} <b className="tnum text-slate-300">{c.score_equal.toFixed(0)}</b>/100</div>}
+        {ok(c.score_equal) && <div className="w-full text-xs text-fg-3">{t('Variante a pesi uguali:')} <b className="tnum text-fg-2">{c.score_equal.toFixed(0)}</b>/100</div>}
       </CardBody>
     </Card>
   )
@@ -236,26 +237,26 @@ function ComponentsCard({ d }: { d: CycleClock }) {
           <span className="text-right">{t('Peso')}</span>
           <span className="hidden text-right 2xl:block" title={t('Punti di score apportati = percentile × peso')}>{t('Contributo')}</span>
         </div>
-        <div className="flex flex-col divide-y divide-white/[0.05] border-t border-white/[0.05]">
+        <div className="flex flex-col divide-y divide-line-subtle border-t border-line-subtle">
           {comps.map((c) => {
             const z = zoneOf(c.pct)
             const contrib = ok(c.pct) ? (c.pct * c.weight) / 100 : null
             return (
               <div key={c.key} className={clsx('grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 py-2', cols)}>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-slate-200" title={c.description}>{c.label}</div>
-                  <div className="tnum truncate text-xs text-slate-400" title={c.display}>{c.display}</div>
+                  <div className="truncate text-sm font-medium text-fg" title={c.description}>{c.label}</div>
+                  <div className="tnum truncate text-xs text-fg-3" title={c.display}>{c.display}</div>
                 </div>
                 <div className="order-3 col-span-2 sm:order-none sm:col-span-1"><PctTrack v={c.pct} zones={zones} /></div>
                 <span className="tnum text-right text-sm font-semibold text-white">{ok(c.pct) ? c.pct.toFixed(0) : '—'}</span>
-                <span className="hidden min-w-0 truncate text-xs text-slate-300 2xl:block">{z ? zoneName(z.key, z.label) : '—'}</span>
-                <span className="tnum order-4 col-span-2 text-xs text-slate-400 sm:order-none sm:col-span-1 sm:text-right">
-                  <span className="sm:hidden">{t('Peso')} </span><b className="font-medium text-slate-200">{c.weight.toFixed(1)}%</b>
-                  {contrib != null && <span className="sm:hidden"> · {t('Contributo')} <b className="font-medium text-slate-200">{contrib.toFixed(1)} pt</b>{z ? ` · ${zoneName(z.key, z.label)}` : ''}</span>}
+                <span className="hidden min-w-0 truncate text-xs text-fg-2 2xl:block">{z ? zoneName(z.key, z.label) : '—'}</span>
+                <span className="tnum order-4 col-span-2 text-xs text-fg-3 sm:order-none sm:col-span-1 sm:text-right">
+                  <span className="sm:hidden">{t('Peso')} </span><b className="font-medium text-fg">{c.weight.toFixed(1)}%</b>
+                  {contrib != null && <span className="sm:hidden"> · {t('Contributo')} <b className="font-medium text-fg">{contrib.toFixed(1)} pt</b>{z ? ` · ${zoneName(z.key, z.label)}` : ''}</span>}
                 </span>
                 <span className="hidden items-center justify-end gap-2 2xl:flex">
                   <span className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.05]"><span className="block h-full rounded-full" style={{ width: `${((contrib ?? 0) / maxContrib) * 100}%`, background: C.grey2 }} /></span>
-                  <span className="tnum w-12 text-right text-xs text-slate-200">{contrib != null ? `${contrib.toFixed(1)} pt` : '—'}</span>
+                  <span className="tnum w-12 text-right text-xs text-fg">{contrib != null ? `${contrib.toFixed(1)} pt` : '—'}</span>
                 </span>
               </div>
             )
@@ -274,16 +275,16 @@ function ScoreHistoryChart({ d }: { d: CycleClock }) {
     const tops = d.backtest.events.filter((e) => e.kind === 'top')
     const bots = d.backtest.events.filter((e) => e.kind === 'bottom')
     const series: unknown[] = [
-      lineSeries('Cycle Score', toXY(d.history), C.purple, {
-        lineStyle: { width: 1.5, color: C.blue }, z: 5,
+      lineSeries('Cycle Score', toXY(d.history), C.steel, {
+        lineStyle: { width: 1.5, color: C.accent }, z: 5,
         markArea: { silent: true, data: rampZones(d.zones).map((z) => [{ yAxis: z.from, itemStyle: { color: hexA(z.color, 0.06) } }, { yAxis: z.to }]) },
-        markLine: { symbol: 'none', silent: true, lineStyle: { type: 'dashed', color: 'rgba(148,163,184,0.35)' }, label: { show: false }, data: [{ yAxis: 20 }, { yAxis: 80 }] },
+        markLine: { symbol: 'none', silent: true, lineStyle: { type: 'dashed', color: alpha(T.fg3, 0.35) }, label: { show: false }, data: [{ yAxis: 20 }, { yAxis: 80 }] },
       }),
-      { name: t('Massimi di ciclo'), type: 'scatter', symbol: 'triangle', symbolSize: 10, z: 9, itemStyle: { color: '#E6E9EF' }, data: tops.map((e) => [e.time * 1000, e.score]) },
-      { name: t('Minimi di ciclo'), type: 'scatter', symbol: 'triangle', symbolRotate: 180, symbolSize: 10, z: 9, itemStyle: { color: '#8B94A7' }, data: bots.map((e) => [e.time * 1000, e.score]) },
+      { name: t('Massimi di ciclo'), type: 'scatter', symbol: 'triangle', symbolSize: 10, z: 9, itemStyle: { color: T.fg }, data: tops.map((e) => [e.time * 1000, e.score]) },
+      { name: t('Minimi di ciclo'), type: 'scatter', symbol: 'triangle', symbolRotate: 180, symbolSize: 10, z: 9, itemStyle: { color: T.fg3 }, data: bots.map((e) => [e.time * 1000, e.score]) },
     ]
     if (eq) series.push(lineSeries(t('Pesi uguali'), toXY(d.history_equal), C.grey, { lineStyle: { width: 1.25, color: C.grey, type: 'dashed' } }))
-    if (showPrice) series.push(lineSeries(PRICE, toXY(d.price), C.btc, { yAxisIndex: 1, lineStyle: { width: 1.25, color: C.btc, opacity: 0.7 } }))
+    if (showPrice) series.push(lineSeries(PRICE, toXY(d.price), C.price, { yAxisIndex: 1, lineStyle: { width: 1.25, color: C.price, opacity: 0.7 } }))
     return {
       grid: { left: 8, right: 8, top: 36, bottom: 36, containLabel: true },
       legend: { ...legendBase, data: (series as { name: string }[]).map((s) => s.name) },
@@ -304,7 +305,7 @@ function ScoreHistoryChart({ d }: { d: CycleClock }) {
   return (
     <Card>
       <CardHeader title={t('Storico del Cycle Score')} icon={<LineChart />} subtitle={t('Score giornaliero (settimanale prima degli ultimi 2 anni) · ▲ massimi e ▼ minimi di ciclo rilevati')}
-        right={<><Toggle on={showPrice} onClick={() => setShowPrice(!showPrice)} color="#E6E9EF">{t('Prezzo (log)')}</Toggle><Toggle on={eq} onClick={() => setEq(!eq)} color={C.cyan}>{t('Pesi uguali')}</Toggle></>} />
+        right={<><Toggle on={showPrice} onClick={() => setShowPrice(!showPrice)} color={T.fg}>{t('Prezzo (log)')}</Toggle><Toggle on={eq} onClick={() => setEq(!eq)} color={C.sand}>{t('Pesi uguali')}</Toggle></>} />
       <CardBody><EChart option={option} height={420} /></CardBody>
     </Card>
   )
@@ -328,15 +329,15 @@ function BacktestCard({ d }: { d: CycleClock }) {
                   <td className="text-right max-[1699px]:hidden">{usd(e.price)}</td>
                   <td className="text-right text-white">{ok(e.score) ? e.score.toFixed(0) : '—'}</td>
                   <td className="text-right max-[1699px]:hidden">{ok(e.extreme_30d) ? e.extreme_30d.toFixed(0) : '—'}</td>
-                  <td className="text-right">{ok(e.extreme_365) ? <>{e.extreme_365.toFixed(0)} <span className="text-xs text-slate-400">{monthYear(e.extreme_365_time)}</span></> : '—'}</td>
-                  <td className="text-right">{ok(e.lead_1) ? `${int(e.lead_1)} ${dayUnit()}` : <span className="text-slate-400">{t('Mai')} {e.kind === 'top' ? '≥' : '≤'}{e.thresholds[0]}</span>}</td>
-                  <td className="text-right">{ok(e.lead_2) ? `${int(e.lead_2)} ${dayUnit()}` : <span className="text-slate-400">{t('Mai')} {e.kind === 'top' ? '≥' : '≤'}{e.thresholds[1]}</span>}</td>
+                  <td className="text-right">{ok(e.extreme_365) ? <>{e.extreme_365.toFixed(0)} <span className="text-xs text-fg-3">{monthYear(e.extreme_365_time)}</span></> : '—'}</td>
+                  <td className="text-right">{ok(e.lead_1) ? `${int(e.lead_1)} ${dayUnit()}` : <span className="text-fg-3">{t('Mai')} {e.kind === 'top' ? '≥' : '≤'}{e.thresholds[0]}</span>}</td>
+                  <td className="text-right">{ok(e.lead_2) ? `${int(e.lead_2)} ${dayUnit()}` : <span className="text-fg-3">{t('Mai')} {e.kind === 'top' ? '≥' : '≤'}{e.thresholds[1]}</span>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="px-3 pt-3 text-xs text-slate-400">{t('Soglie: massimi 80 / 90, minimi 20 / 10. "Estremo 12 mesi" = punto più alto (massimi) o più basso (minimi) dello score nei 365 g prima dell\'evento.')}</p>
+        <p className="px-3 pt-3 text-xs text-fg-3">{t('Soglie: massimi 80 / 90, minimi 20 / 10. "Estremo 12 mesi" = punto più alto (massimi) o più basso (minimi) dello score nei 365 g prima dell\'evento.')}</p>
       </CardBody>
     </Card>
   )
@@ -355,19 +356,19 @@ function SignalsCard({ d }: { d: CycleClock }) {
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold text-white">{label}</span>
                 <span className="flex items-center gap-1.5 text-xs">
-                  <span className="tnum text-slate-300">{t('{a} veri · {b} falsi', { a: s.true, b: s.false })}{s.pending > 0 ? ` · ${t('{n} in corso', { n: s.pending })}` : ''}</span>
+                  <span className="tnum text-fg-2">{t('{a} veri · {b} falsi', { a: s.true, b: s.false })}{s.pending > 0 ? ` · ${t('{n} in corso', { n: s.pending })}` : ''}</span>
                 </span>
               </div>
               {s.true + s.false > 0 && (
                 <div className="mt-1.5 flex items-center gap-2">
-                  <ProgressBar value={(s.true / (s.true + s.false)) * 100} color={s.true >= s.false ? C.up : C.down} className="h-1 flex-1" />
-                  <span className="tnum w-9 text-right text-2xs text-slate-400">{Math.round((s.true / (s.true + s.false)) * 100)}%</span>
+                  <ProgressBar value={(s.true / (s.true + s.false)) * 100} color={s.true >= s.false ? C.accent : C.warn} className="h-1 flex-1" />
+                  <span className="tnum w-9 text-right text-2xs text-fg-3">{Math.round((s.true / (s.true + s.false)) * 100)}%</span>
                 </div>
               )}
-              <p className="tnum mt-1 text-xs text-slate-400">
+              <p className="tnum mt-1 text-xs text-fg-3">
                 {s.items.map((i, k) => (
                   <span key={i.start} title={`${date(i.start)} → ${date(i.end)} · ${i.days} ${dayUnit()} · ${t('Estremo {v}', { v: i.extreme.toFixed(0) })}${i.lead != null ? ` · ${t('Evento dopo {n} g', { n: i.lead })}` : ''}`}
-                    className={i.status === 'falso' ? 'text-slate-300 line-through decoration-slate-500' : i.status === 'vero' ? 'text-slate-300' : 'text-slate-400'}>
+                    className={i.status === 'falso' ? 'text-fg-2 line-through decoration-fg-4' : i.status === 'vero' ? 'text-fg-2' : 'text-fg-3'}>
                     {monthYear(i.start)}{k < s.items.length - 1 ? ', ' : ''}
                   </span>
                 ))}
@@ -439,22 +440,22 @@ function MinerKpis({ d }: { d: CycleMiner }) {
     <KpiStrip cols="grid-cols-1 min-[480px]:grid-cols-2 xl:grid-cols-4">
       <Kpi icon={<Pickaxe />} label={t('Stato Hash Ribbons')}
         value={c.state === 'capitulation' ? t('Capitolazione') : c.state === 'recovery' ? t('Ripresa') : t('Espansione')}
-        sub={<span className="text-slate-300">{t('Da {n} g', { n: int(c.days_in_state) })} · SMA30/60 <b className={signCls(c.ribbon_gap)}>{pct(c.ribbon_gap, 1)}</b></span>}
+        sub={<span className="text-fg-2">{t('Da {n} g', { n: int(c.days_in_state) })} · SMA30/60 <b className={signCls(c.ribbon_gap)}>{pct(c.ribbon_gap, 1)}</b></span>}
         foot={c.last_signal ? t('Segnale {d}', { d: date(c.last_signal.time) }) : t('Nessun segnale storico')}
         hint={c.last_signal ? t('Ultimo segnale {d} ({n} g fa) dopo {c} g di capitolazione', { d: date(c.last_signal.time), n: int(c.days_since_signal), c: c.last_signal.cap_days }) : undefined} />
       <Kpi icon={<Cpu />} label={t('Hashrate (media 30 g)')}
-        value={<>{num(c.sma30, 0)} <span className="text-sm font-normal text-slate-400">EH/s</span></>}
-        sub={<span className="text-slate-300">{t('Dal massimo')} <b className={signCls(c.hr_drawdown)}>{pct(c.hr_drawdown, 1)}</b></span>}
+        value={<>{num(c.sma30, 0)} <span className="text-sm font-normal text-fg-3">EH/s</span></>}
+        sub={<span className="text-fg-2">{t('Dal massimo')} <b className={signCls(c.hr_drawdown)}>{pct(c.hr_drawdown, 1)}</b></span>}
         foot={t('SMA 60: {b} EH/s', { b: num(c.sma60, 0) })}
         hint={t('Ultimo dato giornaliero {a} EH/s · SMA 60 {b} EH/s', { a: num(c.hashrate, 0), b: num(c.sma60, 0) })} />
       <Kpi icon={<Layers />} label="Difficulty Ribbon"
         value={<>{num(c.ribbon_compression, 1)}%</>}
-        sub={<span className="text-slate-300">{t('Percentile {v}', { v: ord(c.ribbon_compression_pct) })}</span>}
+        sub={<span className="text-fg-2">{t('Percentile {v}', { v: ord(c.ribbon_compression_pct) })}</span>}
         foot={c.ribbon_inverted ? t('Invertito') : t('Compressione SMA 9…200 g')}
         hint={t('Distanza tra la SMA più alta e la più bassa (9…200 g) della difficoltà stimata: bassa = crescita in stallo, stress dei miner.')} />
       <Kpi icon={<Zap />} label="Puell Multiple"
         value={num(c.puell, 2)}
-        sub={<span className="text-slate-300">{t('Emissione')} <b className="text-white">{usdCompact(c.issuance_usd, 1)}</b>/{t('giorno')}</span>}
+        sub={<span className="text-fg-2">{t('Emissione')} <b className="text-white">{usdCompact(c.issuance_usd, 1)}</b>/{t('giorno')}</span>}
         foot={<>{t('Ricavi 90 g')} <span className={signCls(c.issuance_change_90d)}>{pct(c.issuance_change_90d, 0)}</span></>}
         hint={t('Ricavi da emissione (media 30 g), variazione in 90 giorni · commissioni escluse')} />
     </KpiStrip>
@@ -465,7 +466,7 @@ function HashRibbonChart({ d, updatedAt }: { d: CycleMiner; updatedAt?: number }
   const option = useMemo(() => {
     const now = Date.now()
     const N = { price: t('Prezzo BTC'), sig: t('Segnale Hash Ribbon'), mom: t('Con conferma momentum') }
-    const capAreas = d.capitulations.map((p) => [{ xAxis: p.from * 1000, itemStyle: { color: hexA(C.amber, 0.08) } }, { xAxis: (p.to ?? now / 1000) * 1000 }])
+    const capAreas = d.capitulations.map((p) => [{ xAxis: p.from * 1000, itemStyle: { color: hexA(C.warn, 0.08) } }, { xAxis: (p.to ?? now / 1000) * 1000 }])
     const priceMap = new Map(d.series.price.map((p) => [p.time, p.value]))
     const nearestPrice = (t: number) => {
       if (priceMap.has(t)) return priceMap.get(t)
@@ -489,12 +490,12 @@ function HashRibbonChart({ d, updatedAt }: { d: CycleMiner; updatedAt?: number }
         valueAxis({ type: 'log', gridIndex: 1, min: 1, logBase: 10, axisLabel: { ...axisLabel, formatter: hrFmt }, name: 'EH/s', nameLocation: 'end', nameGap: 6, nameTextStyle: { color: C.muted, fontSize: 11 } }),
       ],
       series: [
-        lineSeries(N.price, toXY(d.series.price), C.btc, { lineStyle: { width: 1.5, color: C.btc }, markArea: { silent: true, data: capAreas } }),
-        { name: N.sig, type: 'scatter', symbol: 'circle', symbolSize: 8, z: 10, itemStyle: { color: C.up, borderColor: '#0A0E17', borderWidth: 1 }, data: d.signals.map((s) => [s.time * 1000, s.price]) },
-        { name: N.mom, type: 'scatter', symbol: 'diamond', symbolSize: 9, z: 11, itemStyle: { color: C.btc, borderColor: '#0A0E17', borderWidth: 1 },
+        lineSeries(N.price, toXY(d.series.price), C.price, { lineStyle: { width: 1.5, color: C.price }, markArea: { silent: true, data: capAreas } }),
+        { name: N.sig, type: 'scatter', symbol: 'circle', symbolSize: 8, z: 10, itemStyle: { color: C.up, borderColor: T.bg, borderWidth: 1 }, data: d.signals.map((s) => [s.time * 1000, s.price]) },
+        { name: N.mom, type: 'scatter', symbol: 'diamond', symbolSize: 9, z: 11, itemStyle: { color: C.accent, borderColor: T.bg, borderWidth: 1 },
           data: d.signals.filter((s) => s.momentum_time != null && s.momentum_time !== s.time).map((s) => [s.momentum_time! * 1000, nearestPrice(s.momentum_time!)]) },
-        lineSeries('Hashrate SMA 30', toXY(d.series.sma30), C.cyan, { xAxisIndex: 1, yAxisIndex: 1, lineStyle: { width: 1.4, color: C.cyan } }),
-        lineSeries('Hashrate SMA 60', toXY(d.series.sma60), C.pink, { xAxisIndex: 1, yAxisIndex: 1, lineStyle: { width: 1.4, color: C.pink } }),
+        lineSeries('Hashrate SMA 30', toXY(d.series.sma30), C.sand, { xAxisIndex: 1, yAxisIndex: 1, lineStyle: { width: 1.4, color: C.sand } }),
+        lineSeries('Hashrate SMA 60', toXY(d.series.sma60), C.grey, { xAxisIndex: 1, yAxisIndex: 1, lineStyle: { width: 1.4, color: C.grey } }),
       ],
     }
   }, [d])
@@ -513,7 +514,7 @@ function MinerStressChart({ d }: { d: CycleMiner }) {
     const base = { grid: { left: 8, right: 8, top: 36, bottom: 36, containLabel: true }, dataZoom: [dataZoomInside, dataZoomSlider], xAxis: timeAxis() }
     const tip = (fmt: (x: number) => string) => ({ ...tooltipBase, trigger: 'axis', formatter: (ps: { seriesName: string; value: [number, number]; color: string }[]) => tipHead(dateFmt(ps[0]?.value[0])) + ps.filter((p) => p.value[1] != null).map((p) => tipRow(p.color, p.seriesName, fmt(p.value[1]))).join('') })
     if (v === 'ribbon') {
-      const cols = ['#A9C8FF', '#8DB6FF', '#7AA9FF', '#5E98FF', '#5B8DEF', '#3A75D6', '#2E62B4', '#244F91']
+      const cols = [SEQ[6], T.accent, SEQ[4], SEQ[3], T.wheat, T.sand, T.clay, T.fg4]
       return {
         ...base, legend: { ...legendBase, type: 'scroll', data: d.ribbon.periods.map((p) => `SMA ${p}`), pageTextStyle: { color: C.muted } },
         tooltip: tip((x) => `${num(x, 0)} EH/s`),
@@ -522,10 +523,10 @@ function MinerStressChart({ d }: { d: CycleMiner }) {
       }
     }
     const map: Record<Exclude<MinerView, 'ribbon'>, { s: Pt[]; name: string; color: string; fmt: (x: number) => string; lines?: number[] }> = {
-      compression: { s: d.series.ribbon_compression, name: t('Compressione ribbon'), color: C.purple, fmt: (x) => `${x.toFixed(1)}%` },
-      drawdown: { s: d.series.hr_drawdown, name: t('Drawdown hashrate'), color: C.blue, fmt: (x) => pct(x, 1) },
-      puell: { s: d.series.puell, name: 'Puell Multiple', color: C.blue, fmt: (x) => x.toFixed(2), lines: [0.5, 4] },
-      issuance: { s: d.series.issuance_usd, name: t('Emissione giornaliera (media 7 g)'), color: C.teal, fmt: (x) => usdCompact(x, 1) },
+      compression: { s: d.series.ribbon_compression, name: t('Compressione ribbon'), color: C.steel, fmt: (x) => `${x.toFixed(1)}%` },
+      drawdown: { s: d.series.hr_drawdown, name: t('Drawdown hashrate'), color: C.accent, fmt: (x) => pct(x, 1) },
+      puell: { s: d.series.puell, name: 'Puell Multiple', color: C.accent, fmt: (x) => x.toFixed(2), lines: [0.5, 4] },
+      issuance: { s: d.series.issuance_usd, name: t('Emissione giornaliera (media 7 g)'), color: C.sand, fmt: (x) => usdCompact(x, 1) },
     }
     const m = map[v]
     return {
@@ -533,7 +534,7 @@ function MinerStressChart({ d }: { d: CycleMiner }) {
       yAxis: valueAxis({ type: v === 'issuance' || v === 'puell' ? 'log' : 'value', axisLabel: { ...axisLabel, formatter: (x: number) => (v === 'issuance' ? `$${axisNum(x)}` : v === 'puell' ? axisNum(x) : `${axisNum(x)}%`) } }),
       series: [lineSeries(m.name, toXY(m.s), m.color, {
         lineStyle: { width: 1.4, color: m.color }, areaStyle: v === 'drawdown' ? { color: hexA(m.color, 0.12) } : undefined,
-        markLine: m.lines ? { symbol: 'none', silent: true, lineStyle: { type: 'dashed', color: 'rgba(148,163,184,0.45)' }, label: { color: C.muted, fontSize: 11, position: 'insideEndTop' }, data: m.lines.map((y) => ({ yAxis: y })) } : undefined,
+        markLine: m.lines ? { symbol: 'none', silent: true, lineStyle: { type: 'dashed', color: alpha(T.fg3, 0.45) }, label: { color: C.muted, fontSize: 11, position: 'insideEndTop' }, data: m.lines.map((y) => ({ yAxis: y })) } : undefined,
       })],
     }
   }, [d, v])
@@ -565,16 +566,16 @@ function HitTable({ basic, momentum }: { basic: HitRow[]; momentum: HitRow[] }) 
             const m = momentum[i]
             return (
               <tr key={b.horizon}>
-                <td className="whitespace-nowrap font-medium text-white">{t('{n} giorni', { n: b.horizon })} <span className="text-xs text-slate-500">n={b.n}</span></td>
+                <td className="whitespace-nowrap font-medium text-white">{t('{n} giorni', { n: b.horizon })} <span className="text-xs text-fg-4">n={b.n}</span></td>
                 <td className="whitespace-nowrap text-right">{cell(b.hit_rate, b.median)}</td>
                 <td className="whitespace-nowrap text-right">{cell(m?.hit_rate, m?.median)}</td>
-                <td className="whitespace-nowrap text-right text-slate-400">{pct(b.base_hit_rate, 0, false)} <span className="text-xs">{pct(b.base_median, 0)}</span></td>
+                <td className="whitespace-nowrap text-right text-fg-3">{pct(b.base_hit_rate, 0, false)} <span className="text-xs">{pct(b.base_median, 0)}</span></td>
               </tr>
             )
           })}
         </tbody>
       </table>
-      <p className="px-3 pt-2 text-xs text-slate-400">{t('% di segnali con BTC più alto dopo N giorni · a destra la mediana del rendimento')}</p>
+      <p className="px-3 pt-2 text-xs text-fg-3">{t('% di segnali con BTC più alto dopo N giorni · a destra la mediana del rendimento')}</p>
     </div>
   )
 }
@@ -600,7 +601,7 @@ function SignalsTable({ d }: { d: CycleMiner }) {
                   <td className="text-right">{retCell(s.ret, '30')}</td>
                   <td className="text-right">{retCell(s.ret, '90')}</td>
                   <td className="text-right">{retCell(s.ret, '180')}</td>
-                  <td className="text-right text-slate-400">{s.momentum_time ? (s.momentum_time === s.time ? t('Stesso giorno') : date(s.momentum_time)) : '—'}</td>
+                  <td className="text-right text-fg-3">{s.momentum_time ? (s.momentum_time === s.time ? t('Stesso giorno') : date(s.momentum_time)) : '—'}</td>
                   <td className="text-right">{retCell(s.momentum_ret, '90')}</td>
                 </tr>
               ))}
@@ -648,20 +649,20 @@ export function MinerTab() {
 function SameDayTable({ a }: { a: CycleCompare['anchors'][number] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="tbl">
+      <table className="tbl-wrap tbl text-xs">
         <thead><tr><th>{t('Ciclo')}</th><th>{t('Data (giorno {n})', { n: int(a.days) })}</th><th className="text-right">{t('Prezzo')}</th><th className="text-right">{t('Multiplo vs ancora')}</th><th className="text-right">{t("Dall'ATH")}</th><th className="text-right">{t('Giorni al nuovo ATH')}</th><th className="text-right">MVRV</th><th className="text-right">Cycle Score</th><th className="text-right">+90 {dayUnit()}</th><th className="text-right">+180 {dayUnit()}</th><th className="text-right">+365 {dayUnit()}</th></tr></thead>
         <tbody>
           {a.rows.map((r) => (
             <tr key={r.label} className={r.is_current ? 'bg-white/[0.03]' : undefined}>
-              <td className="text-white">{r.label}{r.is_current && <span className="ml-1.5 text-xs text-slate-400">({t('Oggi')})</span>}</td>
+              <td className="text-white">{r.label}{r.is_current && <span className="ml-1.5 text-xs text-fg-3">({t('Oggi')})</span>}</td>
               <td>{date(r.time)}</td>
               <td className="text-right">{usd(r.price)}</td>
               <td className="text-right text-white">{ok(r.multiple) ? `${r.multiple.toFixed(2)}×` : '—'}</td>
               <td className={clsx('text-right', signCls(r.drawdown_ath))}>{pct(r.drawdown_ath, 1)}</td>
-              <td className="text-right">{r.days_to_ath === 0 ? t('Sui massimi') : ok(r.days_to_ath) ? `${int(r.days_to_ath)} ${dayUnit()}` : <span className="text-slate-400">{r.is_current ? t('In attesa') : t('Mai')}</span>}</td>
+              <td className="text-right">{r.days_to_ath === 0 ? t('Sui massimi') : ok(r.days_to_ath) ? `${int(r.days_to_ath)} ${dayUnit()}` : <span className="text-fg-3">{r.is_current ? t('In attesa') : t('Mai')}</span>}</td>
               <td className="text-right">{num(r.mvrv, 2)}</td>
               <td className="text-right text-white">{ok(r.score) ? r.score.toFixed(0) : '—'}</td>
-              {(['90', '180', '365'] as const).map((h) => <td key={h} className={clsx('text-right', signCls(r.fwd[h]))}>{r.is_current ? <span className="text-slate-400">—</span> : pct(r.fwd[h], 0)}</td>)}
+              {(['90', '180', '365'] as const).map((h) => <td key={h} className={clsx('text-right', signCls(r.fwd[h]))}>{r.is_current ? <span className="text-fg-3">—</span> : pct(r.fwd[h], 0)}</td>)}
             </tr>
           ))}
         </tbody>
@@ -674,7 +675,7 @@ function SameDayOverlay({ a }: { a: CycleCompare['anchors'][number] }) {
   const [metric, setMetric] = useState<'roi' | 'score'>('roi')
   const option = useMemo(() => {
     const idx = metric === 'roi' ? 1 : 2
-    const prevCols = [C.blue, C.purple, C.teal, C.grey, C.grey2]
+    const prevCols = [C.accent, C.steel, C.sand, C.grey, C.grey2]
     let pi = 0
     return {
       grid: { left: 8, right: 16, top: 64, bottom: 36, containLabel: true },
@@ -684,10 +685,10 @@ function SameDayOverlay({ a }: { a: CycleCompare['anchors'][number] }) {
       xAxis: { type: 'value', name: t('Giorni'), nameTextStyle: { color: C.muted }, axisLabel, splitLine: { show: false }, axisLine: { lineStyle: { color: C.axis } }, max: a.days + 400 },
       yAxis: metric === 'roi' ? valueAxis({ type: 'log', axisLabel: { ...axisLabel, formatter: (v: number) => `${axisNum(v)}×` } }) : valueAxis({ min: 0, max: 100, scale: false, interval: 20 }),
       series: a.series.map((s) => {
-        const col = s.current ? C.btc : prevCols[pi++ % prevCols.length]
+        const col = s.current ? C.accent : prevCols[pi++ % prevCols.length]
         return lineSeries(s.name, s.points.map((p) => [p[0], p[idx]]), col, {
           lineStyle: { width: s.current ? 2.6 : 1.3, color: col, opacity: s.current ? 1 : 0.75 }, z: s.current ? 10 : 2,
-          markLine: s.current ? { symbol: 'none', silent: true, lineStyle: { color: 'rgba(148,163,184,0.6)', type: 'dashed' }, label: { color: C.text, formatter: t('Oggi · giorno {n}', { n: a.days }), fontSize: 11 }, data: [{ xAxis: a.days }] } : undefined,
+          markLine: s.current ? { symbol: 'none', silent: true, lineStyle: { color: alpha(T.fg3, 0.6), type: 'dashed' }, label: { color: C.text, formatter: t('Oggi · giorno {n}', { n: a.days }), fontSize: 11 }, data: [{ xAxis: a.days }] } : undefined,
         })
       }),
     }
@@ -713,7 +714,7 @@ function DurationsSurvival({ d }: { d: CycleCompare }) {
       xAxis: { type: 'category', data: ns.map((n) => t('Ciclo {n}', { n })), axisLabel, axisLine: { lineStyle: { color: C.axis } }, axisTick: { show: false } },
       yAxis: valueAxis({ min: 0, scale: false, axisLabel: { ...axisLabel, formatter: (v: number) => `${v}${dayUnit()}` } }),
       series: [
-        { name: B2T, type: 'bar', barMaxWidth: 26, itemStyle: { color: C.blue, borderRadius: [2, 2, 0, 0] }, data: ns.map((n) => d.durations.bull.find((x) => x.n === n)?.days ?? null) },
+        { name: B2T, type: 'bar', barMaxWidth: 26, itemStyle: { color: C.accent, borderRadius: [2, 2, 0, 0] }, data: ns.map((n) => d.durations.bull.find((x) => x.n === n)?.days ?? null) },
         { name: T2B, type: 'bar', barMaxWidth: 26, itemStyle: { color: C.grey, borderRadius: [2, 2, 0, 0] },
           data: ns.map((n) => { const x = d.durations.bear.find((b) => b.n === n); return x ? (x.probable ? { value: x.days, itemStyle: { color: hexA(C.grey, 0.25), borderColor: C.grey, borderType: 'dashed', borderWidth: 1.25 } } : x.days) : null }) },
       ],
@@ -729,9 +730,9 @@ function DurationsSurvival({ d }: { d: CycleCompare }) {
       xAxis: { type: 'value', name: t('Giorni'), nameTextStyle: { color: C.muted }, axisLabel, splitLine: { show: false }, axisLine: { lineStyle: { color: C.axis } } },
       yAxis: valueAxis({ min: 0, max: 100, scale: false, axisLabel: { ...axisLabel, formatter: (v: number) => `${v}%` } }),
       series: [
-        lineSeries('Kaplan-Meier', s.curve.map((p) => [p.day, p.km]), C.blue, { step: 'end', lineStyle: { width: 1.8, color: C.blue },
-          markLine: { symbol: 'none', silent: true, lineStyle: { color: 'rgba(148,163,184,0.6)', type: 'dashed' }, label: { color: C.text, formatter: t('Oggi · giorno {n}', { n: s.elapsed }), fontSize: 11 }, data: [{ xAxis: s.elapsed }] } }),
-        lineSeries(LN, s.curve.map((p) => [p.day, p.lognormal]), C.purple, { smooth: true, lineStyle: { width: 1.4, color: C.purple, type: 'dashed' } }),
+        lineSeries('Kaplan-Meier', s.curve.map((p) => [p.day, p.km]), C.accent, { step: 'end', lineStyle: { width: 1.8, color: C.accent },
+          markLine: { symbol: 'none', silent: true, lineStyle: { color: alpha(T.fg3, 0.6), type: 'dashed' }, label: { color: C.text, formatter: t('Oggi · giorno {n}', { n: s.elapsed }), fontSize: 11 }, data: [{ xAxis: s.elapsed }] } }),
+        lineSeries(LN, s.curve.map((p) => [p.day, p.lognormal]), C.steel, { smooth: true, lineStyle: { width: 1.4, color: C.steel, type: 'dashed' } }),
       ],
     }
   }, [s])
@@ -745,25 +746,25 @@ function DurationsSurvival({ d }: { d: CycleCompare }) {
         <CardHeader title={t('Quanto può durare ancora la fase?')} icon={<Timer />} subtitle={s ? cap(s.label) : t('Analisi di sopravvivenza')}
           right={d.survival.length > 1 ? <Segmented value={si} onChange={setSi} options={d.survival.map((x, i) => ({ value: i, label: x.phase === 'bull' ? t('Scenario rialzo') : t('Scenario ribasso') }))} /> : undefined} />
         <CardBody className="flex flex-col gap-4">
-          <p className="-mb-1 text-xs text-slate-400">{t('Probabilità che la fase duri ancora almeno X giorni (Kaplan-Meier; LN = curva log-normale)')}</p>
+          <p className="-mb-1 text-xs text-fg-3">{t('Probabilità che la fase duri ancora almeno X giorni (Kaplan-Meier; LN = curva log-normale)')}</p>
           {s ? (
             <>
-              {s.horizons.every((h) => ok(h.km) && h.km >= 99.5 && ok(h.lognormal) && h.lognormal >= 99.5) && <p className="text-sm text-slate-400">{t('Nessun precedente più breve: tutte le fasi storiche sono durate più di così.')}</p>}
+              {s.horizons.every((h) => ok(h.km) && h.km >= 99.5 && ok(h.lognormal) && h.lognormal >= 99.5) && <p className="text-sm text-fg-3">{t('Nessun precedente più breve: tutte le fasi storiche sono durate più di così.')}</p>}
               <div className="dgrid grid-cols-2 sm:grid-cols-4">
                 {s.horizons.filter((h) => !(ok(h.km) && h.km >= 99.5 && ok(h.lognormal) && h.lognormal >= 99.5)).map((h) => (
                   <div key={h.days} className="px-3 py-2.5 text-center">
                     <div className="tnum text-lg font-semibold text-white">{ok(h.km) ? `${h.km.toFixed(0)}%` : '—'}</div>
-                    <div className="tnum text-2xs text-slate-400">{t('≥ altri {n} g', { n: h.days })} · LN {ok(h.lognormal) ? `${h.lognormal.toFixed(0)}%` : '—'}</div>
+                    <div className="tnum text-2xs text-fg-3">{t('≥ altri {n} g', { n: h.days })} · LN {ok(h.lognormal) ? `${h.lognormal.toFixed(0)}%` : '—'}</div>
                   </div>
                 ))}
               </div>
-              <div className="text-xs leading-5 text-slate-400">
+              <div className="text-xs leading-5 text-fg-3">
                 {s.note} {t('Giorno {n} della fase; durate storiche {list}.', { n: int(s.elapsed), list: s.samples.map((x) => `${int(x)} ${dayUnit()}`).join(', ') })}
                 {' '}{ok(s.remaining_median) ? t('Mediana dei giorni restanti nei cicli che hanno superato oggi: {n} g.', { n: int(s.remaining_median) }) : t('Oggi la fase ha già superato tutte le durate storiche.')}
               </div>
               <Fill min={220}><EChart option={survOption} height="100%" /></Fill>
             </>
-          ) : <div className="text-sm text-slate-400">{t('Nessuna fase in corso analizzabile.')}</div>}
+          ) : <div className="text-sm text-fg-3">{t('Nessuna fase in corso analizzabile.')}</div>}
         </CardBody>
       </Card>
     </div>
@@ -836,19 +837,19 @@ function LeverageKpis({ d }: { d: CycleLeverage }) {
   return (
     <KpiStrip cols="grid-cols-1 min-[480px]:grid-cols-2 xl:grid-cols-4">
       <Kpi icon={<Gauge />} label={t('Fase del ciclo')} value={cap(c.phase_label)}
-        sub={<span className="text-slate-300">{t('Giorno {n}', { n: int(c.days_in_phase) })}</span>}
+        sub={<span className="text-fg-2">{t('Giorno {n}', { n: int(c.days_in_phase) })}</span>}
         foot={t('Ciclo {n}', { n: c.cycle })}
         hint={t('Fasi storiche ricostruite da massimi e minimi di ciclo (vedi metodologia).')} />
       <Kpi icon={<Flame />} label={t('Funding 7 g (% annuo)')} value={pct(c.funding_7d, 1)}
-        sub={<span className="text-slate-300">{t('Perc. {a} storico · {b} in fase', { a: ord(c.funding_pct_all), b: ord(c.funding_pct_phase) })}</span>}
+        sub={<span className="text-fg-2">{t('Perc. {a} storico · {b} in fase', { a: ord(c.funding_pct_all), b: ord(c.funding_pct_phase) })}</span>}
         foot={t('Media 30 g {a}', { a: pct(c.funding_30d, 1) })}
         hint={t('Media 30 g {a} · stessa fase ciclo precedente {b}', { a: pct(c.funding_30d, 1), b: pct(c.funding_prev_cycle_phase_avg, 1) })} />
       <Kpi icon={<Scale />} label={t('Volume perp/spot 30 g')} value={<>{num(c.spec, 2)}×</>}
-        sub={<span className="text-slate-300">{t('Perc. {a} storico · {b} in fase', { a: ord(c.spec_pct_all), b: ord(c.spec_pct_phase) })}</span>}
+        sub={<span className="text-fg-2">{t('Perc. {a} storico · {b} in fase', { a: ord(c.spec_pct_all), b: ord(c.spec_pct_phase) })}</span>}
         foot={t('Ciclo prec. {v}×', { v: num(c.spec_prev_cycle_phase_avg, 2) })}
         hint={t('Stessa fase ciclo precedente {v}× · proxy di lungo periodo della speculazione con leva', { v: num(c.spec_prev_cycle_phase_avg, 2) })} />
       <Kpi icon={<BarChart3 />} label="OI / market cap" value={<>{num(c.leverage_ratio, 2)}%</>}
-        sub={<span className="text-slate-300">OI <b className="text-white">{usdCompact(c.oi_usd, 1)}</b>{ok(c.leverage_pct_available) ? ` · ${t('Perc. {v}', { v: ord(c.leverage_pct_available) })}` : ''}</span>}
+        sub={<span className="text-fg-2">OI <b className="text-white">{usdCompact(c.oi_usd, 1)}</b>{ok(c.leverage_pct_available) ? ` · ${t('Perc. {v}', { v: ord(c.leverage_pct_available) })}` : ''}</span>}
         foot={t('Storico {n} g', { n: int(c.oi_days_available) })}
         hint={`${t('Storico disponibile: {n} giorni', { n: int(c.oi_days_available) })}${c.oi_since ? ` (${t('dal {d}', { d: date(c.oi_since) })})` : ''} — ${t('limite API Binance')}`} />
     </KpiStrip>
@@ -873,9 +874,9 @@ function LeverageChart({ d, updatedAt }: { d: CycleLeverage; updatedAt?: number 
         valueAxis({ type: 'log', position: 'right', splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: usdAxisFmt } }),
       ],
       series: [
-        lineSeries(name, toXY(s), v === 'funding' ? C.btc : C.purple, { lineStyle: { width: 1.6, color: v === 'funding' ? C.btc : C.purple }, markArea: { silent: true, data: bands },
-          markLine: v === 'funding' ? { symbol: 'none', silent: true, lineStyle: { type: 'dashed', color: 'rgba(148,163,184,0.4)' }, label: { show: false }, data: [{ yAxis: 0 }, { yAxis: 10.95 }] } : undefined }),
-        lineSeries(PRICE, toXY(d.series.price), '#E6E9EF', { yAxisIndex: 1, lineStyle: { width: 1.1, color: 'rgba(226,232,240,0.55)' } }),
+        lineSeries(name, toXY(s), v === 'funding' ? C.accent : C.steel, { lineStyle: { width: 1.6, color: v === 'funding' ? C.accent : C.steel }, markArea: { silent: true, data: bands },
+          markLine: v === 'funding' ? { symbol: 'none', silent: true, lineStyle: { type: 'dashed', color: alpha(T.fg3, 0.4) }, label: { show: false }, data: [{ yAxis: 0 }, { yAxis: 10.95 }] } : undefined }),
+        lineSeries(PRICE, toXY(d.series.price), T.fg, { yAxisIndex: 1, lineStyle: { width: 1.1, color: alpha(T.fg, 0.55) } }),
       ],
     }
   }, [d, v])
@@ -884,8 +885,8 @@ function LeverageChart({ d, updatedAt }: { d: CycleLeverage; updatedAt?: number 
       <CardHeader title={t('Leva lungo il ciclo')} icon={<Activity />} updatedAt={updatedAt} subtitle={t('Tratteggio = funding 0% e 10.95% (0.01%/8h, base Binance)')}
         right={<Segmented value={v} onChange={setV} options={[{ value: 'funding', label: 'Funding' }, { value: 'spec', label: 'Perp / spot' }]} />} />
       <CardBody className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
-          <span className="text-slate-500">{t('Sfondo = fase')}:</span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-3">
+          <span className="text-fg-4">{t('Sfondo = fase')}:</span>
           {(Object.keys(PHASE_COLOR) as PhaseKey[]).map((p) => <span key={p} className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] border" style={{ background: hexA(PHASE_COLOR[p], 0.28), borderColor: hexA(PHASE_COLOR[p], 0.6) }} />{phaseName(p)}</span>)}
         </div>
         <Fill min={380}><EChart option={option} height="100%" /></Fill>
@@ -904,10 +905,10 @@ function PhaseTable({ d }: { d: CycleLeverage }) {
             <thead><tr><th>{t('Ciclo')}</th><th>{t('Fase')}</th><th>{t('Periodo')}</th><th className="text-right max-[1699px]:hidden">{t('Giorni')}</th><th className="text-right">{t('Funding medio')}</th><th className="text-right max-[1699px]:hidden">{t('Giorni positivi')}</th><th className="text-right max-[1699px]:hidden">Funding p90</th><th className="text-right">Perp/spot</th></tr></thead>
             <tbody>
               {d.by_phase.map((r) => (
-                <tr key={`${r.cycle}${r.phase}${r.from}`} className={r.current ? 'bg-btc/[0.06]' : undefined}>
+                <tr key={`${r.cycle}${r.phase}${r.from}`} className={r.current ? 'bg-accent/[0.06]' : undefined}>
                   <td className="font-medium text-white">{r.cycle}</td>
-                  <td className={r.current ? 'text-white' : 'text-slate-300'}>{cap(r.label)}{r.current && <span className="ml-1.5 text-xs text-slate-400">({tr('Ora', 'Now')})</span>}</td>
-                  <td className="text-slate-400">{monthYear(r.from)} – {monthYear(r.to)}</td>
+                  <td className={r.current ? 'text-white' : 'text-fg-2'}>{cap(r.label)}{r.current && <span className="ml-1.5 text-xs text-fg-3">({tr('Ora', 'Now')})</span>}</td>
+                  <td className="text-fg-3">{monthYear(r.from)} – {monthYear(r.to)}</td>
                   <td className="text-right max-[1699px]:hidden">{int(r.days)}</td>
                   <td className={clsx('text-right font-semibold', signCls(r.funding_avg))}>{pct(r.funding_avg, 1)}</td>
                   <td className="text-right max-[1699px]:hidden">{pct(r.funding_pos_pct, 0, false)}</td>
@@ -956,14 +957,14 @@ function OiChart({ d }: { d: CycleLeverage }) {
     xAxis: timeAxis(),
     yAxis: [valueAxis({ axisLabel: { ...axisLabel, formatter: (x: number) => usdCompact(x, 1) } }), valueAxis({ position: 'right', splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: (x: number) => `${x.toFixed(2)}%` } })],
     series: [
-      lineSeries('Open interest (USD)', toXY(d.series.oi_usd), C.cyan, { areaStyle: { color: hexA(C.cyan, 0.1) } }),
-      lineSeries('OI / market cap', toXY(d.series.leverage_ratio), C.pink, { yAxisIndex: 1, lineStyle: { width: 1.4, color: C.pink, type: 'dashed' } }),
+      lineSeries('Open interest (USD)', toXY(d.series.oi_usd), C.sand, { areaStyle: { color: hexA(C.sand, 0.1) } }),
+      lineSeries('OI / market cap', toXY(d.series.leverage_ratio), C.grey, { yAxisIndex: 1, lineStyle: { width: 1.4, color: C.grey, type: 'dashed' } }),
     ],
   }), [d])
   return (
     <Card className="h-full">
       <CardHeader title={t('Open interest e leverage ratio')} icon={<Cpu />} subtitle={t('Binance BTCUSDT perpetuo · {n} giorni disponibili', { n: int(d.current.oi_days_available) })} />
-      <CardBody className="flex flex-col">{d.series.oi_usd.length ? <Fill min={260}><EChart option={option} height="100%" /></Fill> : <div className="py-10 text-center text-sm text-slate-400">{t('Open interest non disponibile')}</div>}</CardBody>
+      <CardBody className="flex flex-col">{d.series.oi_usd.length ? <Fill min={260}><EChart option={option} height="100%" /></Fill> : <div className="py-10 text-center text-sm text-fg-3">{t('Open interest non disponibile')}</div>}</CardBody>
     </Card>
   )
 }

@@ -1,7 +1,6 @@
 """POST /api/analogs/image — analoghi storici di un pattern estratto da uno screenshot (multipart, elaborato in memoria)."""
 from __future__ import annotations
 
-import time
 
 import json
 import logging
@@ -31,7 +30,6 @@ def _crop(raw: str | None) -> dict | None:
         raise HTTPException(422, "Ritaglio non valido: atteso JSON {x, y, w, h} in pixel dell'immagine.") from e
 
 
-LAST: dict = {"n": 0, "time": 0.0, "res": None}  # ultima analisi (solo risultati, mai l'immagine)
 
 
 @router.post("/analogs/image")
@@ -68,5 +66,4 @@ async def analogs_image(
     finally:
         del data  # nessuna copia persistente dell'immagine
     out = util.clean(res)
-    LAST.update(n=LAST["n"] + 1, time=time.time(), res=out)  # l'agente "Ricerca da immagine" lo comunica al team
     return JSONResponse(out)

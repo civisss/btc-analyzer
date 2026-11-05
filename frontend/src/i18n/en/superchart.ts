@@ -131,7 +131,6 @@ export default {
   "Debole": "Weak",
   "Nessun effetto": "No effect",
   "Pochi casi": "Few cases",
-  "Funding Binance · molto alto": "Binance funding · very high",
   "Open interest Bybit": "Bybit open interest",
   "Liquidazioni long": "Long liquidations",
   "Liquidazioni short": "Short liquidations",

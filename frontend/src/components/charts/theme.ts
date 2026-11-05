@@ -1,63 +1,62 @@
 import type { Pt } from '../../api/types'
 import { compact, date } from '../../lib/format'
 import { cap, months } from '../../i18n'
+import { ANALOGS, DIVERGING, HEAT, LINE, SEQ, SERIES, T, alpha } from '../../theme/tokens'
 
 /*
- * Chart palette — max 4 hues per chart, in this order:
- *   primary (BTC orange for the BTC price, otherwise near-white) · blue #5B8DEF · violet #9B87F5 · teal #3CC6B0
- *   extra series: greys #94A3B8 / #64748B (solid / dashed). up/down only for signed values.
- * Legacy keys (pink, yellow, cyan) resolve into this palette so old call sites can't add new hues.
+ * Chart roles (values live in theme/tokens.ts):
+ *   price  : warm white, always the BTC price and the reference series
+ *   accent : orange, the series in focus (the metric being read, the current path, the selection)
+ *   steel · sand · mauve : further series, then greys. up/down only for signed values and long/short.
+ * The last-price line and label stay white, so orange in a chart never means "the price".
  */
-export const C = {
-  btc: '#F7931A',
-  up: '#2EBD85',
-  down: '#EF5466',
-  amber: '#E8B04B',
-  primary: '#E8ECF4',
-  blue: '#5B8DEF',
-  purple: '#9B87F5',
-  teal: '#3CC6B0',
-  cyan: '#3CC6B0',
-  grey: '#94A0BC',
-  grey2: '#626D88',
-  pink: '#94A0BC',
-  yellow: '#626D88',
-  text: '#B3BCD0',
-  muted: '#6E7894',
-  grid: 'rgba(148,163,210,0.06)',
-  axis: 'rgba(148,163,210,0.12)',
-  bg: '#0E1424',
-  raised: '#18213A',
+const roles = {
+  price: T.fg,
+  accent: T.accent,
+  accentLo: T.accentLo,
+  up: T.up,
+  down: T.down,
+  warn: T.warn,
+  primary: T.fg,
+  steel: T.steel,
+  sand: T.sand,
+  mauve: T.mauve,
+  grey: T.fg3,
+  grey2: T.fg4,
+  text: T.fg2,
+  muted: T.fg4,
+  grid: alpha(T.fg3, 0.07),
+  axis: alpha(T.fg3, 0.14),
+  bg: T.surface,
+  raised: T.raised,
 }
+export const C: { [K in keyof typeof roles]: string } = roles
 /** Series order for multi-series charts (first = primary). */
-export const SERIES_COLORS = [C.btc, C.blue, C.purple, C.teal, C.grey, C.grey2, C.grey, C.grey2]
-/** Distinct hues for overlaid analogs (no orange = current price, no green/red = gain/loss). */
-export const ANALOG_COLORS = ['#5B8DEF', '#B49CFF', '#3CC6B0', '#F28CC0', '#E8C25B', '#7DD3FC', '#D8B4FE', '#A7B4D0', '#6EE7C8', '#F9A8D4']
-/** Sequential ramp (single blue) and diverging ramp (red ↔ grey ↔ green). Magma is reserved for the liquidation heatmap. */
-export const SEQ_BLUE = ['#0E1424', '#12223F', '#163868', '#1D4F97', '#2C6AD0', '#5B8DEF', '#9BBCFF']
-export const DIVERGING = ['#EF5466', '#B44B5C', '#5E4558', '#262F48', '#3D6457', '#2B946D', '#2EBD85']
+export const SERIES_COLORS: string[] = [...SERIES]
+/** Distinct tints for overlaid analogs (no orange = current path, no green/red = gain/loss). */
+export const ANALOG_COLORS: string[] = [...ANALOGS]
+export { SEQ, DIVERGING, HEAT }
 /*
  * Colour rule for deltas: green/red only when the sign is good/bad for BTC holders (price, flows, gains).
  * Macro inputs (DXY, rates, VIX, difficulty, volume…) show their change in neutral text — their direction is not
  * intrinsically good or bad, so it's left to the score/tone that interprets them.
  */
-export const MAGMA = ['#0A0E17', '#1d1147', '#51127c', '#822681', '#b73779', '#e75263', '#fc8961', '#fec287', '#fcfdbf']
 export const FONT = 'Geist Variable, Geist, Inter Variable, system-ui, sans-serif'
 
 /** Pt[] -> echarts [ms, value] pairs */
 export const toXY = (pts: Pt[] | undefined) => (pts ?? []).map((p) => [p.time * 1000, p.value] as [number, number | null])
 
 export const tooltipBase = {
-  backgroundColor: 'rgba(22,30,52,0.96)',
-  borderColor: 'rgba(160,175,225,0.18)',
+  backgroundColor: T.overlay,
+  borderColor: LINE.strong,
   borderWidth: 1,
   padding: [10, 12],
-  textStyle: { color: '#E8ECF4', fontSize: 12, fontFamily: FONT },
-  extraCssText: 'border-radius:12px;box-shadow:0 18px 40px -12px rgba(0,0,0,0.75),inset 0 1px 0 rgba(255,255,255,0.06);backdrop-filter:blur(10px);font-variant-numeric:tabular-nums;',
+  textStyle: { color: T.fg, fontSize: 12, fontFamily: FONT },
+  extraCssText: `border-radius:8px;box-shadow:0 16px 36px -12px ${alpha(T.black, 0.8)};font-variant-numeric:tabular-nums;`,
   axisPointer: {
-    lineStyle: { color: 'rgba(160,175,225,0.4)', type: 'dashed' },
-    crossStyle: { color: 'rgba(160,175,225,0.4)', type: 'dashed' },
-    label: { backgroundColor: '#1E2840', color: '#E8ECF4', fontFamily: FONT, borderColor: 'rgba(160,175,225,0.18)', borderWidth: 1, borderRadius: 6 },
+    lineStyle: { color: alpha(T.fg3, 0.4), type: 'dashed' },
+    crossStyle: { color: alpha(T.fg3, 0.4), type: 'dashed' },
+    label: { backgroundColor: T.overlay, color: T.fg, fontFamily: FONT, borderColor: LINE.strong, borderWidth: 1, borderRadius: 6 },
   },
 }
 
@@ -129,7 +128,7 @@ export const legendBase = {
   itemWidth: 8,
   itemHeight: 8,
   itemGap: 14,
-  inactiveColor: '#343D55',
+  inactiveColor: T.fgOff,
   top: 0,
   left: 0,
 }
@@ -139,12 +138,12 @@ export const dataZoomSlider = {
   type: 'slider',
   height: 16,
   bottom: 4,
-  borderColor: 'rgba(255,255,255,0.07)',
+  borderColor: LINE.base,
   backgroundColor: 'transparent',
-  fillerColor: 'rgba(148,163,184,0.10)',
-  dataBackground: { lineStyle: { color: 'rgba(148,163,184,0.25)' }, areaStyle: { color: 'rgba(148,163,184,0.05)' } },
-  selectedDataBackground: { lineStyle: { color: 'rgba(148,163,184,0.5)' }, areaStyle: { color: 'rgba(148,163,184,0.08)' } },
-  handleStyle: { color: C.raised, borderColor: 'rgba(148,163,184,0.4)' },
+  fillerColor: alpha(T.accent, 0.1),
+  dataBackground: { lineStyle: { color: alpha(T.fg3, 0.25) }, areaStyle: { color: alpha(T.fg3, 0.05) } },
+  selectedDataBackground: { lineStyle: { color: alpha(T.fg3, 0.5) }, areaStyle: { color: alpha(T.fg3, 0.08) } },
+  handleStyle: { color: C.raised, borderColor: alpha(T.fg3, 0.4) },
   moveHandleStyle: { color: C.raised },
   textStyle: { color: C.muted, fontFamily: FONT, fontSize: 11 },
   labelFormatter: '',
@@ -176,8 +175,4 @@ export function areaGradient(color: string, a1 = 0.16, a2 = 0) {
   }
 }
 
-export function hexA(hex: string, a: number) {
-  const h = hex.replace('#', '')
-  const n = parseInt(h.length === 3 ? h.split('').map((x) => x + x).join('') : h, 16)
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
-}
+export const hexA = alpha

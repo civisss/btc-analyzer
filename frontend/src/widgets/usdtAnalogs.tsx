@@ -17,16 +17,16 @@ const tipRow = (color: string, name: string, val: string) =>
   `<div style="display:flex;justify-content:space-between;gap:16px;align-items:center"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px"></span>${name}</span><b style="font-variant-numeric:tabular-nums">${val}</b></div>`
 const fullTime = (t: number, tf: UsdtTf) => (tf === '4h' ? dateTime(t) : date(t))
 /** USDT.D is always the blue series; the analog curve is violet; BTC (price) keeps the orange. */
-export const USDT_COLOR = C.blue
-export const ANALOG_COLOR = C.purple
+export const USDT_COLOR = C.accent
+export const ANALOG_COLOR = C.steel
 /** Overlay styles (palette only: levels neutral, figures violet/teal; colour never encodes "good/bad"). */
-export const LEG_COLOR = C.blue
+export const LEG_COLOR = C.accent
 export const LINE_STYLE: Record<string, { color: string; type: 'solid' | 'dashed' | 'dotted'; width: number }> = {
   resistance: { color: C.grey, type: 'dashed', width: 1.4 },
   support: { color: C.grey2, type: 'dashed', width: 1.4 },
-  neckline: { color: C.teal, type: 'dashed', width: 1.6 },
-  pole: { color: C.teal, type: 'solid', width: 1.6 },
-  leg: { color: C.purple, type: 'dotted', width: 1.4 },
+  neckline: { color: C.sand, type: 'dashed', width: 1.6 },
+  pole: { color: C.sand, type: 'solid', width: 1.6 },
+  leg: { color: C.steel, type: 'dotted', width: 1.4 },
 }
 /** Numbered structural points: neutral markers (the number carries the identity). */
 export const pointColor = (_n: number) => C.text
@@ -87,7 +87,7 @@ export function UsdtCurve({
       return {
         coord: [pt.idx, pt.price], value: m.n, symbol: 'circle', symbolSize: big ? 24 : 18,
         symbolOffset: [0, m.kind === 'high' ? -15 : m.kind === 'low' ? 15 : 0],
-        itemStyle: { color: big ? C.blue : pointColor(m.n), borderColor: C.bg, borderWidth: 2 },
+        itemStyle: { color: big ? C.accent : pointColor(m.n), borderColor: C.bg, borderWidth: 2 },
         label: { show: true, formatter: String(m.n), color: C.bg, fontWeight: 600, fontSize: big ? 12 : 10 },
       }
     }) : []
@@ -112,7 +112,7 @@ export function UsdtCurve({
       markLine: { symbol: 'none', silent: true, lineStyle: { color: hexA(C.primary, 0.3), type: 'dashed' }, label: { color: C.muted, formatter: t('Fine finestra'), fontSize: 10 }, data: [{ xAxis: windowLen - 1 }] },
     }))
     if (layers.legs && legs.length) series.push({ type: 'line', name: t('Gambe'), data: zz, connectNulls: true, showSymbol: true, symbol: 'circle', symbolSize: 4, z: 4, silent: true, lineStyle: { color: LEG_COLOR, width: 1.25, opacity: 0.85 }, itemStyle: { color: LEG_COLOR } })
-    if (showBtc && btc?.length) series.push(lineSeries('BTC', btc, hexA(C.btc, 0.55), { yAxisIndex: 1, z: 2, lineStyle: { width: 1.25, color: hexA(C.btc, 0.55) } }))
+    if (showBtc && btc?.length) series.push(lineSeries('BTC', btc, hexA(C.price, 0.55), { yAxisIndex: 1, z: 2, lineStyle: { width: 1.25, color: hexA(C.price, 0.55) } }))
     return {
       grid: { left: 6, right: 6, top: 26, bottom: 6, containLabel: true },
       tooltip: {
@@ -124,7 +124,7 @@ export function UsdtCurve({
           const leg = legs.find((g) => i >= g.from_idx && i <= g.to_idx)
           return `${MUTED_DIV}${i < windowLen ? t('Candela {n}', { n: i + 1 }) : t('+{n} dopo', { n: i - windowLen + 1 })} · ${fullTime(times[i], tf)}</div>` +
             tipRow(accent, 'USDT.D', `${v?.toFixed(3)}% (${pts(v - values[0], 2)})`) +
-            (btc?.[i] ? tipRow(C.btc, 'BTC', usd(btc[i])) : '') +
+            (btc?.[i] ? tipRow(C.price, 'BTC', usd(btc[i])) : '') +
             (leg && i < windowLen ? tipRow(LEG_COLOR, t('Gamba {l} · {n} candele', { l: leg.label, n: leg.candles }), pts(leg.pts, 2)) : '') +
             hit.map((m) => tipRow(pointColor(m.n), `${m.n}. ${side === 'current' ? m.label : m.analog_label}`, '')).join('')
         },
@@ -154,12 +154,12 @@ export function AfterPathsChart({ d, mode, sel, height = 360 }: { d: UsdtAnalogs
     const band = d.summary.band
     if (mode === 'btc' && band) {
       series.push(lineSeries('_p25', [base, ...band.p25], 'transparent', { stack: 'b', lineStyle: { width: 0 }, tooltip: { show: false } }))
-      series.push(lineSeries(BAND, [0, ...band.p75.map((v, i) => v - band.p25[i])], 'transparent', { stack: 'b', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.blue, 0.16) } }))
+      series.push(lineSeries(BAND, [0, ...band.p75.map((v, i) => v - band.p25[i])], 'transparent', { stack: 'b', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.accent, 0.1) } }))
     }
     d.matches.forEach((m, i) => {
       const vals = mode === 'btc' ? m.projection.close : m.usdt_projection.value
       const isSel = i === sel
-      const col = isSel ? C.blue : C.grey
+      const col = isSel ? C.accent : C.grey
       // selected analog = secondary reference: dashed, labelled with its period (legend); the median is the headline
       series.push(lineSeries(`#${m.rank} ${plabel(m.period.label)}`, [base, ...vals], col, {
         z: isSel ? 8 : 3, lineStyle: { width: isSel ? 1.75 : 1.1, color: col, opacity: isSel ? 0.95 : 0.4, type: isSel ? 'dashed' : 'solid' },
@@ -197,9 +197,9 @@ export function AfterPathsChart({ d, mode, sel, height = 360 }: { d: UsdtAnalogs
 
 // ------------------------------------------------------------------ gambe in punti percentuali
 export function UsdtLegTable({ pairs, cur, ana, when }: { pairs: AnalogLegPair[]; cur: UsdtLeg[]; ana: UsdtLeg[]; when: string }) {
-  if (!pairs.length) return <p className="px-3 text-sm text-slate-400">{t('Nessuna gamba abbinata.')}</p>
+  if (!pairs.length) return <p className="px-3 text-sm text-fg-3">{t('Nessuna gamba abbinata.')}</p>
   // per la USDT.D una gamba in salita è sfavorevole a BTC: colore invertito
-  const col = (v: number) => (v > 0 ? 'text-down' : v < 0 ? 'text-up' : 'text-slate-300')
+  const col = (v: number) => (v > 0 ? 'text-down' : v < 0 ? 'text-up' : 'text-fg-2')
   return (
     <div className="no-scrollbar overflow-x-auto">
       <table className="tbl">
@@ -211,12 +211,12 @@ export function UsdtLegTable({ pairs, cur, ana, when }: { pairs: AnalogLegPair[]
             if (!a || !b) return null
             return (
               <tr key={i}>
-                <td className="font-medium text-slate-200">G{p.current}{b.n !== p.current ? <span className="ml-1 text-xs font-normal text-slate-500">↔ {tr(`${b.n}ª`, `#${b.n}`)}</span> : null}</td>
-                <td className="text-right"><span className={clsx('font-medium', col(a.pts))}>{pts(a.pts, 2)}</span> <span className="text-xs text-slate-400">{pct(a.pct, 1)} · {a.candles} {t('cand.')}</span></td>
-                <td className="text-right"><span className={clsx('font-medium', col(b.pts))}>{pts(b.pts, 2)}</span> <span className="text-xs text-slate-400">{pct(b.pct, 1)} · {b.candles} {t('cand.')}</span></td>
+                <td className="font-medium text-fg">G{p.current}{b.n !== p.current ? <span className="ml-1 text-xs font-normal text-fg-4">↔ {tr(`${b.n}ª`, `#${b.n}`)}</span> : null}</td>
+                <td className="text-right"><span className={clsx('font-medium', col(a.pts))}>{pts(a.pts, 2)}</span> <span className="text-xs text-fg-3">{pct(a.pct, 1)} · {a.candles} {t('cand.')}</span></td>
+                <td className="text-right"><span className={clsx('font-medium', col(b.pts))}>{pts(b.pts, 2)}</span> <span className="text-xs text-fg-3">{pct(b.pct, 1)} · {b.candles} {t('cand.')}</span></td>
                 <td>
                   <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-accent-blue" style={{ width: `${p.similarity}%` }} /></div>
+                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-accent" style={{ width: `${p.similarity}%` }} /></div>
                     <span className="tnum text-xs">{Math.round(p.similarity)}%</span>
                   </div>
                 </td>
@@ -236,16 +236,16 @@ export function UsdtMappingList({ mapping, tf, when, active, onHover, twoCol }: 
       {mapping.map((m) => (
         <div key={m.n} onMouseEnter={() => onHover(m.n)} onMouseLeave={() => onHover(null)}
           className={clsx('grid grid-cols-[auto_1fr] gap-3 border-t border-line px-1 py-2.5 transition-colors first:border-t-0 sm:grid-cols-[auto_1fr_1fr_1fr]', active === m.n && 'bg-white/[0.03]')}>
-          <span className={clsx('grid h-6 w-6 shrink-0 place-items-center rounded-full text-2xs font-semibold text-bg', active === m.n ? 'bg-accent-blue' : 'bg-slate-300')}>{m.n}</span>
+          <span className={clsx('grid h-6 w-6 shrink-0 place-items-center rounded-full text-2xs font-semibold text-bg', active === m.n ? 'bg-accent' : 'bg-fg-2')}>{m.n}</span>
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-white">{cap(m.label)}{m.same_role && <span className="ml-1.5 text-xs font-normal text-slate-400">· {t('stesso ruolo')}</span>}</div>
-            {!m.same_role && <div className="text-xs text-slate-400">{cap(when)}: {m.analog_label.toLowerCase()}</div>}
+            <div className="text-sm font-semibold text-white">{cap(m.label)}{m.same_role && <span className="ml-1.5 text-xs font-normal text-fg-3">· {t('stesso ruolo')}</span>}</div>
+            {!m.same_role && <div className="text-xs text-fg-3">{cap(when)}: {m.analog_label.toLowerCase()}</div>}
           </div>
           {(['current', 'analog'] as const).map((k) => (
             <div key={k} className={clsx('min-w-0 text-xs', k === 'current' ? 'col-start-2 sm:col-start-auto' : 'col-start-2 sm:col-start-auto')}>
-              <div className="text-slate-400">{k === 'current' ? t('Oggi') : t('Analogo')} · {t('candela {n}', { n: m[k].idx + 1 })}</div>
-              <div className="tnum font-medium text-slate-200">{m[k].price.toFixed(2)}% <span className="font-normal text-slate-400">{pts(m[k].pts, 2)}</span></div>
-              <div className="text-slate-400">{fullTime(m[k].time, tf)} · BTC {usd(m[k].btc)}</div>
+              <div className="text-fg-3">{k === 'current' ? t('Oggi') : t('Analogo')} · {t('candela {n}', { n: m[k].idx + 1 })}</div>
+              <div className="tnum font-medium text-fg">{m[k].price.toFixed(2)}% <span className="font-normal text-fg-3">{pts(m[k].pts, 2)}</span></div>
+              <div className="text-fg-3">{fullTime(m[k].time, tf)} · BTC {usd(m[k].btc)}</div>
             </div>
           ))}
         </div>
@@ -264,7 +264,7 @@ export function MirrorChart({ m, height = 240 }: { m: UsdtMirror; height?: numbe
     series: [lineSeries(t('Specchio'), m.series.map((p) => [p.time * 1000, p.value]), USDT_COLOR, {
       markLine: { symbol: 'none', silent: true, data: [
         { yAxis: m.p50, lineStyle: { color: hexA(C.grey, 0.5), type: 'dashed' }, label: { color: C.muted, fontSize: 11, formatter: t('Mediana storica'), position: 'insideStartTop' } },
-        { yAxis: m.p10, lineStyle: { color: hexA(C.amber, 0.6), type: 'dashed' }, label: { color: C.amber, fontSize: 11, formatter: t('10° percentile'), position: 'insideStartBottom' } },
+        { yAxis: m.p10, lineStyle: { color: hexA(C.warn, 0.6), type: 'dashed' }, label: { color: C.warn, fontSize: 11, formatter: t('10° percentile'), position: 'insideStartBottom' } },
       ] },
     })],
   }), [m])
@@ -294,8 +294,8 @@ export function UsdtTechChart({ t: tk, height = 380 }: { t: UsdtTechnicals; heig
             { yAxis: zn.high },
           ]) },
         }),
-        lineSeries('EMA 50', z('ema50'), C.purple, { lineStyle: { width: 1.25, color: C.purple } }),
-        lineSeries('EMA 200', z('ema200'), C.teal, { lineStyle: { width: 1.25, color: C.teal } }),
+        lineSeries('EMA 50', z('ema50'), C.steel, { lineStyle: { width: 1.25, color: C.steel } }),
+        lineSeries('EMA 200', z('ema200'), C.sand, { lineStyle: { width: 1.25, color: C.sand } }),
         lineSeries('RSI 14', tk.series.map((p, i) => [xs[i], p.rsi]), C.grey, {
           xAxisIndex: 1, yAxisIndex: 1, lineStyle: { width: 1.25, color: C.grey },
           markLine: { symbol: 'none', silent: true, label: { show: false }, lineStyle: { color: hexA(C.grey, 0.35), type: 'dashed' }, data: [{ yAxis: 70 }, { yAxis: 30 }] },
@@ -316,8 +316,8 @@ export function SupplyChart({ s, height = 320 }: { s: Stablecoins; height?: numb
       formatter: (ps: TipP[]) => {
         const r = s.series[ps[0]?.dataIndex ?? 0]
         if (!r) return ''
-        return `${MUTED_DIV}${date(r.time)}</div>` + tipRow(C.blue, 'Supply', usdCompact(r.supply, 1)) +
-          tipRow(C.purple, 'Dominance', `${r.dominance.toFixed(2)}%`) + (ok(r.chg30) ? tipRow(C.grey2, t('Variazione {n}', { n: `30${tr('g', 'd')}` }), pct(r.chg30, 2)) : '')
+        return `${MUTED_DIV}${date(r.time)}</div>` + tipRow(C.accent, 'Supply', usdCompact(r.supply, 1)) +
+          tipRow(C.steel, 'Dominance', `${r.dominance.toFixed(2)}%`) + (ok(r.chg30) ? tipRow(C.grey2, t('Variazione {n}', { n: `30${tr('g', 'd')}` }), pct(r.chg30, 2)) : '')
       },
     },
     xAxis: timeAxis(),
@@ -327,8 +327,8 @@ export function SupplyChart({ s, height = 320 }: { s: Stablecoins; height?: numb
     ],
     dataZoom: [dataZoomInside],
     series: [
-      lineSeries(t('Supply stablecoin'), s.series.map((r) => [r.time * 1000, r.supply]), C.blue, { areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: hexA(C.blue, 0.14) }, { offset: 1, color: hexA(C.blue, 0) }] } } }),
-      lineSeries(t('Dominance stablecoin'), s.series.map((r) => [r.time * 1000, r.dominance]), C.purple, { yAxisIndex: 1, lineStyle: { width: 1.25, color: C.purple } }),
+      lineSeries(t('Supply stablecoin'), s.series.map((r) => [r.time * 1000, r.supply]), C.accent, { areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: hexA(C.accent, 0.14) }, { offset: 1, color: hexA(C.accent, 0) }] } } }),
+      lineSeries(t('Dominance stablecoin'), s.series.map((r) => [r.time * 1000, r.dominance]), C.steel, { yAxisIndex: 1, lineStyle: { width: 1.25, color: C.steel } }),
     ],
   }), [s])
   return <EChart option={option} height={height} />
@@ -358,9 +358,9 @@ export function SsrChart({ s, height = 320 }: { s: Stablecoins; height?: number 
       dataZoom: [{ ...dataZoomInside, filterMode: 'filter', startValue: (rows[rows.length - 1]?.time ?? 0) * 1000 - 3 * 365 * 86400e3 }],
       series: [
         lineSeries('_m2', at(-2), 'transparent', { stack: 'o', lineStyle: { width: 0 }, tooltip: { show: false } }),
-        lineSeries('±2σ', diff(-2, -1), 'transparent', { stack: 'o', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.blue, 0.06) }, itemStyle: { color: hexA(C.blue, 0.4) } }),
-        lineSeries('±1σ', diff(-1, 1), 'transparent', { stack: 'o', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.blue, 0.14) }, itemStyle: { color: hexA(C.blue, 0.7) } }),
-        lineSeries('_p2', diff(1, 2), 'transparent', { stack: 'o', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.blue, 0.06) }, tooltip: { show: false } }),
+        lineSeries('±2σ', diff(-2, -1), 'transparent', { stack: 'o', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.accent, 0.06) }, itemStyle: { color: hexA(C.accent, 0.4) } }),
+        lineSeries('±1σ', diff(-1, 1), 'transparent', { stack: 'o', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.accent, 0.14) }, itemStyle: { color: hexA(C.accent, 0.7) } }),
+        lineSeries('_p2', diff(1, 2), 'transparent', { stack: 'o', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.accent, 0.06) }, tooltip: { show: false } }),
         lineSeries(t('Media {n}', { n: `365${tr('g', 'd')}` }), at(0), C.grey, { lineStyle: { width: 1.25, type: 'dashed', color: C.grey } }),
         lineSeries('SSR', rows.map((r) => [r.time * 1000, r.ssr]), C.primary, { z: 5, lineStyle: { width: 1.75, color: C.primary } }),
       ],
@@ -389,7 +389,7 @@ export function LeadLagBars({ data, best, unit, height = 240 }: { data: { lag: n
     tooltip: { ...tooltipBase, trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (ps: { name: string; value: number }[]) => `Lag ${ps[0].name} ${unit}<br/><b>ρ ${ok(ps[0].value) ? ps[0].value.toFixed(3) : '—'}</b>` },
     xAxis: { type: 'category', data: data.map((l) => String(l.lag)), axisLabel: { ...axisLabel, formatter: (v: string) => `${v}` }, axisLine: { lineStyle: { color: C.axis } }, axisTick: { show: false } },
     yAxis: valueAxis({ scale: false, axisLabel: { ...axisLabel, formatter: (v: number) => v.toFixed(1) } }),
-    series: [{ type: 'bar', barMaxWidth: 18, data: data.map((l) => ({ value: l.corr, itemStyle: { color: l.lag === best ? C.blue : hexA(C.grey, 0.45), borderRadius: (l.corr ?? 0) < 0 ? [0, 0, 2, 2] : [2, 2, 0, 0] } })) }],
+    series: [{ type: 'bar', barMaxWidth: 18, data: data.map((l) => ({ value: l.corr, itemStyle: { color: l.lag === best ? C.accent : hexA(C.grey, 0.45), borderRadius: (l.corr ?? 0) < 0 ? [0, 0, 2, 2] : [2, 2, 0, 0] } })) }],
   }), [data, best, unit])
   return <EChart option={option} height={height} />
 }
@@ -429,9 +429,9 @@ export function UsdtDominanceChart({ data, height = 460 }: { data: UsdtAnalysis;
         valueAxis({ position: 'right', offset: GUTTER_LG, inverse: true, name: t('↓ invertito'), nameLocation: 'start', nameGap: 10, nameTextStyle: { color: C.muted, fontSize: 11, align: 'right' }, splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: (v: number) => `${v.toFixed(1)}%` } }),
       ],
       series: [
-        lineSeries(btcName, btc, C.btc, { lineStyle: { width: 1.75, color: C.btc } }),
-        lineSeries(name, ud, C.blue, {
-          yAxisIndex: 1, lineStyle: { width: 1.5, color: C.blue },
+        lineSeries(btcName, btc, C.price, { lineStyle: { width: 1.75, color: C.price } }),
+        lineSeries(name, ud, C.accent, {
+          yAxisIndex: 1, lineStyle: { width: 1.5, color: C.accent },
           markLine: {
             symbol: 'none', silent: false,
             data: data.levels.map((l) => {

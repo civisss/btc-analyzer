@@ -11,19 +11,18 @@ import VwapChart, { fmt2, type VwapHover } from '../components/charts/VwapChart'
 import VwapOverviewChart, { type OverviewHover, type OverviewOpts } from '../components/charts/VwapOverviewChart'
 import { usdP } from '../components/charts/vwapAxis'
 import { hexA } from '../components/charts/theme'
-import {
-  Card, CardBody, CardHeader, ErrorState, IconBadge, KpiCell, KpiStrip, MethodNote, PageTitle, ProgressBar, Segmented, Skeleton, TabBar, Toggle, Updated, clsx,
-} from '../components/ui'
+import { Card, CardBody, CardHeader, ErrorState, IconBadge, KpiCell, KpiStrip, MethodNote, ProgressBar, Segmented, Skeleton, Toggle, Updated, clsx, PageActions, SettingsPanel, SettingRow } from '../components/ui'
 import { date, pct } from '../lib/format'
 import { useTab } from '../lib/useTab'
 import { t } from '../i18n'
 import { RuleEditorHost, openRuleEditor } from '../widgets/alertRules'
 import type { LevelId } from '../api/alertRules'
+import { T } from '../theme/tokens'
 
 // ------------------------------------------------------------------ constants
 const PERIODS: VwapPeriod[] = ['w', 'm', 'q', 'y']
 const TAG: Record<VwapPeriod, string> = { w: 'W', m: 'M', q: 'Q', y: 'Y' }
-const COLOR: Record<VwapPeriod, string> = { w: '#3CC6B0', m: '#5B8DEF', q: '#9B87F5', y: '#E8B04B' }
+const COLOR: Record<VwapPeriod, string> = { w: T.steel, m: T.accent, q: T.mauve, y: T.sand }
 const TITLE: Record<VwapPeriod, string> = { w: 'VWAP settimanale', m: 'VWAP mensile', q: 'VWAP trimestrale', y: 'VWAP annuale' }
 const TF_LABEL: Record<number, string> = { 300: '5 min', 1800: '30 min', 3600: '1h', 14400: '4h' }
 const SRC: Record<VwapSource, { label: string; venue: string; quote: string }> = {
@@ -38,7 +37,7 @@ const memberName = (m: string) => {
   const p = (prev ? per.slice(1) : per) as VwapPeriod
   return `${prev ? 'p' : ''}${TAG[p]} ${LVL[lvl] ?? lvl}`
 }
-const memberColor = (m: string) => (m.startsWith('p') ? '#C9D1E3' : COLOR[m.split('_')[0] as VwapPeriod] ?? '#C9D1E3')
+const memberColor = (m: string) => (m.startsWith('p') ? T.fg2 : COLOR[m.split('_')[0] as VwapPeriod] ?? T.fg2)
 const bp = (v: number | null | undefined, d = 1) => {
   if (v == null) return '—'
   const r = Number(v.toFixed(d))
@@ -66,51 +65,46 @@ function usePersist<V extends string>(key: string, def: V, allowed: readonly V[]
 }
 
 // ------------------------------------------------------------------ toolbar
-function Toolbar({ tab, source, setSource, calc, setCalc, bands, setBands, two, setTwo, prev, setPrev, onFit, onRefresh, refreshing, updatedAt }: {
-  tab: 'chart' | 'panels'
+function Toolbar({ tab, setTab, source, setSource, calc, setCalc, bands, setBands, two, setTwo, prev, setPrev, onFit, onRefresh, refreshing, updatedAt }: {
+  tab: Tab; setTab: (t: Tab) => void
   source: VwapSource; setSource: (s: VwapSource) => void; calc: VwapCalc; setCalc: (c: VwapCalc) => void
   bands: boolean; setBands: (b: boolean) => void; two: boolean; setTwo: (b: boolean) => void; prev: boolean; setPrev: (b: boolean) => void
   onFit: () => void; onRefresh: () => void; refreshing: boolean; updatedAt: number
 }) {
   return (
-    <Card className="px-4 py-3 sm:px-5">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="label">{t('Mercato')}</span>
-          <span className="tnum inline-flex h-8 items-center rounded-lg border border-line bg-white/[0.03] px-2.5 text-xs font-semibold text-white sm:h-7">BTC</span>
-          <Segmented value={source} onChange={setSource} options={[{ value: 'kraken', label: SRC.kraken.label }, { value: 'binance', label: SRC.binance.label }]} />
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="label">{t('Calcolo')}</span>
-          <Segmented value={calc} onChange={setCalc} options={[{ value: 'fine', label: t('Candele 1 min') }, { value: 'chart', label: t('Timeframe del grafico') }]} />
-        </div>
-        {tab === 'panels' && (
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Toggle on={bands} onClick={() => setBands(!bands)}>{t('Bande ±1σ')}</Toggle>
-            <Toggle on={two} onClick={() => setTwo(!two)}>{t('Bande ±2σ')}</Toggle>
-            <Toggle on={prev} onClick={() => setPrev(!prev)}>{t('Periodo precedente')}</Toggle>
-          </div>
-        )}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <button className="btn-ghost" onClick={onFit}><ScanLine size={14} />{t(tab === 'panels' ? 'Adatta grafici' : 'Adatta grafico')}</button>
-          <button className="btn-ghost" onClick={onRefresh} disabled={refreshing}><RefreshCw size={14} className={clsx(refreshing && 'animate-spin')} />{t('Aggiorna')}</button>
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-white/[0.05] pt-2.5 text-xs text-slate-400">
+    <>
+      <PageActions>
+        <Segmented value={tab} onChange={setTab} options={[{ value: 'chart', label: t('Grafico unico') }, { value: 'panels', label: t('Pannelli') }]} />
+        <Segmented value={source} onChange={setSource} options={[{ value: 'kraken', label: SRC.kraken.label }, { value: 'binance', label: SRC.binance.label }]} />
+        <SettingsPanel>
+          <SettingRow label={t('Calcolo')}>
+            <Segmented value={calc} onChange={setCalc} options={[{ value: 'fine', label: t('Candele 1 min') }, { value: 'chart', label: t('Timeframe del grafico') }]} />
+          </SettingRow>
+          {tab === 'panels' && (
+            <SettingRow label={t('Pannelli')}>
+              <Toggle on={bands} onClick={() => setBands(!bands)}>{t('Bande ±1σ')}</Toggle>
+              <Toggle on={two} onClick={() => setTwo(!two)}>{t('Bande ±2σ')}</Toggle>
+              <Toggle on={prev} onClick={() => setPrev(!prev)}>{t('Periodo precedente')}</Toggle>
+            </SettingRow>
+          )}
+        </SettingsPanel>
+        <button className="btn-ghost" onClick={onFit}><ScanLine size={14} />{t(tab === 'panels' ? 'Adatta grafici' : 'Adatta grafico')}</button>
+        <button className="btn-ghost" onClick={onRefresh} disabled={refreshing}><RefreshCw size={14} className={clsx(refreshing && 'animate-spin')} />{t('Aggiorna')}</button>
+      </PageActions>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 text-xs text-fg-3">
         <span className="flex flex-wrap items-center gap-x-2">
-          <span className="tnum font-semibold tracking-wide text-slate-200">W / M / Q / Y</span>
+          <span className="tnum font-semibold tracking-wide text-fg">W / M / Q / Y</span>
           <span>{t('Ancore di calendario · UTC')}</span>
         </span>
         <span className="flex flex-wrap items-center gap-x-3">
-          <span className="label" style={{ color: '#3CC6B0' }}>{SRC[source].venue} · {t('Candele chiuse')}</span>
+          <span className="label" style={{ color: T.fg3 }}>{SRC[source].venue} · {t('Candele chiuse')}</span>
           <Updated at={updatedAt} />
         </span>
       </div>
-    </Card>
+    </>
   )
 }
 
-// ------------------------------------------------------------------ KPI strip
 function Kpis({ s, price }: { s: VwapSummary; price: number | null }) {
   const P = s.periods_data!
   const px = price ?? s.price ?? null
@@ -141,7 +135,7 @@ function Kpis({ s, price }: { s: VwapSummary; price: number | null }) {
 function LetterBadge({ p }: { p: VwapPeriod }) {
   const c = COLOR[p]
   return (
-    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] text-sm font-semibold"
+    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sm font-semibold"
       style={{ color: c, background: `linear-gradient(180deg, ${hexA(c, 0.2)}, ${hexA(c, 0.08)})`, boxShadow: `inset 0 0 0 1px ${hexA(c, 0.25)}` }}>
       {TAG[p]}
     </span>
@@ -151,11 +145,11 @@ function LetterBadge({ p }: { p: VwapPeriod }) {
 function ValueCell({ label, value, color, dashed, title, className }: { label: ReactNode; value: ReactNode; color?: string; dashed?: boolean; title?: string; className?: string }) {
   return (
     <div className={clsx('min-w-0', className)} title={title}>
-      <div className="flex items-center gap-1.5 whitespace-nowrap text-2xs font-medium tracking-[0.04em] text-slate-400">
-        {dashed != null && <span className={clsx('inline-block w-3', dashed ? 'border-t-2 border-dashed' : 'h-0.5 rounded-full')} style={dashed ? { borderColor: '#C9D1E3' } : { background: color }} />}
+      <div className="flex items-center gap-1.5 whitespace-nowrap text-2xs font-medium tracking-[0.04em] text-fg-3">
+        {dashed != null && <span className={clsx('inline-block w-3', dashed ? 'border-t-2 border-dashed' : 'h-0.5 rounded-full')} style={dashed ? { borderColor: T.fg2 } : { background: color }} />}
         {label}
       </div>
-      <div className="tnum mt-0.5 truncate text-[15px] font-semibold" style={{ color: color ?? '#E8ECF4' }}>{value}</div>
+      <div className="tnum mt-0.5 truncate text-[15px] font-semibold" style={{ color: color ?? T.fg }}>{value}</div>
     </div>
   )
 }
@@ -187,18 +181,18 @@ function PanelBody({ p, panel, opts, fit, expanded, onExpand, updatedAt, extra }
           <LetterBadge p={p} />
           <div className="min-w-0">
             <h2 className="truncate text-title font-semibold tracking-[-0.01em] text-white">{t(TITLE[p])}</h2>
-            <p className="tnum truncate text-xs text-slate-400">BTC · {date(panel.anchor)} → {date(end - 1)}{updatedAt ? <Updated at={updatedAt} className="ml-2 align-middle" /> : null}</p>
+            <p className="tnum truncate text-xs text-fg-3">BTC · {date(panel.anchor)} → {date(end - 1)}{updatedAt ? <Updated at={updatedAt} className="ml-2 align-middle" /> : null}</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {L.vwap != null && (
             <button type="button" title={t('Crea avviso')} aria-label={t('Crea avviso su {l}', { l: `VWAP ${tag}` })}
               onClick={() => openRuleEditor({ type: 'level_distance', params: { level: `vwap_${p}` as LevelId, pct: 0.2 }, name: t('BTC vicino al {l}', { l: t(TITLE[p]) }) })}
-              className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-amber-300"><BellPlus size={15} /></button>
+              className="grid h-8 w-8 place-items-center rounded-lg text-fg-4 transition-colors hover:bg-white/[0.06] hover:text-warn"><BellPlus size={15} /></button>
           )}
           {onExpand && (
             <button type="button" onClick={onExpand} title={t('Espandi')} aria-label={t('Espandi')}
-              className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-white"><Maximize2 size={15} /></button>
+              className="grid h-8 w-8 place-items-center rounded-lg text-fg-4 transition-colors hover:bg-white/[0.06] hover:text-white"><Maximize2 size={15} /></button>
           )}
           {extra}
         </div>
@@ -206,11 +200,11 @@ function PanelBody({ p, panel, opts, fit, expanded, onExpand, updatedAt, extra }
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 px-4 pb-2 pt-2.5 sm:flex sm:flex-wrap sm:gap-x-7 sm:px-5">
         <ValueCell label={`VWAP ${tag}`} value={fmt2(v.vwap)} color={c} dashed={false} />
         {opts.prev && <ValueCell label={`VWAP p${tag}`} value={fmt2(v.pvwap)} dashed />}
-        {opts.bands && <ValueCell className="col-span-2 sm:col-span-1" label="+1σ / −1σ" value={<>{fmt2(v.up1)}<span className="text-slate-500"> / </span>{fmt2(v.dn1)}</>} />}
+        {opts.bands && <ValueCell className="col-span-2 sm:col-span-1" label="+1σ / −1σ" value={<>{fmt2(v.up1)}<span className="text-fg-4"> / </span>{fmt2(v.dn1)}</>} />}
         {hover && (
           <div className="col-span-2 min-w-0 sm:col-span-1 sm:ml-auto sm:text-right">
             <div className="label">{(() => { const d = new Date(hover.time * 1000); return `${date(hover.time)} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC` })()}</div>
-            <div className="tnum mt-0.5 truncate text-xs text-slate-300">
+            <div className="tnum mt-0.5 truncate text-xs text-fg-2">
               O {usdP(hover.open)} · H {usdP(hover.high)} · L {usdP(hover.low)} · C <span className={hover.close >= hover.open ? 'text-up' : 'text-down'}>{usdP(hover.close)}</span>
             </div>
           </div>
@@ -220,7 +214,7 @@ function PanelBody({ p, panel, opts, fit, expanded, onExpand, updatedAt, extra }
         <VwapChart panel={panel} color={c} tag={tag} showBands={opts.bands} show2={opts.two} showPrev={opts.prev} fitSignal={fit}
           source={panel.source} wheel={!!expanded} compact={narrow} onHover={setHover} />
       </div>
-      <footer className="flex items-center justify-between gap-3 border-t border-white/[0.05] px-4 py-2 text-2xs text-slate-500 sm:px-5">
+      <footer className="flex items-center justify-between gap-3 border-t border-line-subtle px-4 py-2 text-2xs text-fg-4 sm:px-5">
         <span className="tnum min-w-0 truncate">p{tag}: {date(panel.prev_anchor)} → {date(panel.prev_end)} · {t('livelli estesi')}</span>
         <span className="tnum shrink-0">{TF_LABEL[panel.tf] ?? panel.tf} · {quote}</span>
       </footer>
@@ -242,7 +236,7 @@ function Panel({ p, source, calc, opts, fit, onExpand }: {
       ) : d && d.candles ? (
         <PanelBody p={p} panel={d} opts={opts} fit={fit} onExpand={onExpand} updatedAt={q.dataUpdatedAt} />
       ) : (
-        <div className="grid h-full place-items-center text-sm text-slate-400">{t('Dati in fase di sincronizzazione, riprova tra poco.')}</div>
+        <div className="grid h-full place-items-center text-sm text-fg-3">{t('Dati in fase di sincronizzazione, riprova tra poco.')}</div>
       )}
     </Card>
   )
@@ -267,12 +261,12 @@ function Expanded({ p, source, calc, opts, onClose }: { p: VwapPeriod; source: V
   }, [onClose])
   return createPortal(
     <div ref={box} tabIndex={-1} className="fixed inset-0 z-[80] outline-none" role="dialog" aria-modal="true" aria-label={t(TITLE[p])}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-[3px]" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
       <div className="card pop-in absolute inset-2 flex flex-col overflow-hidden sm:inset-5">
         {q.data?.candles ? (
           <PanelBody p={p} panel={q.data} opts={opts} fit={fit} expanded extra={<>
             <button className="btn-ghost ml-1" onClick={() => setFit((x) => x + 1)}><ScanLine size={14} /><span className="hidden sm:inline">{t('Adatta grafico')}</span></button>
-            <button onClick={onClose} aria-label={t('Chiudi')} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-white"><X size={16} /></button>
+            <button onClick={onClose} aria-label={t('Chiudi')} className="grid h-8 w-8 place-items-center rounded-lg text-fg-3 transition-colors hover:bg-white/[0.06] hover:text-white"><X size={16} /></button>
           </>} />
         ) : <Skeleton className="m-5 flex-1" />}
       </div>
@@ -317,7 +311,7 @@ function OverviewCard({ source, calc, fit, tf, setTf, prof, setProf }: {
             <IconBadge icon={<CandlestickChart />} accent="teal" />
             <div className="min-w-0">
               <h2 className="truncate text-title font-semibold tracking-[-0.01em] text-white">{t('Grafico unico')}</h2>
-              <p className="tnum truncate text-xs text-slate-400">
+              <p className="tnum truncate text-xs text-fg-3">
                 BTC · {OV_TF_LABEL[tf]} · {d ? `${date(d.from)} → ${date(d.last_closed_end - 1)}` : '—'} · UTC
                 {q.dataUpdatedAt ? <Updated at={q.dataUpdatedAt} className="ml-2 align-middle" /> : null}
               </p>
@@ -345,17 +339,17 @@ function OverviewCard({ source, calc, fit, tf, setTf, prof, setProf }: {
           {hover ? (
             <>
               <span className="label tnum">{(() => { const x = new Date(hover.time * 1000); return `${date(hover.time)} ${String(x.getUTCHours()).padStart(2, '0')}:${String(x.getUTCMinutes()).padStart(2, '0')} UTC` })()}</span>
-              <span className="tnum text-slate-300">O {usdP(hover.open)} · H {usdP(hover.high)} · L {usdP(hover.low)} · C <span className={hover.close >= hover.open ? 'text-up' : 'text-down'}>{usdP(hover.close)}</span></span>
+              <span className="tnum text-fg-2">O {usdP(hover.open)} · H {usdP(hover.high)} · L {usdP(hover.low)} · C <span className={hover.close >= hover.open ? 'text-up' : 'text-down'}>{usdP(hover.close)}</span></span>
               {PERIODS.filter((p) => periods[p] && hover.vwap[p] != null).map((p) => (
                 <span key={p} className="tnum" style={{ color: COLOR[p] }}>{TAG[p]} {usdP(hover.vwap[p])}</span>
               ))}
             </>
           ) : last ? (
             PERIODS.filter((p) => periods[p]).map((p) => (
-              <span key={p} className="tnum text-slate-400">
+              <span key={p} className="tnum text-fg-3">
                 <span className="mr-1 inline-block h-0.5 w-3 rounded-full align-middle" style={{ background: COLOR[p] }} />
                 <span style={{ color: COLOR[p] }}>{TAG[p]}</span> {usdP(last[p]?.vwap)}
-                <span className="text-slate-600"> · </span>p{TAG[p]} {usdP(last[p]?.prev.vwap)}
+                <span className="text-fg-off"> · </span>p{TAG[p]} {usdP(last[p]?.prev.vwap)}
               </span>
             ))
           ) : null}
@@ -363,15 +357,15 @@ function OverviewCard({ source, calc, fit, tf, setTf, prof, setProf }: {
         <div className="relative min-h-0 flex-1">
           {q.isPending ? <Skeleton className="absolute inset-3" /> : q.isError && !d ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
             : d?.candles ? <VwapOverviewChart data={d} opts={opts} showProfile={prof !== 'off'} fitSignal={fit} source={source} compact={narrow} onHover={setHover} />
-            : <div className="grid h-full place-items-center text-sm text-slate-400">{t('Dati in fase di sincronizzazione, riprova tra poco.')}</div>}
+            : <div className="grid h-full place-items-center text-sm text-fg-3">{t('Dati in fase di sincronizzazione, riprova tra poco.')}</div>}
         </div>
-        <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-white/[0.05] px-4 py-2 text-2xs text-slate-500 sm:px-5">
+        <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line-subtle px-4 py-2 text-2xs text-fg-4 sm:px-5">
           <span className="min-w-0" title={t('VAH = VWAP +1σ, VAL = VWAP −1σ')}>
-            <span className="text-slate-300">{t('Livelli VWAP (a destra)')}</span>: VAH = VWAP +1σ · VAL = VWAP −1σ · p = {t('periodo precedente')}
+            <span className="text-fg-2">{t('Livelli VWAP (a destra)')}</span>: VAH = VWAP +1σ · VAL = VWAP −1σ · p = {t('periodo precedente')}
           </span>
           {prof !== 'off' && (
             <span className="min-w-0">
-              <span className="text-slate-300">{t('Profilo volume (grigio)')}</span>: POC · VAH/VAL = {t('value area {p}%', { p: 70 })} · bin {binTxt}
+              <span className="text-fg-2">{t('Profilo volume (grigio)')}</span>: POC · VAH/VAL = {t('value area {p}%', { p: 70 })} · bin {binTxt}
             </span>
           )}
         </footer>
@@ -402,18 +396,18 @@ function ProfileCard({ source, calc, tf, prof }: { source: VwapSource; calc: Vwa
             <tbody>
               {rows.map((r) => (
                 <tr key={r.start}>
-                  <td className="tnum whitespace-nowrap text-white">{date(r.start, false)} → {date(Math.min(r.end, q.data?.last_closed_end ?? r.end) - 1, false)}{!r.complete && <div className="text-2xs font-normal text-slate-500">{t('in corso')}</div>}</td>
-                  <td className="tnum text-right text-slate-300">{usdP(r.vah)}</td>
+                  <td className="tnum whitespace-nowrap text-white">{date(r.start, false)} → {date(Math.min(r.end, q.data?.last_closed_end ?? r.end) - 1, false)}{!r.complete && <div className="text-2xs font-normal text-fg-4">{t('in corso')}</div>}</td>
+                  <td className="tnum text-right text-fg-2">{usdP(r.vah)}</td>
                   <td className="tnum text-right font-medium text-white">{usdP(r.poc)}</td>
-                  <td className="tnum text-right text-slate-300">{usdP(r.val)}</td>
-                  <td className="tnum text-right text-slate-400">{Math.round(r.volume).toLocaleString('en-US')}</td>
-                  <td className={clsx('tnum text-right', rob(r) > 25 ? 'text-amber-300' : 'text-slate-400')} title={`POC ${r.robust_bp.poc} · VAH ${r.robust_bp.vah} · VAL ${r.robust_bp.val} bp`}>±{rob(r).toFixed(0)} bp</td>
+                  <td className="tnum text-right text-fg-2">{usdP(r.val)}</td>
+                  <td className="tnum text-right text-fg-3">{Math.round(r.volume).toLocaleString('en-US')}</td>
+                  <td className={clsx('tnum text-right', rob(r) > 25 ? 'text-warn' : 'text-fg-3')} title={`POC ${r.robust_bp.poc} · VAH ${r.robust_bp.vah} · VAL ${r.robust_bp.val} bp`}>±{rob(r).toFixed(0)} bp</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="px-4 pt-2 text-xs leading-relaxed text-slate-400">{t('Robustezza oltre 25 bp: profilo con due zone di volume quasi uguali, il POC può saltare tra le due. Il profilo è un concetto diverso dalle bande VWAP: qui VAH/VAL delimitano il 70% del volume scambiato.')}</p>
+        <p className="px-4 pt-2 text-xs leading-relaxed text-fg-3">{t('Robustezza oltre 25 bp: profilo con due zone di volume quasi uguali, il POC può saltare tra le due. Il profilo è un concetto diverso dalle bande VWAP: qui VAH/VAL delimitano il 70% del volume scambiato.')}</p>
       </CardBody>
     </Card>
   )
@@ -445,14 +439,14 @@ function ConfluenceCard({ s, price }: { s: VwapSummary; price: number | null }) 
                         ))}
                       </div>
                     </td>
-                    <td className="tnum text-right text-slate-300">{pct(c.width_pct, 2, false)}</td>
-                    <td className="tnum text-right text-slate-300">{pct(px ? (c.mid / px - 1) * 100 : c.distance_pct, 2)}</td>
+                    <td className="tnum text-right text-fg-2">{pct(c.width_pct, 2, false)}</td>
+                    <td className="tnum text-right text-fg-2">{pct(px ? (c.mid / px - 1) * 100 : c.distance_pct, 2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        ) : <p className="px-4 py-6 text-center text-sm text-slate-400">{t('Nessun gruppo di livelli entro lo {p}%.', { p: '0.5' })}</p>}
+        ) : <p className="px-4 py-6 text-center text-sm text-fg-3">{t('Nessun gruppo di livelli entro lo {p}%.', { p: '0.5' })}</p>}
       </CardBody>
     </Card>
   )
@@ -488,17 +482,17 @@ function VerifyCard({ s }: { s: VwapSummary }) {
                 return (
                   <tr key={p}>
                     <td className="whitespace-nowrap text-white"><span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ background: COLOR[p] }} />{t(TITLE[p])}</td>
-                    <td className="tnum text-right text-slate-300">{d ? bp(d[0]) : '—'}</td>
-                    <td className="tnum text-right text-slate-300">{d ? bp(d[3]) : '—'}</td>
-                    <td className="tnum text-right text-slate-300">{d ? bp(maxAbs([d[1], d[2], d[4], d[5]]), 1).replace('+', '') : '—'}</td>
-                    <td className="tnum text-right text-slate-300">{rc ? bp(maxAbs(rc[p].diff_bp), 2).replace('+', '') : '—'}</td>
+                    <td className="tnum text-right text-fg-2">{d ? bp(d[0]) : '—'}</td>
+                    <td className="tnum text-right text-fg-2">{d ? bp(d[3]) : '—'}</td>
+                    <td className="tnum text-right text-fg-2">{d ? bp(maxAbs([d[1], d[2], d[4], d[5]]), 1).replace('+', '') : '—'}</td>
+                    <td className="tnum text-right text-fg-2">{rc ? bp(maxAbs(rc[p].diff_bp), 2).replace('+', '') : '—'}</td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
         </div>
-        <p className="px-4 pt-2 text-xs leading-relaxed text-slate-400">
+        <p className="px-4 pt-2 text-xs leading-relaxed text-fg-3">
           {cc
             ? t('Δ in punti base di {o} rispetto a {s}. Differenza mediana dei prezzi nelle ultime 24 ore: {b}. Le differenze maggiori sui VWAP lunghi dipendono da come si distribuiscono i volumi nel tempo sulle due piattaforme, non da errori di calcolo.', { o: other.label, s: SRC[s.source].label, b: bp(cc.price_basis_bp_24h) })
             : t('Il confronto con la seconda fonte comparirà al termine del download dello storico.')}
@@ -513,7 +507,7 @@ type Tab = 'chart' | 'panels'
 const TABS: Tab[] = ['chart', 'panels']
 
 export default function VwapPage() {
-  const [tab, setTab] = useTab<Tab>(TABS, 'chart')
+  const [tab, setTab] = useTab<Tab>(TABS, 'chart', 'view')
   const [tf, setTf] = usePersist<VwapOverviewTf>('vwap.ov.tf', '2h', OV_TFS)
   const [prof, setProf] = usePersist<VwapProfileMode>('vwap.ov.profile', 'week', ['week', 'month', 'off'])
   const [source, setSource] = usePersist<VwapSource>('vwap.source', 'kraken', ['kraken', 'binance'])
@@ -537,9 +531,7 @@ export default function VwapPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <PageTitle title="VWAP" subtitle={t('VWAP ancorati al calendario UTC (settimana, mese, trimestre, anno) con bande ±σ e livelli del periodo precedente estesi.')} />
-      <TabBar value={tab} onChange={setTab} tabs={[{ value: 'chart', label: t('Grafico unico') }, { value: 'panels', label: t('Pannelli') }]} />
-      <Toolbar tab={tab} source={source} setSource={setSource} calc={calc} setCalc={setCalc} bands={bands} setBands={setBands} two={two} setTwo={setTwo}
+      <Toolbar tab={tab} setTab={setTab} source={source} setSource={setSource} calc={calc} setCalc={setCalc} bands={bands} setBands={setBands} two={two} setTwo={setTwo}
         prev={prev} setPrev={setPrev} onFit={() => setFit((x) => x + 1)} onRefresh={refresh} refreshing={refreshing} updatedAt={q.dataUpdatedAt} />
       {q.isPending ? (
         <div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[520px]" /></div>
@@ -551,10 +543,10 @@ export default function VwapPage() {
             subtitle={t('Candele 1 minuto {v} dal 1° gennaio dell’anno precedente', { v: SRC[source].venue })} />
           <CardBody>
             <div className="flex items-center gap-3">
-              <ProgressBar value={(s?.status.progress ?? 0) * 100} color="#3CC6B0" className="flex-1" />
+              <ProgressBar value={(s?.status.progress ?? 0) * 100} color={T.accent} className="flex-1" />
               <span className="tnum text-sm text-white">{Math.round((s?.status.progress ?? 0) * 100)}%</span>
             </div>
-            <p className="mt-2 text-xs text-slate-400">{t('Il download avviene una sola volta; poi si aggiorna solo l’ultimo minuto. La pagina si aggiorna da sola.')}</p>
+            <p className="mt-2 text-xs text-fg-3">{t('Il download avviene una sola volta; poi si aggiorna solo l’ultimo minuto. La pagina si aggiorna da sola.')}</p>
           </CardBody>
         </Card>
       ) : (

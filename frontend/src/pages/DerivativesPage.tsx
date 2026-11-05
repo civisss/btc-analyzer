@@ -1,17 +1,16 @@
-import { useTab } from '../lib/useTab'
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, BarChart3, Clock, Gauge, Layers, Percent, Scale, Signal, Tag, Users } from 'lucide-react'
 import { useCandles, useDerivatives } from '../api/client'
 import { useLive } from '../api/live'
 import type { Derivatives } from '../api/types'
 import { C } from '../components/charts/theme'
-import { Card, CardBody, CardHeader, Change, Fill, KpiCell, KpiStrip, PageTitle, Q, Segmented, Skeleton, TabBar } from '../components/ui'
+import { Card, CardBody, CardHeader, Change, Fill, KpiCell, KpiStrip, Q, Segmented, Skeleton } from '../components/ui'
 import { AnomalyToggle, TimeLinesChart, candlesToPts, marksIn } from '../widgets/charts'
 import { useAnomalyMarks } from '../api/superchart'
-import { FlowsSection, SignalList } from '../widgets/flows'
-import { BasisTab, CmeTab, LeverageTab } from '../widgets/derivPro'
+import { SignalList } from '../widgets/flows'
 import { dayUnit, pct, usd, usdCompact } from '../lib/format'
 import { t } from '../i18n'
+import { T, alpha } from '../theme/tokens'
 
 function Countdown({ to }: { to: number }) {
   const [now, setNow] = useState(Date.now())
@@ -44,7 +43,7 @@ function LiveStats({ d }: { d: Derivatives }) {
 const fundFmt = (v: number) => `${v.toFixed(3)}%`
 const oiFmt = (v: number) => usdCompact(v, 1)
 const ratioFmt = (v: number) => v.toFixed(2)
-const ONE_LINE = [{ y: 1, color: 'rgba(148,163,184,0.6)' }]
+const ONE_LINE = [{ y: 1, color: alpha(T.fg3, 0.6) }]
 
 function DerivCharts({ d, updatedAt }: { d: Derivatives; updatedAt: number }) {
   const [lsKind, setLsKind] = useState<'accounts' | 'top_traders' | 'taker'>('accounts')
@@ -54,16 +53,16 @@ function DerivCharts({ d, updatedAt }: { d: Derivatives; updatedAt: number }) {
   const oiAn = useAnomalyMarks('oi_binance', anOi)
   const fundMarks = useMemo(() => marksIn(fundAn.marks, d.funding.series), [fundAn.marks, d.funding.series])
   const oiMarks = useMemo(() => marksIn(oiAn.marks, d.open_interest.series), [oiAn.marks, d.open_interest.series])
-  const fundLines = useMemo(() => [{ name: 'Funding', data: d.funding.series, color: C.blue, type: 'bar' as const }], [d.funding.series])
-  const oiLines = useMemo(() => [{ name: 'Open Interest', data: d.open_interest.series, color: C.blue, area: true }], [d.open_interest.series])
-  const lsLines = useMemo(() => [{ name: 'Long/Short', data: d.long_short[lsKind], color: C.blue, area: true }], [d.long_short, lsKind])
+  const fundLines = useMemo(() => [{ name: 'Funding', data: d.funding.series, color: C.accent, type: 'bar' as const }], [d.funding.series])
+  const oiLines = useMemo(() => [{ name: 'Open Interest', data: d.open_interest.series, color: C.accent, area: true }], [d.open_interest.series])
+  const lsLines = useMemo(() => [{ name: 'Long/Short', data: d.long_short[lsKind], color: C.accent, area: true }], [d.long_short, lsKind])
   const cq = useCandles('1h', 1000)
   const oiS = d.open_interest.series
   const oiPxLines = useMemo(() => {
     const from = oiS[0]?.time ?? 0
     return [
-      { name: 'Open interest', data: oiS, color: C.blue, area: true },
-      { name: t('Prezzo BTC'), data: candlesToPts((cq.data ?? []).filter((c) => c.time >= from)), color: C.btc, axis: 1 as const, width: 1.4, dashed: true },
+      { name: 'Open interest', data: oiS, color: C.accent, area: true },
+      { name: t('Prezzo BTC'), data: candlesToPts((cq.data ?? []).filter((c) => c.time >= from)), color: C.price, axis: 1 as const, width: 1.4, dashed: true },
     ]
   }, [oiS, cq.data])
   const span = oiS.length > 1 ? Math.round((oiS[oiS.length - 1].time - oiS[0].time) / 86400) : 0
@@ -122,7 +121,7 @@ function DerivCharts({ d, updatedAt }: { d: Derivatives; updatedAt: number }) {
                 <div key={x.k} className="px-3 py-2.5">
                   <div className="label">{x.k}</div>
                   <div className="tnum mt-1 text-lg font-semibold text-white">{x.v}</div>
-                  <div className="tnum truncate text-xs text-slate-400">{x.f}</div>
+                  <div className="tnum truncate text-xs text-fg-3">{x.f}</div>
                 </div>
               ))}
             </div>
@@ -133,30 +132,7 @@ function DerivCharts({ d, updatedAt }: { d: Derivatives; updatedAt: number }) {
   )
 }
 
-type Tab = 'deriv' | 'flows' | 'basis' | 'cme' | 'leverage'
-const TABS: Tab[] = ['deriv', 'flows', 'basis', 'cme', 'leverage']
-const SUBTITLE: Record<Tab, string> = {
-  deriv: 'Funding rate, open interest, rapporti long/short e basis dei futures perpetui.',
-  flows: 'Flussi taker su Binance: spot e futures perpetui a confronto.',
-  basis: 'Basis annualizzato dei futures a scadenza: curva Deribit e Binance, storico trimestrale dal 2020.',
-  cme: 'Posizionamento istituzionale sui futures Bitcoin CME (CFTC Commitments of Traders) dal 2018.',
-  leverage: 'Open interest e funding aggregati di Binance, Bybit e OKX, con storico e verifica incrociata.',
-}
-export default function DerivativesPage() {
-  const [tab, changeTab] = useTab<Tab>(TABS, 'deriv')
-  return (
-    <div>
-      <PageTitle title={t('Derivati')} subtitle={t(SUBTITLE[tab])} />
-      <TabBar value={tab} onChange={changeTab} tabs={[
-        { value: 'deriv', label: t('Futures perpetui') }, { value: 'flows', label: t('Spot vs Futures') },
-        { value: 'basis', label: t('Basis e curva') }, { value: 'cme', label: 'CME' }, { value: 'leverage', label: t('Leva aggregata') },
-      ]} />
-      {tab === 'deriv' ? <DerivativesTab /> : tab === 'flows' ? <FlowsSection /> : tab === 'basis' ? <BasisTab /> : tab === 'cme' ? <CmeTab /> : <LeverageTab />}
-    </div>
-  )
-}
-
-function DerivativesTab() {
+export default function DerivativesTab() {
   const q = useDerivatives()
   return (
     <>

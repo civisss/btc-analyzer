@@ -1,15 +1,15 @@
-"""Team di agenti autonomi.
+"""Agenti di sfondo: tengono aggiornati i moduli e alimentano Sintesi e Avvisi.
 
-Ogni agente possiede un dominio (liquidazioni, livelli, pattern, ...), gira con il proprio intervallo,
-pubblica "finding" sul bus e reagisce ai messaggi degli altri (richieste, conferme, allerte).
-Tutti i messaggi sono salvati in un ring buffer e inoltrati in tempo reale sul WebSocket /api/ws.
+Ogni agente ricalcola i dati del proprio dominio con la sua cadenza, pubblica "finding" per l'Analista e messaggi sul bus
+(richieste, conferme, allerte) e, a ogni giro riuscito, chiede al browser di ricaricare le query interessate (mappa
+INVALIDATES -> {"type":"invalidate"} sul WebSocket). I moduli affini stanno in un solo agente (MultiAgent), con una cadenza
+per ogni parte. Il ring buffer dei messaggi serve al motore degli avvisi (alerts.rule_agents).
 """
 from __future__ import annotations
 
 import asyncio
 import importlib
 import itertools
-import json
 import logging
 import time
 from collections import deque
@@ -31,6 +31,15 @@ def _call(module: str, fn: str, **kw):
     """Chiama un builder di un router (import pigro, così un modulo rotto non blocca gli altri)."""
     mod = importlib.import_module(f"app.routers.{module}")
     return getattr(mod, fn)(**kw)
+
+
+def _optional(module: str, fn: str, **kw) -> dict | None:
+    """Come _call, per un dato accessorio: se manca l'agente continua con il resto."""
+    try:
+        return _call(module, fn, **kw)
+    except Exception as e:  # noqa: BLE001
+        log.info("%s.%s non disponibile: %s", module, fn, e)
+        return None
 
 
 def util_data(t) -> str:
@@ -65,7 +74,6 @@ class Bus:
         self.messages: deque[dict] = deque(maxlen=600)
         self.ids = itertools.count(1)
         self.agents: dict[str, "Agent"] = {}
-        self.edges: dict[tuple[str, str], dict] = {}
 
     def subscribers(self, topic: str) -> list["Agent"]:
         return [a for a in self.agents.values() if any(topic.startswith(s) for s in a.subscribes)]
@@ -83,16 +91,8 @@ class Bus:
                 alerts.ingest(msg)
             except Exception as e:  # noqa: BLE001
                 log.debug("ingest avviso fallito: %s", e)
-        sender.sent += 1
         targets = [self.agents[to]] if to != "*" and to in self.agents else [a for a in self.subscribers(topic) if a.id != sender.id]
         for t in targets:
-            e = self.edges.setdefault((sender.id, t.id), {"topics": set(), "count": 0, "last": None})
-            e["topics"].add(topic)
-            e["count"] += 1
-            e["last"] = msg["time"]
-        await _ws_push({"type": "agent_message", **msg})
-        for t in targets:
-            t.received += 1
             t.inbox.put_nowait(msg)
         return msg
 
@@ -116,32 +116,25 @@ class Finding:
     text: str
     tone: Tone = "neutral"
     confidence: float = 60
+    src: str | None = None   # fonte del track record se diversa dall'agente (i frattali, nell'agente analogs, restano "patterns")
 
     def as_dict(self) -> dict:
-        return {"title": self.title, "text": self.text, "tone": self.tone, "confidence": round(self.confidence), "time": _now()}
+        return {"title": self.title, "text": self.text, "tone": self.tone, "confidence": round(self.confidence), "time": _now(), "src": self.src}
 
 
 @dataclass
 class Agent:
     id: str
     name: str
-    role: str
-    icon: str
-    color: str
     interval_s: int
     subscribes: list[str] = field(default_factory=list)
-    publishes: list[str] = field(default_factory=list)
+    views: int = 2   # quanti finding (i più recenti, uno per titolo) entrano nel consenso dell'Analista
 
     def __post_init__(self) -> None:
         self.status = "idle"
         self.error: str | None = None
-        self.runs = 0
         self.last_run: int | None = None
-        self.next_run: int | None = None
-        self.last_duration_ms: int | None = None
-        self.findings: deque[dict] = deque(maxlen=6)
-        self.sent = 0
-        self.received = 0
+        self.findings: deque[dict] = deque(maxlen=12)
         self.inbox: asyncio.Queue = asyncio.Queue()
         self.state: dict[str, Any] = {}
         self._last_text: dict[str, str] = {}
@@ -149,8 +142,12 @@ class Agent:
 
     # -- helpers
     def finding(self, f: Finding) -> None:
-        if not self.findings or self.findings[0]["text"] != f.text:
-            self.findings.appendleft(f.as_dict())
+        """Una sola voce per titolo: i numeri cambiano a ogni giro, si aggiorna la voce invece di accodarne di nuove."""
+        for i, x in enumerate(list(self.findings)):
+            if x["title"] == f.title:
+                del self.findings[i]
+                break
+        self.findings.appendleft(f.as_dict())
 
     async def say(self, topic: str, text: str, *, to: str = "*", kind: str = "finding", tone: Tone = "neutral",
                   data: dict | None = None, dedupe: bool = True) -> None:
@@ -177,8 +174,6 @@ class Agent:
     # -- ciclo
     async def run_once(self) -> None:
         self.status = "running"
-        await self._push_status()
-        t = time.perf_counter()
         try:
             result = await asyncio.to_thread(self.compute)
             self.state.update(result or {})
@@ -189,19 +184,11 @@ class Agent:
             log.warning("agente %s errore: %s", self.id, e)
             self.error = str(e)[:300]
             self.status = "error"
-        self.runs += 1
         self.last_run = _now()
-        self.last_duration_ms = int((time.perf_counter() - t) * 1000)
-        self.next_run = self.last_run + self.interval_s
-        await self._push_status()
         if self.status != "error":
             keys = INVALIDATES.get(self.id)
             if keys:  # i dati del modulo sono stati ricalcolati: il browser ricarica subito quelle query
                 await _ws_push({"type": "invalidate", "source": self.id, "keys": keys, "time": self.last_run})
-
-    async def _push_status(self) -> None:
-        await _ws_push({"type": "agent_status", "id": self.id, "status": self.status, "last_run": self.last_run,
-                        "next_run": self.next_run, "last_duration_ms": self.last_duration_ms})
 
     def trigger(self) -> None:
         self._wake.set()
@@ -224,60 +211,74 @@ class Agent:
             except Exception as e:  # noqa: BLE001
                 log.warning("agente %s on_message: %s", self.id, e)
 
-    def to_dict(self) -> dict:
-        return clean({
-            "id": self.id, "name": self.name, "role": self.role, "icon": self.icon, "color": self.color,
-            "status": self.status, "error": self.error, "interval_s": self.interval_s, "runs": self.runs,
-            "last_run": self.last_run, "next_run": self.next_run, "last_duration_ms": self.last_duration_ms,
-            "findings": list(self.findings), "subscribes": self.subscribes, "publishes": self.publishes,
-            "stats": {"messages_sent": self.sent, "messages_received": self.received},
-        })
+
+class MultiAgent(Agent):
+    """Agente che accorpa moduli affini. PARTS = (chiave, cadenza s, builder, handler): il builder (bloccante) restituisce un dict
+    che finisce in self.state, l'handler ne ricava finding e messaggi. Ogni parte gira con la propria cadenza e una parte in
+    errore non ferma le altre: l'agente va in errore (e non invalida) solo se in quel giro falliscono tutte."""
+
+    PARTS: tuple[tuple[str, int, str, str], ...] = ()
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self._ran: dict[str, float] = {}
+
+    def refresh(self, key: str) -> None:
+        """Forza la parte al prossimo giro (chiamare trigger() per anticiparlo)."""
+        self._ran.pop(key, None)
+
+    def compute(self) -> dict:
+        out: dict[str, dict] = {}
+        errors: list[str] = []
+        for key, every, build, _ in self.PARTS:
+            if time.time() - self._ran.get(key, 0) < every - 1:
+                continue
+            try:
+                out[key] = getattr(self, build)()
+                self._ran[key] = time.time()
+            except Exception as e:  # noqa: BLE001
+                log.warning("agente %s/%s: %s", self.id, key, e)
+                errors.append(f"{key}: {e}")
+        if errors and not out:
+            raise RuntimeError("; ".join(errors))
+        return {"parts": out}
+
+    async def act(self, result: dict) -> None:
+        parts = result.get("parts") or {}
+        for key, _, _, handler in self.PARTS:
+            if key not in parts:
+                continue
+            self.state.update(parts[key])
+            try:
+                await getattr(self, handler)(parts[key])
+            except Exception as e:  # noqa: BLE001
+                log.warning("agente %s/%s: %s", self.id, key, e)
 
 
-# agente -> prefissi delle API i cui dati cambiano quando l'agente ricalcola (per l'aggiornamento live del frontend)
+# agente -> prefissi delle API i cui dati cambiano quando l'agente ricalcola (per l'aggiornamento live del frontend).
+# "/derivatives" copre anche basis, CME e leva aggregata; "/usdt" anche gli analoghi USDT; "/alerts" anche le regole.
 INVALIDATES: dict[str, list[str]] = {
+    "analyst": ["/insights", "/scoreboard"],
     "market": ["/overview"],
     "levels": ["/levels", "/indicators"],
+    "vwap": ["/vwap"],
     "liquidity": ["/liquidations"],
-    "patterns": ["/fractals"],
-    "correlation": ["/usdt"],
-    "cycles": ["/cycles"],
+    "analogs": ["/fractals", "/analogs", "/usdt/analogs"],
+    "usdt": ["/usdt", "/stablecoins"],
+    "cycles": ["/cycles", "/cycle/advanced"],
     "onchain": ["/onchain"],
     "derivatives": ["/derivatives"],
     "flows": ["/flows"],
-    "analogs": ["/analogs"],
+    "supply_demand": ["/supply-demand"],
     "timepivots": ["/timepivots"],
-    "macro": ["/macro"],
-    "clock": ["/cycle/advanced"],
-    "miners": ["/cycle/advanced"],
-    "leverage": ["/cycle/advanced"],
-    "usdt_analogs": ["/usdt/analogs"],
-    "stablecoins": ["/stablecoins"],
+    "macro": ["/macro", "/events"],
+    "structure": ["/structure"],
+    "positioning": ["/positioning"],
+    "anomalies": ["/anomalies", "/superchart/series"],
+    "orderflow": ["/orderbook/status", "/orderbook/signals", "/terminal/status", "/terminal/signals"],
     "forecast": ["/forecast"],
-    "range": ["/structure"],
-    "opening": ["/structure"],
-    "scenarios": ["/structure"],
-    "events": ["/events"],
-    "astro": ["/astro"],
     "verifier": ["/tracking"],
     "alerts": ["/alerts"],
-    "options": ["/positioning"],
-    "holders": ["/positioning"],
-    "sentiment": ["/positioning"],
-    "supply_demand": ["/supply-demand"],
-    "custom_alerts": ["/alerts/rules"],
-    "journal": ["/journal"],
-    "basis": ["/derivatives/basis"],
-    "cme": ["/derivatives/cme"],
-    "agg_leverage": ["/derivatives/aggregate"],
-    "analyst": ["/insights", "/agents"],
-    "vwap": ["/vwap"],
-    "timing": ["/timing"],
-    "elliott": ["/elliott"],
-    "anomalies": ["/anomalies", "/superchart/series"],
-    "orderbook": ["/orderbook/status", "/orderbook/signals"],
-    "flow": ["/terminal/status", "/terminal/signals"],
-    "kronos": ["/forecast/kronos"],
 }
 
 
@@ -397,7 +398,7 @@ class LevelsAgent(Agent):
 
 class LiquidityAgent(Agent):
     def compute(self):
-        return {"liq": _call("liquidations", "build", range="7d")}
+        return {"liq": _call("liquidations", "build", range="7d"), "levmap": _optional("scoreboard", "leverage_map")}
 
     async def act(self, r):
         lq = r["liq"]
@@ -414,6 +415,9 @@ class LiquidityAgent(Agent):
         t = lq.get("totals") or {}
         if t.get("long_24h") or t.get("short_24h"):
             self.finding(Finding("Liquidazioni 24h", f"Long {_usd(t.get('long_24h'))} · Short {_usd(t.get('short_24h'))}", "neutral", 85))
+        lm = ((r.get("levmap") or {}).get("windows") or {}).get("7d")
+        if lm:
+            self.finding(Finding("Mappa per leva, 7 giorni", f"Stima, non ordini reali: {_usd(lm['short_above'])} di short sopra il prezzo, {_usd(lm['long_below'])} di long sotto.", "neutral", 50))
 
     async def on_message(self, m):
         data = m.get("data") or {}
@@ -430,14 +434,29 @@ class LiquidityAgent(Agent):
                 self.trigger()  # l'OI è cambiato molto: ricalcolo la mappa
 
 
-class PatternAgent(Agent):
-    def compute(self):
-        return {"h4": _call("fractals", "build", tf="4h", window=60, horizon=30, top=5),
-                "d1": _call("fractals", "build", tf="1d", window=60, horizon=30, top=5)}
+class AnalogsAgent(MultiAgent):
+    """Somiglianze con lo storico: frattali, analogie grafiche (forma, candele, gambe, figure) e di struttura, analoghi della USDT dominance."""
 
-    async def act(self, r):
+    PARTS = (("analogs", 120, "_c_analogs", "_a_analogs"), ("fractals", 60, "_c_fractals", "_a_fractals"), ("usdt", 300, "_c_usdt", "_a_usdt"))
+
+    def _c_fractals(self):
+        return {"fh4": _call("fractals", "build", tf="4h", window=60, horizon=30, top=5),
+                "fd1": _call("fractals", "build", tf="1d", window=60, horizon=30, top=5)}
+
+    def _c_analogs(self):
+        out = {"h4": _call("analogs", "build", tf="4h", top=5), "d1": _call("analogs", "build", tf="1d", top=5)}
+        try:  # analogia di struttura (sequenza di massimi/minimi ZigZag) su BTC e USDT.D giornalieri
+            out["struct"] = {a: _call("struct_analogs", "build", asset=a, tf="1d") for a in ("btc", "usdtd")}
+        except Exception as e:  # noqa: BLE001
+            log.warning("analogia di struttura non disponibile: %s", e)
+        return out
+
+    def _c_usdt(self):
+        return {"u": _call("usdt_analogs", "build", tf="1d")}
+
+    async def _a_fractals(self, r):
         for key, label in (("h4", "4H"), ("d1", "1D")):
-            f = r[key]
+            f = r["f" + key]
             pj = f.get("projection") or {}
             best = (f.get("matches") or [{}])[0]
             up = pj.get("up_prob")
@@ -447,158 +466,24 @@ class PatternAgent(Agent):
             p50 = (pj.get("p50") or [None])[-1]
             text = (f"Frattale {label}: miglior analogo {best.get('label')} (similarità {best.get('similarity', 0):.0f}%). "
                     f"Probabilità rialzo {up * 100 if up <= 1 else up:.0f}%, mediana a fine orizzonte {_k(p50)}.")
-            self.finding(Finding(f"Frattale {label}", text, tone, min(90, best.get("similarity", 50))))
+            self.finding(Finding(f"Frattale {label}", text, tone, min(90, best.get("similarity", 50)), src="patterns"))
             await self.say(f"pattern.projection.{key}", text, tone=tone, data={"tf": label, "up_prob": up, "p50": p50})
-        rt = r["h4"].get("retests") or []
+            await self._cross_check(key, label, tone)
+        rt = r["fh4"].get("retests") or []
         if rt:
             prices = [x["price"] for x in rt[:4]]
             await self.say("pattern.retest", f"Gli analoghi indicano retest di: {', '.join(_k(p) for p in prices)}. Verifico con i livelli.",
                            data={"prices": prices})
             await self.ask("levels", "request.levels", "Questi prezzi di retest sono livelli chiave?", {"prices": prices})
 
-    async def on_message(self, m):
-        if m["topic"].startswith("correlation.usdt"):
-            usdt_tone = m.get("tone")
-            h4 = (self.state.get("h4") or {}).get("projection") or {}
-            if usdt_tone and h4.get("bias") and usdt_tone != "neutral":
-                agree = usdt_tone == h4["bias"]
-                txt = ("USDT.D conferma il bias del frattale 4H." if agree else "USDT.D diverge dal frattale 4H: segnale meno affidabile.")
-                await self.say("pattern.confirmation", txt, to="analyst", tone=h4["bias"] if agree else "neutral")
-
-
-class CorrelationAgent(Agent):
-    def compute(self):
-        return {"usdt": _call("usdt", "build")}
-
-    async def act(self, r):
-        u = r["usdt"]
-        c, cur = u.get("correlation", {}), u.get("current", {})
-        ch = cur.get("usdt_d_change_7d") or 0
-        tone = "bullish" if ch < -0.05 else "bearish" if ch > 0.05 else "neutral"
-        text = (f"USDT.D {cur.get('usdt_d', 0):.2f}% ({ch:+.2f} pt in 7g), correlazione 30g con BTC {c.get('current_30', 0):+.2f}. "
-                f"Mint USDT 30g {_usd(cur.get('mint_30d'))}.")
-        self.finding(Finding("USDT dominance", text, tone, 70))
-        await self.say("correlation.usdt", text, tone=tone, data={"usdt_d": cur.get("usdt_d"), "change_7d": ch})
-        dv = (u.get("divergences") or [])
-        if dv:
-            d = dv[-1]
-            self.finding(Finding("Ultima divergenza", d.get("note", ""), d.get("kind", "neutral"), 60))
-        fr = u.get("fractal") or {}
-        if fr.get("matches"):
-            mm = fr["matches"][0]
-            await self.say("correlation.fractal", f"Frattale congiunto BTC+USDT.D: similarità {mm['similarity']:.0f}%, dopo l'orizzonte BTC {mm['btc_outcome']:+.1f}%.",
-                           tone="bullish" if mm["btc_outcome"] > 0 else "bearish", to="patterns", data=mm)
-
-    async def on_message(self, m):
-        pass
-
-
-class CycleAgent(Agent):
-    def compute(self):
-        return {"c": _call("cycles", "build")}
-
-    async def act(self, r):
-        cur = r["c"].get("current", {})
-        phase = cur.get("phase", "?")
-        names = {"accumulation": "accumulo", "bull": "bull market", "distribution": "distribuzione", "bear": "bear market"}
-        tone = {"accumulation": "bullish", "bull": "bullish", "distribution": "bearish", "bear": "bearish"}.get(phase, "neutral")
-        nt = cur.get("est_next_top") or {}
-        text = (f"Fase di ciclo: {names.get(phase, phase)} (confidenza {cur.get('phase_confidence', 0):.0f}%), "
-                f"{cur.get('days_since_top')} giorni dal top. Prossimo top stimato ~{time.strftime('%b %Y', time.gmtime(nt['mid'])) if nt.get('mid') else 'n/d'}.")
-        self.finding(Finding("Fase di ciclo", text, tone, cur.get("phase_confidence", 60)))
-        await self.say("cycle.phase", text, tone=tone, data={"phase": phase})
-        pl = r["c"].get("models", {}).get("power_law", {})
-        if pl:
-            self.finding(Finding("Power law", f"Fair value {_k(pl.get('current_fair'))}, prezzo {pl.get('deviation', 0):+.0f}% rispetto al modello.",
-                                 "bullish" if (pl.get("deviation") or 0) < 0 else "bearish", 65))
-
-
-class OnchainAgent(Agent):
-    def compute(self):
-        return {"o": _call("onchain", "build")}
-
-    async def act(self, r):
-        ms = {m["key"]: m for m in r["o"].get("metrics", [])}
-        mv, rp = ms.get("mvrv"), ms.get("realized_price")
-        if mv:
-            text = f"MVRV {mv['display']} – {mv['status']}" + (f"; prezzo realizzato {rp['display']}." if rp else ".")
-            self.finding(Finding("Valutazione on-chain", text, mv.get("tone", "neutral"), 70))
-            await self.say("onchain.valuation", text, tone=mv.get("tone", "neutral"), data={"mvrv": mv["value"], "realized_price": rp["value"] if rp else None})
-        hr = ms.get("hashrate")
-        if hr:
-            self.finding(Finding("Hashrate", f"{hr['display']} ({(hr.get('change_30d') or 0):+.1f}% 30g)", hr.get("tone", "neutral"), 60))
-
-
-class DerivativesAgent(Agent):
-    def compute(self):
-        return {"d": _call("derivatives", "build")}
-
-    async def act(self, r):
-        d = r["d"]
-        f, oi, ls = d.get("funding", {}), d.get("open_interest", {}), d.get("long_short", {})
-        fr = f.get("current") or 0
-        tone = "bearish" if fr > 0.03 else "bullish" if fr < -0.005 else "neutral"
-        text = f"Funding {fr:+.4f}%/8h ({f.get('annualized', 0):+.1f}% annuo), OI {_usd(oi.get('current_usd'))} ({(oi.get('change_24h') or 0):+.1f}% 24h), long {ls.get('current_long_pct', 0):.0f}% degli account."
-        self.finding(Finding("Leva e funding", text, tone, 70))
-        await self.say("derivatives.funding", text, tone=tone, data={"funding": fr})
-        await self.say("derivatives.oi", f"Open interest {(oi.get('change_24h') or 0):+.1f}% in 24h.", to="liquidity",
-                       data={"change_24h": oi.get("change_24h")})
-        for s in d.get("signals", [])[:2]:
-            if s.get("tone") != "neutral":
-                await self.say("derivatives.signal", s["text"], tone=s["tone"], kind="alert")
-
-
-
-class FlowsAgent(Agent):
-    """Pressione di acquisto/vendita aggressiva: spot vs futures perpetual."""
-
-    def compute(self):
-        return {"fl": _call("flows", "build", tf="1h", range="7d")}
-
-    async def act(self, r):
-        fl = r["fl"]
-        wins = {w["label"]: w for w in fl.get("windows", [])}
-        w24 = wins.get("24h")
-        if w24:
-            text = (f"24h: spot {_usd(w24['spot_delta'])} netti ({w24['spot_buy_pct']:.1f}% acquisti), "
-                    f"futures {_usd(w24['perp_delta'])} ({w24['perp_buy_pct']:.1f}% acquisti), volume futures {w24['perp_spot_ratio']:.1f}× spot.")
-            self.finding(Finding("Delta 24h spot/futures", text, (fl.get("current") or {}).get("bias", "neutral"), 70))
-        for sg in (fl.get("signals") or [])[:2]:
-            self.finding(Finding("Segnale flussi", sg["text"], sg["tone"], 65))
-        top = (fl.get("signals") or [None])[0]
-        if top:
-            await self.say("flows.divergence", top["text"], tone=top["tone"],
-                           data={"dominant": (fl.get("current") or {}).get("dominant"),
-                                 "spot_24h": w24["spot_delta"] if w24 else None, "perp_24h": w24["perp_delta"] if w24 else None})
-        w1 = wins.get("1h")
-        if w1 and w24 and w24["perp_volume"]:
-            # spike di 1h: delta futures oltre il 15% del volume orario medio delle 24h
-            hourly = w24["perp_volume"] / 24
-            if abs(w1["perp_delta"]) > 0.15 * hourly:
-                side = "acquisti" if w1["perp_delta"] > 0 else "vendite"
-                await self.say("flows.spike", f"Ultima ora: ondata di {side} aggressivi sui futures ({_usd(w1['perp_delta'])}).",
-                               kind="alert", tone="bullish" if w1["perp_delta"] > 0 else "bearish")
-                await self.ask("liquidity", "request.liquidity", "Picco di flusso sui futures: aggiorna la mappa delle liquidazioni.")
-
-    async def on_message(self, m):
-        if m["topic"] == "derivatives.funding":
-            fr = (m.get("data") or {}).get("funding") or 0
-            w24 = {w["label"]: w for w in (self.state.get("fl") or {}).get("windows", [])}.get("24h")
-            if w24 and fr > 0.01 and w24["perp_delta"] > 0 > w24["spot_delta"]:
-                await self.say("flows.leverage", "Funding positivo + futures in acquisto mentre lo spot vende: rialzo trainato dalla leva.",
-                               to="analyst", kind="alert", tone="bearish")
-
-
-class AnalogsAgent(Agent):
-    """Analogie storiche soprattutto grafiche (forma, candele, gambe, figure) su 4H e 1D."""
-
-    def compute(self):
-        out = {"h4": _call("analogs", "build", tf="4h", top=5), "d1": _call("analogs", "build", tf="1d", top=5)}
-        try:  # analogia di struttura (sequenza di massimi/minimi ZigZag) su BTC e USDT.D giornalieri
-            out["struct"] = {a: _call("struct_analogs", "build", asset=a, tf="1d") for a in ("btc", "usdtd")}
-        except Exception as e:  # noqa: BLE001
-            log.warning("analogia di struttura non disponibile: %s", e)
-        return out
+    async def _cross_check(self, key: str, label: str, tone: str) -> None:
+        """Analoghi grafici e frattali sullo stesso timeframe: concordano?"""
+        mine = self.state.get(f"bias_{key}")
+        if not mine or mine == "neutral" or tone == "neutral":
+            return
+        txt = (f"Analoghi grafici e frattali {label} concordano ({'rialzo' if mine == 'bullish' else 'ribasso'})." if mine == tone
+               else f"Analoghi grafici e frattali {label} sono discordi: segnale {label} meno affidabile.")
+        await self.say(f"analogs.check.{key}", txt, to="analyst", tone=mine if mine == tone else "neutral")
 
     async def _structure(self, st: dict) -> None:
         """Finding sobrio: prossimi pivot strutturali (mediana dei top-N, P25–P75) + verdetto del backtest walk-forward."""
@@ -637,7 +522,7 @@ class AnalogsAgent(Agent):
                                                                      "lo": p1["lo"], "hi": p1["hi"], "t_lo": p1["t_lo"], "t_hi": p1["t_hi"]},
                                  "verdict": v, "n": bt["n"]})
 
-    async def act(self, r):
+    async def _a_analogs(self, r):
         if r.get("struct"):
             await self._structure(r["struct"])
         for key, label in (("h4", "4H"), ("d1", "1D")):
@@ -660,17 +545,274 @@ class AnalogsAgent(Agent):
                 await self.say(f"analogs.pattern.{key}", f"Figura {label} rilevata: {pats[0]['name']} (confidenza {pats[0]['confidence']:.0f}%).",
                                kind="alert", tone=pats[0].get("tone", "neutral"))
 
+    async def _a_usdt(self, r):
+        u = r["u"]
+        ms, sm = u.get("matches") or [], u.get("summary") or {}
+        if ms:
+            m = ms[0]
+            o = m.get("outcome") or {}
+            text = (f"La USDT.D attuale somiglia a {m['period']['label']} (similarità {m['similarity']:.0f}%): dopo, BTC {o.get('change') or 0:+.1f}% "
+                    f"in {o.get('candles')} candele. Sui {sm.get('count')} analoghi BTC è salito {sm.get('up')} volte (mediana {sm.get('median_outcome') or 0:+.1f}%).")
+            tone = sm.get("bias", "neutral")
+            self.finding(Finding("Analogo USDT.D", text, tone, min(85, m["similarity"])))
+            await self.say("usdt_analogs.match", text, tone=tone, data={"median": sm.get("median_outcome")})
+        mir = u.get("mirror")
+        if isinstance(mir, dict) and mir.get("state"):
+            self.finding(Finding("Specularità BTC/USDT.D", mir.get("text") or f"Stato: {mir['state']}", "neutral", 55))
+
     async def on_message(self, m):
-        topic = m["topic"]
-        for key in ("h4", "d1"):
-            if topic == f"pattern.projection.{key}" and self.state.get(f"bias_{key}"):
-                mine, other = self.state[f"bias_{key}"], m.get("tone")
-                if mine == "neutral" or other == "neutral":
-                    continue
-                label = "4H" if key == "h4" else "1D"
-                txt = (f"Analoghi grafici e frattali {label} concordano ({'rialzo' if mine == 'bullish' else 'ribasso'})." if mine == other
-                       else f"Analoghi grafici e frattali {label} sono discordi: segnale {label} meno affidabile.")
-                await self.say(f"analogs.check.{key}", txt, to="analyst", tone=mine if mine == other else "neutral")
+        if m["topic"].startswith("correlation.usdt"):
+            usdt_tone = m.get("tone")
+            h4 = (self.state.get("fh4") or {}).get("projection") or {}
+            if usdt_tone and h4.get("bias") and usdt_tone != "neutral":
+                agree = usdt_tone == h4["bias"]
+                txt = ("USDT.D conferma il bias del frattale 4H." if agree else "USDT.D diverge dal frattale 4H: segnale meno affidabile.")
+                await self.say("pattern.confirmation", txt, to="analyst", tone=h4["bias"] if agree else "neutral")
+            self.refresh("usdt")   # nuova lettura di dominance: ricalcolo gli analoghi USDT
+            self.trigger()
+
+
+class UsdtAgent(MultiAgent):
+    """USDT dominance, correlazioni con BTC e liquidità in stablecoin (supply, emissione, dominance, SSR)."""
+
+    PARTS = (("usdt", 60, "_c_dominance", "_a_dominance"), ("stables", 600, "_c_stables", "_a_stables"))
+
+    def _c_dominance(self):
+        return {"usdt": _call("usdt", "build")}
+
+    def _c_stables(self):
+        return {"s": _call("usdt_analogs", "build_stablecoins")}
+
+    async def _a_dominance(self, r):
+        u = r["usdt"]
+        c, cur = u.get("correlation", {}), u.get("current", {})
+        ch = cur.get("usdt_d_change_7d") or 0
+        tone = "bullish" if ch < -0.05 else "bearish" if ch > 0.05 else "neutral"
+        text = (f"USDT.D {cur.get('usdt_d', 0):.2f}% ({ch:+.2f} pt in 7g), correlazione 30g con BTC {c.get('current_30', 0):+.2f}. "
+                f"Mint USDT 30g {_usd(cur.get('mint_30d'))}.")
+        self.finding(Finding("USDT dominance", text, tone, 70))
+        await self.say("correlation.usdt", text, tone=tone, data={"usdt_d": cur.get("usdt_d"), "change_7d": ch})
+        dv = (u.get("divergences") or [])
+        if dv:
+            d = dv[-1]
+            self.finding(Finding("Ultima divergenza", d.get("note", ""), d.get("kind", "neutral"), 60))
+        fr = u.get("fractal") or {}
+        if fr.get("matches"):
+            mm = fr["matches"][0]
+            await self.say("correlation.fractal", f"Frattale congiunto BTC+USDT.D: similarità {mm['similarity']:.0f}%, dopo l'orizzonte BTC {mm['btc_outcome']:+.1f}%.",
+                           tone="bullish" if mm["btc_outcome"] > 0 else "bearish", to="analogs", data=mm)
+
+    async def _a_stables(self, r):
+        c = r["s"].get("current") or {}
+        if c.get("supply"):
+            n30 = c.get("net_30d") or 0
+            tone = "bullish" if n30 > 0 else "bearish"
+            text = (f"Stablecoin totali {_usd(c['supply'])} ({c.get('pct_30d') or 0:+.2f}% in 30g, emissione netta {_usd(n30)}), "
+                    f"dominance {c.get('dominance') or 0:.2f}%, SSR {c.get('ssr') or 0:.2f} (z {c.get('ssr_z') or 0:+.2f}).")
+            self.finding(Finding("Liquidità stablecoin", text, tone, 60))
+            await self.say("stablecoins.liquidity", text, tone=tone, data={"net_30d": n30})
+            n7 = c.get("net_7d") or 0
+            if abs(n7) > 2e9:
+                await self.say("stablecoins.alert", f"Movimento forte di stablecoin in 7 giorni: {_usd(n7)}.", kind="alert",
+                               tone="bullish" if n7 > 0 else "bearish")
+
+
+class CycleAgent(MultiAgent):
+    """Ciclo: fase e modelli, orologio 0-100 con il confronto "stesso giorno del ciclo", miner (Hash Ribbons, Puell) e ciclo della leva."""
+
+    PARTS = (("cycle", 300, "_c_cycle", "_a_phase"), ("advanced", 300, "_c_advanced", "_a_advanced"))
+
+    def _c_cycle(self):
+        return {"c": _call("cycles", "build")}
+
+    def _c_advanced(self):
+        return {"a": _call("cycle_advanced", "build")}
+
+    async def _a_phase(self, r):
+        cur = r["c"].get("current", {})
+        phase = cur.get("phase", "?")
+        names = {"accumulation": "accumulo", "bull": "bull market", "distribution": "distribuzione", "bear": "bear market"}
+        tone = {"accumulation": "bullish", "bull": "bullish", "distribution": "bearish", "bear": "bearish"}.get(phase, "neutral")
+        nt = cur.get("est_next_top") or {}
+        text = (f"Fase di ciclo: {names.get(phase, phase)} (confidenza {cur.get('phase_confidence', 0):.0f}%), "
+                f"{cur.get('days_since_top')} giorni dal top. Prossimo top stimato ~{time.strftime('%b %Y', time.gmtime(nt['mid'])) if nt.get('mid') else 'n/d'}.")
+        self.finding(Finding("Fase di ciclo", text, tone, cur.get("phase_confidence", 60)))
+        await self.say("cycle.phase", text, tone=tone, data={"phase": phase})
+        pl = r["c"].get("models", {}).get("power_law", {})
+        if pl:
+            self.finding(Finding("Power law", f"Fair value {_k(pl.get('current_fair'))}, prezzo {pl.get('deviation', 0):+.0f}% rispetto al modello.",
+                                 "bullish" if (pl.get("deviation") or 0) < 0 else "bearish", 65))
+
+    async def _a_advanced(self, r):
+        a = r["a"]
+        await self._a_clock(r)
+        await self._a_miner(a)
+        await self._a_leverage(a)
+        z = self.state.get("zone")
+        ph = ((self.state.get("c") or {}).get("current") or {}).get("phase")
+        if z and ph:
+            ok = ((ph == "accumulation" and z in ("bottom", "accumulation", "mid"))
+                  or (ph in ("bull", "distribution") and z in ("mid", "euphoria", "top")))
+            await self.say("clock.check", ("Orologio del ciclo coerente con la fase stimata." if ok
+                                           else "Orologio del ciclo e fase stimata non concordano: lettura del ciclo incerta."),
+                           to="analyst", tone="neutral")
+
+    async def _a_clock(self, r):
+        a = r["a"]
+        ck = a.get("clock") or {}
+        if ck.get("score") is not None:
+            sc = ck["score"]
+            tone = "bullish" if sc < 40 else "bearish" if sc > 70 else "neutral"
+            text = f"Orologio del ciclo {sc:.0f}/100 ({ck.get('zone_label')}), {ck.get('change_30d') or 0:+.0f} punti in 30 giorni."
+            self.finding(Finding("Orologio del ciclo", text, tone, 70))
+            prev = self.state.get("zone")
+            await self.say("clock.score", text, tone=tone, data={"score": sc, "zone": ck.get("zone")})
+            if prev and prev != ck.get("zone"):
+                await self.say("clock.zone", f"L'orologio del ciclo è passato in zona {ck.get('zone_label')}.", kind="alert", tone=tone)
+            self.state["zone"] = ck.get("zone")
+        hl = (a.get("compare") or {}).get("highlights") or []
+        for h in hl[:2]:
+            self.finding(Finding("Stesso giorno del ciclo", h, "neutral", 55))
+        if hl:
+            await self.say("clock.compare", hl[0], to="analyst")
+
+    async def _a_miner(self, r):
+        mi = r["miner"]
+        tone = "bullish" if mi.get("state") == "recovery" else "bearish" if mi.get("state") == "capitulation" else "neutral"
+        text = (f"Hash Ribbons: {mi.get('label', '').lower()} da {mi.get('days_in_state')} giorni; hashrate {mi.get('hr_drawdown') or 0:+.0f}% dal massimo, "
+                f"compressione Difficulty Ribbon {mi.get('ribbon_compression') or 0:.1f}%, Puell {mi.get('puell') or 0:.2f}.")
+        self.finding(Finding("Ciclo dei miner", text, tone, 60))
+        await self.say("miners.state", text, tone=tone, data={"state": mi.get("state")})
+        if self.state.get("prev") and self.state["prev"] != mi.get("state"):
+            await self.say("miners.signal", f"Cambio di stato dei miner: ora {mi.get('label', '').lower()}.", kind="alert", tone=tone)
+        self.state["prev"] = mi.get("state")
+
+    async def _a_leverage(self, r):
+        lv = r["leverage"]
+        pct = lv.get("funding_pct_all") or 0
+        tone = "bearish" if pct > 85 else "bullish" if pct < 15 else "neutral"
+        text = (f"Fase {lv.get('phase_label', '').lower()}: funding 7g {lv.get('funding_7d') or 0:+.1f}% annuo ({pct:.0f}° percentile dal 2019), "
+                f"volumi perp/spot {lv.get('spec') or 0:.1f}× ({lv.get('spec_pct_all') or 0:.0f}° percentile), "
+                f"OI pari allo {lv.get('leverage_ratio') or 0:.2f}% della market cap.")
+        self.finding(Finding("Ciclo della leva", text, tone, 60))
+        await self.say("leverage.cycle", text, tone=tone)
+
+    async def on_message(self, m):
+        if m["topic"].startswith("flows.spike"):
+            await self.say("leverage.check", "Picco di flusso sui futures: verifico se la leva cresce oltre la norma di questa fase.", to="analyst")
+            self.refresh("advanced")
+            self.trigger()
+
+
+class OnchainAgent(Agent):
+    def compute(self):
+        return {"o": _call("onchain", "build")}
+
+    async def act(self, r):
+        ms = {m["key"]: m for m in r["o"].get("metrics", [])}
+        mv, rp = ms.get("mvrv"), ms.get("realized_price")
+        if mv:
+            text = f"MVRV {mv['display']} – {mv['status']}" + (f"; prezzo realizzato {rp['display']}." if rp else ".")
+            self.finding(Finding("Valutazione on-chain", text, mv.get("tone", "neutral"), 70))
+            await self.say("onchain.valuation", text, tone=mv.get("tone", "neutral"), data={"mvrv": mv["value"], "realized_price": rp["value"] if rp else None})
+        hr = ms.get("hashrate")
+        if hr:
+            self.finding(Finding("Hashrate", f"{hr['display']} ({(hr.get('change_30d') or 0):+.1f}% 30g)", hr.get("tone", "neutral"), 60))
+
+
+class DerivativesAgent(MultiAgent):
+    """Leva sul mercato: funding, open interest, long/short e i segnali verificati di basis, CME COT e leva aggregata."""
+
+    PARTS = (("market", 20, "_c_market", "_a_market"), ("agg_leverage", 300, "_c_aggregate", "_a_aggregate"),
+             ("basis", 900, "_c_basis", "_a_basis"), ("cme", 3600, "_c_cme", "_a_cme"))
+
+    def _c_market(self):
+        return {"d": _call("derivatives", "build")}
+
+    def _c_aggregate(self):
+        return {"agg": _call("derivatives", "build_aggregate")}
+
+    def _c_basis(self):
+        return {"basis": _call("derivatives", "build_basis")}
+
+    def _c_cme(self):
+        return {"cme": _call("derivatives", "build_cme")}
+
+    async def _a_market(self, r):
+        d = r["d"]
+        f, oi, ls = d.get("funding", {}), d.get("open_interest", {}), d.get("long_short", {})
+        fr = f.get("current") or 0
+        tone = "bearish" if fr > 0.03 else "bullish" if fr < -0.005 else "neutral"
+        text = f"Funding {fr:+.4f}%/8h ({f.get('annualized', 0):+.1f}% annuo), OI {_usd(oi.get('current_usd'))} ({(oi.get('change_24h') or 0):+.1f}% 24h), long {ls.get('current_long_pct', 0):.0f}% degli account."
+        self.finding(Finding("Leva e funding", text, tone, 70))
+        await self.say("derivatives.funding", text, tone=tone, data={"funding": fr})
+        await self.say("derivatives.oi", f"Open interest {(oi.get('change_24h') or 0):+.1f}% in 24h.", to="liquidity",
+                       data={"change_24h": oi.get("change_24h")})
+        for s in d.get("signals", [])[:2]:
+            if s.get("tone") != "neutral":
+                await self.say("derivatives.signal", s["text"], tone=s["tone"], kind="alert")
+
+    async def _signals(self, topic: str, title: str, r: dict) -> None:
+        sig = [x for x in (r.get("signals") or []) if x.get("text")]
+        if not sig:
+            return
+        tones = [x.get("tone") for x in sig[:3]]
+        tone = "bullish" if tones.count("bullish") > tones.count("bearish") else "bearish" if tones.count("bearish") > tones.count("bullish") else "neutral"
+        text = " ".join(x["text"] for x in sig[:2])
+        self.finding(Finding(title, text, tone, 55))
+        await self.say(f"{topic}.state", text, tone=tone)
+
+    async def _a_aggregate(self, r):
+        await self._signals("agg_leverage", "Leva aggregata", r["agg"])
+
+    async def _a_basis(self, r):
+        await self._signals("basis", "Basis e curva futures", r["basis"])
+
+    async def _a_cme(self, r):
+        await self._signals("cme", "CME COT", r["cme"])
+
+
+class FlowsAgent(Agent):
+    """Pressione di acquisto/vendita aggressiva: spot vs futures perpetual."""
+
+    def compute(self):
+        return {"fl": _call("flows", "build", tf="1h", range="7d"), "f30": _optional("scoreboard", "flows_30d")}
+
+    async def act(self, r):
+        fl = r["fl"]
+        wins = {w["label"]: w for w in fl.get("windows", [])}
+        w24 = wins.get("24h")
+        if w24:
+            text = (f"24h: spot {_usd(w24['spot_delta'])} netti ({w24['spot_buy_pct']:.1f}% acquisti), "
+                    f"futures {_usd(w24['perp_delta'])} ({w24['perp_buy_pct']:.1f}% acquisti), volume futures {w24['perp_spot_ratio']:.1f}× spot.")
+            self.finding(Finding("Delta 24h spot/futures", text, (fl.get("current") or {}).get("bias", "neutral"), 70))
+        for sg in (fl.get("signals") or [])[:2]:
+            self.finding(Finding("Segnale flussi", sg["text"], sg["tone"], 65))
+        s30 = (r.get("f30") or {}).get("summary")
+        if s30:
+            self.finding(Finding("Flussi a 30 giorni", f"ETF {_usd(s30['etf_30d'])}, USDT {_usd(s30['usdt_30d'])}, USDC {_usd(s30['usdc_30d'])} negli ultimi 30 giorni UTC chiusi.", "neutral", 55))
+        top = (fl.get("signals") or [None])[0]
+        if top:
+            await self.say("flows.divergence", top["text"], tone=top["tone"],
+                           data={"dominant": (fl.get("current") or {}).get("dominant"),
+                                 "spot_24h": w24["spot_delta"] if w24 else None, "perp_24h": w24["perp_delta"] if w24 else None})
+        w1 = wins.get("1h")
+        if w1 and w24 and w24["perp_volume"]:
+            # spike di 1h: delta futures oltre il 15% del volume orario medio delle 24h
+            hourly = w24["perp_volume"] / 24
+            if abs(w1["perp_delta"]) > 0.15 * hourly:
+                side = "acquisti" if w1["perp_delta"] > 0 else "vendite"
+                await self.say("flows.spike", f"Ultima ora: ondata di {side} aggressivi sui futures ({_usd(w1['perp_delta'])}).",
+                               kind="alert", tone="bullish" if w1["perp_delta"] > 0 else "bearish")
+                await self.ask("liquidity", "request.liquidity", "Picco di flusso sui futures: aggiorna la mappa delle liquidazioni.")
+
+    async def on_message(self, m):
+        if m["topic"] == "derivatives.funding":
+            fr = (m.get("data") or {}).get("funding") or 0
+            w24 = {w["label"]: w for w in (self.state.get("fl") or {}).get("windows", [])}.get("24h")
+            if w24 and fr > 0.01 and w24["perp_delta"] > 0 > w24["spot_delta"]:
+                await self.say("flows.leverage", "Funding positivo + futures in acquisto mentre lo spot vende: rialzo trainato dalla leva.",
+                               to="analyst", kind="alert", tone="bearish")
 
 
 EXPECTED_IT = {"rialzo": ("rialzo", "bullish"), "ribasso": ("ribasso", "bearish"),
@@ -727,13 +869,18 @@ class TimePivotsAgent(Agent):
             await self.say("timepivot.check", txt, to="analyst", tone=nx["tone"] if fits else "neutral")
 
 
-class MacroAgent(Agent):
-    """Contesto macro (dollaro, tassi, volatilità, liquidità) e rotazione BTC/altcoin."""
+class MacroAgent(MultiAgent):
+    """Contesto macro (dollaro, tassi, volatilità, liquidità), rotazione BTC/altcoin e calendario (FOMC, CPI, lavoro, scadenze, midterm)."""
 
-    def compute(self):
+    PARTS = (("macro", 300, "_c_macro", "_a_macro"), ("events", 600, "_c_events", "_a_events"))
+
+    def _c_macro(self):
         return {"m": _call("macro", "build")}
 
-    async def act(self, r):
+    def _c_events(self):
+        return {"e": _call("events", "build", horizon=60)}
+
+    async def _a_macro(self, r):
         m = r["m"]
         sm = m.get("summary") or {}
         if sm.get("score") is not None:
@@ -743,7 +890,6 @@ class MacroAgent(Agent):
                     + (f" A favore: {', '.join(pos)}." if pos else "") + (f" Contro: {', '.join(neg)}." if neg else ""))
             self.finding(Finding("Contesto macro", text, sm.get("tone", "neutral"), 60))
             await self.say("macro.context", text, tone=sm.get("tone", "neutral"), data={"score": sm["score"]})
-        dxy = ((m.get("kpi") or {}).get("dxy") or {})
         regime = None
         for c in sm.get("components", []):
             if c.get("key") == "dxy":
@@ -759,221 +905,7 @@ class MacroAgent(Agent):
             self.finding(Finding("Rotazione BTC/altcoin", text, "neutral", 55))
             await self.say("macro.rotation", text, data={"altseason": alt["value"]})
 
-    async def on_message(self, msg):
-        if msg["topic"] == "correlation.usdt":
-            usdt_up = ((msg.get("data") or {}).get("change_7d") or 0) > 0.05
-            if usdt_up and self.state.get("dxy_regime") == "bearish":
-                await self.say("macro.riskoff", "Risk-off confermato: dollaro forte e USDT dominance in salita nello stesso momento.",
-                               to="analyst", kind="alert", tone="bearish")
-            elif not usdt_up and self.state.get("dxy_regime") == "bullish":
-                await self.say("macro.riskon", "Risk-on confermato: dollaro debole e USDT dominance in calo.", to="analyst", tone="bullish")
-
-
-class CycleClockAgent(Agent):
-    """Orologio del ciclo (score 0-100) e confronto 'stesso giorno del ciclo'."""
-
-    def compute(self):
-        return {"a": _call("cycle_advanced", "build")}
-
-    async def act(self, r):
-        a = r["a"]
-        ck = a.get("clock") or {}
-        if ck.get("score") is not None:
-            sc = ck["score"]
-            tone = "bullish" if sc < 40 else "bearish" if sc > 70 else "neutral"
-            text = f"Orologio del ciclo {sc:.0f}/100 ({ck.get('zone_label')}), {ck.get('change_30d') or 0:+.0f} punti in 30 giorni."
-            self.finding(Finding("Orologio del ciclo", text, tone, 70))
-            prev = self.state.get("zone")
-            await self.say("clock.score", text, tone=tone, data={"score": sc, "zone": ck.get("zone")})
-            if prev and prev != ck.get("zone"):
-                await self.say("clock.zone", f"L'orologio del ciclo è passato in zona {ck.get('zone_label')}.", kind="alert", tone=tone)
-            self.state["zone"] = ck.get("zone")
-        hl = (a.get("compare") or {}).get("highlights") or []
-        for h in hl[:2]:
-            self.finding(Finding("Stesso giorno del ciclo", h, "neutral", 55))
-        if hl:
-            await self.say("clock.compare", hl[0], to="analyst")
-
-    async def on_message(self, m):
-        if m["topic"] == "cycle.phase":
-            z = self.state.get("zone")
-            ph = (m.get("data") or {}).get("phase")
-            if z and ph:
-                ok = ((ph == "accumulation" and z in ("bottom", "accumulation", "mid"))
-                      or (ph in ("bull", "distribution") and z in ("mid", "euphoria", "top")))
-                await self.say("clock.check", ("Orologio del ciclo coerente con la fase stimata dall'agente Cicli." if ok
-                                               else "Orologio del ciclo e fase stimata non concordano: lettura del ciclo incerta."),
-                               to="analyst", tone="neutral")
-
-
-class MinerAgent(Agent):
-    """Ciclo dei miner: Hash Ribbons, Difficulty Ribbon, Puell."""
-
-    def compute(self):
-        return {"mi": _call("cycle_advanced", "build")["miner"]}
-
-    async def act(self, r):
-        mi = r["mi"]
-        tone = "bullish" if mi.get("state") == "recovery" else "bearish" if mi.get("state") == "capitulation" else "neutral"
-        text = (f"Hash Ribbons: {mi.get('label', '').lower()} da {mi.get('days_in_state')} giorni; hashrate {mi.get('hr_drawdown') or 0:+.0f}% dal massimo, "
-                f"compressione Difficulty Ribbon {mi.get('ribbon_compression') or 0:.1f}%, Puell {mi.get('puell') or 0:.2f}.")
-        self.finding(Finding("Ciclo dei miner", text, tone, 60))
-        await self.say("miners.state", text, tone=tone, data={"state": mi.get("state")})
-        if self.state.get("prev") and self.state["prev"] != mi.get("state"):
-            await self.say("miners.signal", f"Cambio di stato dei miner: ora {mi.get('label', '').lower()}.", kind="alert", tone=tone)
-        self.state["prev"] = mi.get("state")
-
-
-class LeverageAgent(Agent):
-    """Ciclo della leva: funding e speculazione rispetto alla fase di ciclo."""
-
-    def compute(self):
-        return {"lv": _call("cycle_advanced", "build")["leverage"]}
-
-    async def act(self, r):
-        lv = r["lv"]
-        pct = lv.get("funding_pct_all") or 0
-        tone = "bearish" if pct > 85 else "bullish" if pct < 15 else "neutral"
-        text = (f"Fase {lv.get('phase_label', '').lower()}: funding 7g {lv.get('funding_7d') or 0:+.1f}% annuo ({pct:.0f}° percentile dal 2019), "
-                f"volumi perp/spot {lv.get('spec') or 0:.1f}× ({lv.get('spec_pct_all') or 0:.0f}° percentile), "
-                f"OI pari allo {lv.get('leverage_ratio') or 0:.2f}% della market cap.")
-        self.finding(Finding("Ciclo della leva", text, tone, 60))
-        await self.say("leverage.cycle", text, tone=tone)
-
-    async def on_message(self, m):
-        if m["topic"].startswith("flows.spike"):
-            await self.say("leverage.check", "Picco di flusso sui futures: verifico se la leva cresce oltre la norma di questa fase.", to="analyst")
-            self.trigger()
-
-
-class UsdtAnalogsAgent(Agent):
-    """Analoghi grafici della USDT dominance e cosa ha fatto BTC dopo."""
-
-    def compute(self):
-        return {"u": _call("usdt_analogs", "build", tf="1d")}
-
-    async def act(self, r):
-        u = r["u"]
-        ms, sm = u.get("matches") or [], u.get("summary") or {}
-        if ms:
-            m = ms[0]
-            o = m.get("outcome") or {}
-            text = (f"La USDT.D attuale somiglia a {m['period']['label']} (similarità {m['similarity']:.0f}%): dopo, BTC {o.get('change') or 0:+.1f}% "
-                    f"in {o.get('candles')} candele. Sui {sm.get('count')} analoghi BTC è salito {sm.get('up')} volte (mediana {sm.get('median_outcome') or 0:+.1f}%).")
-            tone = sm.get("bias", "neutral")
-            self.finding(Finding("Analogo USDT.D", text, tone, min(85, m["similarity"])))
-            await self.say("usdt_analogs.match", text, tone=tone, data={"median": sm.get("median_outcome")})
-        mir = u.get("mirror")
-        if isinstance(mir, dict) and mir.get("state"):
-            self.finding(Finding("Specularità BTC/USDT.D", mir.get("text") or f"Stato: {mir['state']}", "neutral", 55))
-
-    async def on_message(self, m):
-        if m["topic"] == "correlation.usdt":
-            self.trigger()  # nuova lettura di dominance: ricalcolo gli analoghi
-
-
-class StablecoinsAgent(Agent):
-    """Liquidità stablecoin: supply totale, emissione, dominance, SSR."""
-
-    def compute(self):
-        return {"s": _call("usdt_analogs", "build_stablecoins")}
-
-    async def act(self, r):
-        c = r["s"].get("current") or {}
-        if c.get("supply"):
-            n30 = c.get("net_30d") or 0
-            tone = "bullish" if n30 > 0 else "bearish"
-            text = (f"Stablecoin totali {_usd(c['supply'])} ({c.get('pct_30d') or 0:+.2f}% in 30g, emissione netta {_usd(n30)}), "
-                    f"dominance {c.get('dominance') or 0:.2f}%, SSR {c.get('ssr') or 0:.2f} (z {c.get('ssr_z') or 0:+.2f}).")
-            self.finding(Finding("Liquidità stablecoin", text, tone, 60))
-            await self.say("stablecoins.liquidity", text, tone=tone, data={"net_30d": n30})
-            n7 = c.get("net_7d") or 0
-            if abs(n7) > 2e9:
-                await self.say("stablecoins.alert", f"Movimento forte di stablecoin in 7 giorni: {_usd(n7)}.", kind="alert",
-                               tone="bullish" if n7 > 0 else "bearish")
-
-
-class RangeAgent(Agent):
-    """Range sui timeframe alti, sweep, accettazioni, rientri e struttura di mercato."""
-
-    def compute(self):
-        return {"r": _call("structure", "build_ranges")}
-
-    async def act(self, r):
-        rg = r["r"]
-        txt = rg.get("summary")
-        if isinstance(txt, str) and txt:
-            self.finding(Finding("Range e struttura", txt, "neutral", 65))
-        tfs = rg.get("timeframes") or {}
-        d1 = tfs.get("1d") if isinstance(tfs, dict) else None
-        state = (d1 or {}).get("state") if isinstance(d1, dict) else None
-        label = (d1 or {}).get("state_label") if isinstance(d1, dict) else None
-        if state and state != self.state.get("prev_state"):
-            if self.state.get("prev_state"):
-                await self.say("structure.event", f"Cambio di stato del range giornaliero: {label or state}.", kind="alert",
-                               tone="neutral", data={"state": state})
-            self.state["prev_state"] = state
-        if isinstance(txt, str) and txt:
-            await self.say("structure.range", txt.split(". ")[0] + ".", data={"state": state})
-
-
-class OpeningPivotAgent(Agent):
-    """Pivot di apertura: massimo/minimo del lunedì, aperture settimanali/mensili, chiusure settimanali."""
-
-    def compute(self):
-        return {"p": _call("structure", "build_pivots")}
-
-    async def act(self, r):
-        p = r["p"]
-        mon = (p.get("monday") or {}).get("current") or {}
-        if mon.get("high"):
-            text = mon.get("text") or f"Range del lunedì {_k(mon.get('low'))}–{_k(mon.get('high'))}."
-            self.finding(Finding("Range del lunedì", text, "neutral", 65))
-            await self.say("opening.monday", text.split(". ")[0] + ".", data={"high": mon.get("high"), "low": mon.get("low")})
-            broke = "high" if mon.get("broke_high") else "low" if mon.get("broke_low") else None
-            if broke and self.state.get("broke") != broke:
-                side = "massimo" if broke == "high" else "minimo"
-                await self.say("opening.break", f"Rotto il {side} del lunedì ({_k(mon.get(broke))}): storicamente il prezzo rientra spesso nel range.",
-                               kind="alert", tone="neutral")
-            self.state["broke"] = broke
-
-    async def on_message(self, m):
-        if m["topic"] == "market.price":
-            self.trigger()
-
-
-class ScenarioAgent(Agent):
-    """Piano scenari condizionali: combina struttura, livelli, liquidità, analoghi e pivot temporali."""
-
-    def compute(self):
-        return {"sc": _call("structure", "build_scenarios")}
-
-    async def act(self, r):
-        sc = r["sc"]
-        items = sc.get("scenarios") or []
-        if items:
-            parts = []
-            for it in items[:3]:
-                trig = (it.get("trigger") or {}).get("text") or ""
-                tgt = (it.get("targets") or [{}])[0]
-                parts.append(f"{it.get('title')}: {trig.rstrip('.')} → {_k(tgt.get('price'))}")
-            text = " | ".join(parts)
-            self.finding(Finding("Piano scenari", text, "neutral", 60))
-            await self.say("scenario.plan", f"{sc.get('state_label') or 'Scenari aggiornati'}. " + (items[0].get("title") or ""),
-                           to="analyst", data={"n": len(items)})
-
-    async def on_message(self, m):
-        if m["topic"].startswith(("structure.event", "opening.break", "liquidity.sweep", "timepivot.alert")):
-            self.trigger()  # la struttura è cambiata: ricalcolo gli scenari
-
-
-class EventsAgent(Agent):
-    """Calendario macro e politico (FOMC, CPI, lavoro, scadenze, midterm) con la reazione storica di BTC."""
-
-    def compute(self):
-        return {"e": _call("events", "build", horizon=60)}
-
-    async def act(self, r):
+    async def _a_events(self, r):
         up = r["e"].get("upcoming") or []
         if up:
             ev = up[0]
@@ -991,294 +923,103 @@ class EventsAgent(Agent):
             txt = " ".join(txt[:2]) if isinstance(txt, list) else str(txt)
             self.finding(Finding("Ciclo politico", txt, "neutral", 50))
 
-
-ASTRO_EVENT_IT = {
-    "full": "Luna piena", "new": "Luna nuova", "supermoon": "Superluna", "lunar_eclipse_total": "Eclissi lunare totale (luna rossa)",
-    "lunar_eclipse": "Eclissi lunare", "solar_eclipse": "Eclissi solare", "mercury_retro_start": "Inizio di Mercurio retrogrado",
-    "mercury_retro_end": "Fine di Mercurio retrogrado", "mar_equinox": "Equinozio di marzo", "jun_solstice": "Solstizio di giugno",
-    "sep_equinox": "Equinozio di settembre", "dec_solstice": "Solstizio di dicembre", "friday13": "Venerdì 13",
-    "geomag_storm": "Tempesta geomagnetica prevista (Kp ≥ 5)",
-}
-ASTRO_VERDICT_IT = {"none": "nessun effetto distinguibile dal caso", "weak": "effetto debole (non regge alla correzione per test multipli o è instabile nel tempo)",
-                    "strong": "effetto significativo e stabile", "anecdotal": "troppo pochi casi per giudicare (aneddotico)"}
+    async def on_message(self, msg):
+        if msg["topic"] == "correlation.usdt":
+            usdt_up = ((msg.get("data") or {}).get("change_7d") or 0) > 0.05
+            if usdt_up and self.state.get("dxy_regime") == "bearish":
+                await self.say("macro.riskoff", "Risk-off confermato: dollaro forte e USDT dominance in salita nello stesso momento.",
+                               to="analyst", kind="alert", tone="bearish")
+            elif not usdt_up and self.state.get("dxy_regime") == "bullish":
+                await self.say("macro.riskon", "Risk-on confermato: dollaro debole e USDT dominance in calo.", to="analyst", tone="bullish")
 
 
-class AstroAgent(Agent):
-    """Astronomia e numeri: annuncia gli eventi astronomici imminenti insieme al verdetto statistico storico (studio, non segnale)."""
+class StructureAgent(MultiAgent):
+    """Struttura: range e sweep sui timeframe alti, pivot di apertura (lunedì, settimana, mese) e piano di scenari condizionali."""
 
-    def compute(self):
-        return {"a": _call("astro", "build", horizon=30)}
+    PARTS = (("range", 60, "_c_range", "_a_range"), ("opening", 60, "_c_opening", "_a_opening"), ("scenarios", 120, "_c_scenarios", "_a_scenarios"))
 
-    async def act(self, r):
-        a = r["a"]
-        now = _now()
-        hyps = a.get("hypotheses") or []
-        sig = [h for h in hyps if h.get("verdict") == "strong"]
-        text = (f"Studio astronomia e numeri: {len(hyps)} ipotesi testate sullo storico di BTC contro il caso (placebo e correzione Benjamini-Hochberg); "
-                + (f"{len(sig)} con effetto significativo e stabile." if sig else "nessuna mostra un effetto significativo e stabile."))
-        self.finding(Finding("Verdetti dello studio", text, "neutral", 70))
-        await self.say("astro.summary", text, data={"significant": [h["id"] for h in sig]})
-        soon = [u for u in (a.get("upcoming") or []) if 0 <= (u.get("time", 0) - now) <= 3 * 86400]
-        for u in soon[:3]:
-            label = ASTRO_EVENT_IT.get(u.get("key"), u.get("key"))
-            days = max(0, round((u["time"] - now) / 86400))
-            when = "oggi" if days == 0 else "domani" if days == 1 else f"tra {days} giorni"
-            v = u.get("verdict") or "none"
-            msg = f"{label} {when} ({util_data(u['time'])}): storicamente {ASTRO_VERDICT_IT.get(v, v)} (n={u.get('n')}"
-            msg += f", p corretto {u['p_bh']:.2f})." if isinstance(u.get("p_bh"), (int, float)) else ")."
-            if v == "strong" and isinstance(u.get("effect"), (int, float)):
-                msg += f" Scarto medio rispetto al normale {u['effect']:+.2f}{'%' if u.get('unit') == '%' else ' pp'}."
-            await self.say("astro.soon", msg, data={"id": u.get("id"), "verdict": v})
-        if soon:
-            u = soon[0]
-            self.finding(Finding("Prossimo evento astronomico", f"{ASTRO_EVENT_IT.get(u.get('key'), u.get('key'))} il {util_data(u['time'])}: "
-                                 f"{ASTRO_VERDICT_IT.get(u.get('verdict') or 'none')}.", "neutral", 50))
+    def _c_range(self):
+        return {"r": _call("structure", "build_ranges")}
 
+    def _c_opening(self):
+        return {"p": _call("structure", "build_pivots")}
 
-TIMING_TYPE_IT = {"c30": "30 giorni", "c45": "45 giorni", "c60": "60 giorni", "c90": "90 giorni", "c120": "120 giorni", "c144": "144 giorni",
-                  "c180": "180 giorni", "c270": "270 giorni", "c360": "360 giorni", "c_mult": "multipli lunghi", "sq9": "quadrato del 9",
-                  "yeardiv": "divisione dell'anno", "anniv": "anniversario", "seasonal": "data stagionale"}
-TIMING_EVENT_IT = {"PS": "PS", "SC": "SC (selling climax)", "AR_A": "AR", "ST_A": "ST", "SPRING": "Spring", "TEST": "test dello Spring",
-                   "SOS": "SOS (sign of strength)", "LPS": "LPS", "BRK_DN": "rottura al ribasso", "PSY": "PSY", "BC": "BC (buying climax)",
-                   "AR_D": "AR", "ST_D": "ST", "UT": "UT", "UTAD": "UTAD", "SOW": "SOW (sign of weakness)", "LPSY": "LPSY", "BRK_UP": "rottura al rialzo"}
-TIMING_SIDE_IT = {"acc": "accumulazione", "dist": "distribuzione"}
+    def _c_scenarios(self):
+        return {"sc": _call("structure", "build_scenarios")}
 
+    async def _a_range(self, r):
+        rg = r["r"]
+        txt = rg.get("summary")
+        if isinstance(txt, str) and txt:
+            self.finding(Finding("Range e struttura", txt, "neutral", 65))
+        tfs = rg.get("timeframes") or {}
+        d1 = tfs.get("1d") if isinstance(tfs, dict) else None
+        state = (d1 or {}).get("state") if isinstance(d1, dict) else None
+        label = (d1 or {}).get("state_label") if isinstance(d1, dict) else None
+        if state and state != self.state.get("prev_state"):
+            if self.state.get("prev_state"):
+                await self.say("structure.event", f"Cambio di stato del range giornaliero: {label or state}.", kind="alert",
+                               tone="neutral", data={"state": state})
+                self.refresh("scenarios")   # la struttura è cambiata: ricalcolo gli scenari
+                self.trigger()
+            self.state["prev_state"] = state
+        if isinstance(txt, str) and txt:
+            await self.say("structure.range", txt.split(". ")[0] + ".", data={"state": state})
 
-def _art_it(d: str) -> str:
-    from ..util import art
-    return art(d, "il")
-TIMING_VERDICT_IT = {"none": "nessun vantaggio rispetto al caso", "weak": "effetto debole (non regge alla correzione per test multipli)",
-                     "strong": "effetto significativo e stabile", "anecdotal": "casi troppo pochi per un giudizio"}
+    async def _a_opening(self, r):
+        p = r["p"]
+        mon = (p.get("monday") or {}).get("current") or {}
+        if mon.get("high"):
+            text = mon.get("text") or f"Range del lunedì {_k(mon.get('low'))}–{_k(mon.get('high'))}."
+            self.finding(Finding("Range del lunedì", text, "neutral", 65))
+            await self.say("opening.monday", text.split(". ")[0] + ".", data={"high": mon.get("high"), "low": mon.get("low")})
+            broke = "high" if mon.get("broke_high") else "low" if mon.get("broke_low") else None
+            if broke and self.state.get("broke") != broke:
+                side = "massimo" if broke == "high" else "minimo"
+                await self.say("opening.break", f"Rotto il {side} del lunedì ({_k(mon.get(broke))}): storicamente il prezzo rientra spesso nel range.",
+                               kind="alert", tone="neutral")
+                self.refresh("scenarios")
+                self.trigger()
+            self.state["broke"] = broke
 
-
-class TimingAgent(Agent):
-    """Timing Gann · Wyckoff · ritmi: date chiave imminenti con il loro track record, eventi e fasi di Wyckoff, ritmi solo se significativi."""
-
-    def finding(self, f: Finding) -> None:
-        """Una sola voce per titolo (i numeri cambiano a ogni giro: si aggiorna la voce invece di accodarne di nuove)."""
-        for i, x in enumerate(list(self.findings)):
-            if x["title"] == f.title:
-                del self.findings[i]
-                break
-        self.findings.appendleft(f.as_dict())
-
-    def compute(self):
-        out = {"o": _call("timing", "build_overview")}
-        rh = {}
-        for kind in ("weekday", "hour"):
-            try:
-                rh[kind] = _call("timing", "build_rhythms", kind=kind)
-            except Exception as e:  # noqa: BLE001
-                log.info("timing ritmi %s: %s", kind, e)
-        out["rh"] = rh
-        return out
-
-    async def act(self, r):
-        o = r["o"]
-        g = o.get("gann") or {}
-        v = g.get("verdicts") or {}
-        n_types = sum(v.values())
-        summary = (f"Conteggi di Gann verificati su {n_types} tipi (pivot a 10 giorni entro ±2 g, dal 2012): "
-                   + (f"{v.get('strong', 0)} con effetto significativo e stabile, " if v.get("strong") else "nessuno con effetto significativo e stabile, ")
-                   + f"{v.get('weak', 0)} deboli.")
-        self.finding(Finding("Verdetto dei conteggi di Gann", summary, "neutral", 70))
-        # ---- data chiave entro 3 giorni
-        nxt = g.get("next")
-        win = (g.get("params") or {}).get("win", 2)
-        for u in (g.get("upcoming") or []):
-            if 0 <= u["days_away"] <= 3 and u["score"] >= 2:
-                types = ", ".join(TIMING_TYPE_IT.get(x, x) for x in u["types"])
-                when = "oggi" if u["days_away"] == 0 else "domani" if u["days_away"] == 1 else f"tra {u['days_away']} giorni"
-                hr, br = u.get("hist_hit_rate"), u.get("hist_base_rate")
-                msg = f"Data chiave Gann {when} ({util_data(u['time'])}, finestra ±{win} g): {u['score']} conteggi in confluenza ({types}). "
-                if hr is not None and br is not None:
-                    msg += (f"Storicamente le date con questo punteggio hanno avuto un pivot a 10 giorni nella finestra nel {hr:.0f}% dei casi "
-                            f"contro il {br:.0f}% di un giorno qualsiasi: {TIMING_VERDICT_IT.get(u.get('hist_verdict') or 'none', TIMING_VERDICT_IT['none'])}.")
-                await self.say("timing.key_date", msg, data={"time": u["time"], "score": u["score"], "verdict": u.get("hist_verdict")})
-                break
-        if nxt:
-            self.finding(Finding("Prossima data chiave", f"{util_data(nxt['time'])}: punteggio {nxt['score']} ({', '.join(TIMING_TYPE_IT.get(x, x) for x in nxt['types'])}); "
-                                 f"hit rate storico {nxt.get('hist_hit_rate') or 0:.0f}% contro {nxt.get('hist_base_rate') or 0:.0f}% per caso.", "neutral", 50))
-        # ---- Wyckoff: cambi di fase ed eventi nuovi
-        for tf, w in (o.get("wyckoff") or {}).items():
-            a = w.get("active")
-            tfl = "1D" if tf == "1d" else "4H"
-            if not a:
-                key = (tf, None, None, None)
-                if self.state.get(f"wy_{tf}") not in (None, key):
-                    lc = w.get("last_closed") or {}
-                    await self.say(f"timing.wyckoff.{tf}", f"Wyckoff {tfl}: il range di {TIMING_SIDE_IT.get(lc.get('side'), '')} si è chiuso "
-                                   f"({'rottura nella direzione attesa' if lc.get('status') in ('up', 'down') else 'range fallito o scaduto'}); nessun range attivo.")
-                self.state[f"wy_{tf}"] = key
-                continue
-            le = a.get("last_event") or {}
-            key = (tf, a["side"], a["phase"], (le.get("key"), le.get("time")))
-            if self.state.get(f"wy_{tf}") != key:
-                msg = (f"Wyckoff {tfl}: {TIMING_SIDE_IT[a['side']]} in fase {a['phase']} (range ${a['low']:,.0f}–${a['high']:,.0f}); "
-                       f"ultimo evento {TIMING_EVENT_IT.get(le.get('key'), le.get('key'))} {_art_it(util_data(le.get('time')))} a ${le.get('price') or 0:,.0f}.")
-                st = w.get("stat")
-                if st and st.get("n") and st.get("mean") is not None:
-                    msg += (f" Dopo un {TIMING_EVENT_IT.get(st['key'], st['key'])} {tfl} BTC ha fatto in media {st['mean']:+.1f}% a 10 giorni "
-                            f"(n={st['n']}, {TIMING_VERDICT_IT.get(st.get('verdict') or 'none')}).")
-                await self.say(f"timing.wyckoff.{tf}", msg, data={"side": a["side"], "phase": a["phase"], "event": le.get("key")})
-                self.state[f"wy_{tf}"] = key
-                self.finding(Finding(f"Wyckoff {tfl}", msg, "neutral", 50))
-        # ---- ritmi: solo se significativi dopo la correzione
-        sig = []
-        for kind, res in (r.get("rh") or {}).items():
-            for row in res.get("rows") or []:
-                if row.get("verdict") == "strong":
-                    sig.append((kind, row))
-        if sig:
-            kind, row = sig[0]
-            lab = (["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"][row["bucket"]] if kind == "weekday"
-                   else f"le {row['bucket']:02d}:00 UTC")
-            await self.say("timing.rhythm", f"Ritmo di calendario significativo dopo la correzione per test multipli: {lab} "
-                           f"(rendimento medio {row['mean']:+.3f}%, {row['diff']:+.3f} punti rispetto alle altre caselle, p corretto {row['p_bh']:.3f}, stabile negli anni).",
-                           data={"kind": kind, "bucket": row["bucket"]})
-        rc = (o.get("rhythm") or {}).get("close") or {}
-        full = rc.get("full") or {}
-        if full.get("n"):
-            self.finding(Finding("Pump inizio · dump metà · pump fine", f"Mese in tre parti (chiusure, dal 2017): lo schema appare nel {full.get('rate') or 0:.1f}% dei mesi "
-                                 f"contro il {full.get('null') or 0:.1f}% atteso per caso; {TIMING_VERDICT_IT.get(rc.get('verdict') or 'none')}.", "neutral", 60))
-
-
-EW_PATTERN_IT = {"impulse": "impulso", "diagonal": "diagonale", "zigzag": "zigzag", "flat": "flat", "triangle": "triangolo",
-                 "double_zigzag": "doppio zigzag", "double_three": "doppia three"}
-EW_VARIANT_IT = {"expanded": "espanso", "regular": "regolare", "running": "running", "contracting": "contraente", "expanding": "espansivo",
-                 "barrier": "a barriera", "contracting_leading": "contraente iniziale", "contracting_ending": "contraente finale",
-                 "expanding_leading": "espansiva iniziale", "expanding_ending": "espansiva finale"}
-EW_DEGREE_IT = {"cycle": "Cycle", "primary": "Primary", "intermediate": "Intermediate", "minor": "Minor", "minute": "Minute"}
-EW_VERDICT_IT = {"none": "nessun vantaggio predittivo sulle baseline", "weak": "vantaggio debole", "strong": "vantaggio significativo e stabile",
-                 "anecdotal": "casi troppo pochi per un giudizio"}
-EW_RANK_IT = {"none": "non migliore del caso", "weak": "debolmente migliore del caso", "strong": "migliore del caso in modo significativo",
-              "anecdotal": "casi troppo pochi"}
-
-
-def _ew_wave_it(w: str | None) -> str:
-    if w in (None, "next"):
-        return "prima onda del movimento successivo"
-    if w == "next2":
-        return "onda successiva"
-    if w == "thrust":
-        return "spinta dopo il triangolo"
-    return f"onda {w}"
-
-
-def _ew_name(c: dict) -> str:
-    v = EW_VARIANT_IT.get(c.get("variant") or "", "")
-    return (EW_PATTERN_IT.get(c["pattern"], c["pattern"]) + (f" {v}" if v else "")
-            + (" al rialzo" if c["direction"] == "up" else " al ribasso"))
-
-
-class ElliottAgent(Agent):
-    """Onde di Elliott: conteggio preferito per 4H/1D/1W con invalidazione, obiettivi e verdetto del backtest. Solo descrizione."""
-
-    def finding(self, f: Finding) -> None:
-        for i, x in enumerate(list(self.findings)):
-            if x["title"] == f.title:
-                del self.findings[i]
-                break
-        self.findings.appendleft(f.as_dict())
-
-    def compute(self):
-        return {"o": _call("elliott", "build_overview")}
-
-    async def act(self, r):
-        price = live_price()
-        for tf in ("1d", "4h", "1w"):
-            d = (r.get("o") or {}).get(tf) or {}
-            cs = d.get("counts") or []
-            if not cs:
-                continue
-            c = cs[0]
-            tfl = {"4h": "4H", "1d": "1D", "1w": "1W"}[tf]
-            deg = EW_DEGREE_IT.get(d.get("degree"), d.get("degree"))
-            inv = c.get("invalidation") or {}
-            inv_txt = " e ".join(x for x in (
-                f"sotto ${inv['below']:,.0f}" if inv.get("below") else "", f"sopra ${inv['above']:,.0f}" if inv.get("above") else "") if x)
-            pj = (c.get("projection") or [{}])[0]
-            tgt = (f"obiettivo dell'{_ew_wave_it(c['wave'])} ${pj['lo']:,.0f}–${pj['hi']:,.0f} (centro ${pj['price']:,.0f})"
-                   if pj.get("price") else "obiettivo non stimabile")
-            prob = c.get("prob")
-            bt = d.get("backtest") or {}
-            ptxt = (f"in passato il conteggio di rango 1 è stato quello giusto a posteriori nel {prob['p']:.0f}% dei casi (n={prob['n']})"
-                    if prob else f"punteggio delle linee guida {c['score']:.0f}/100 (probabilità non calibrabile)")
-            text = (f"Elliott {tfl} (grado {deg}): conteggio preferito {_ew_name(c)}, in corso {_ew_wave_it(c['wave'])}{' di Y' if c['pattern'].startswith('double') and c['wave'] in ('a', 'b', 'c') else ''}; "
-                    f"{tgt}; invalidazione {inv_txt or 'n/d'}. Alternativi validi: {d.get('n_valid', 0) - 1}; {ptxt}. "
-                    f"Backtest: {EW_VERDICT_IT.get(bt.get('verdict'), 'n/d')}, ordinamento dei conteggi {EW_RANK_IT.get(bt.get('rank_verdict'), 'n/d')}. "
-                    "Descrizione di studio, non un segnale.")
-            self.finding(Finding(f"Elliott {tfl}", text, "neutral", 40))
-            key = f"{tf}:{c['id']}:{c['wave']}"
-            prev = self.state.get(f"ew_{tf}")
-            data = {"tf": tf, "degree": d.get("degree"), "pattern": c["pattern"], "variant": c.get("variant"), "wave": c["wave"],
-                    "direction": c["direction"], "invalid_below": inv.get("below"), "invalid_above": inv.get("above"),
-                    "target": pj.get("price"), "target_lo": pj.get("lo"), "target_hi": pj.get("hi"), "verdict": bt.get("verdict"),
-                    "rank_verdict": bt.get("rank_verdict"), "prob": prob["p"] if prob else None}
-            if prev != key:
-                pre = "Cambio di conteggio. " if prev else ""
-                await self.say(f"elliott.count.{tf}", pre + text, data=data)
-                self.state[f"ew_{tf}"] = key
-            # prezzo live oltre l'invalidazione del preferito: il conteggio va rivisto alla prossima chiusura
-            if price:
-                broken = (inv.get("below") and price < inv["below"]) or (inv.get("above") and price > inv["above"])
-                bkey = f"{key}:broken"
-                if broken and self.state.get(f"ew_b_{tf}") != bkey:
-                    lvl = inv["below"] if inv.get("below") and price < inv["below"] else inv["above"]
-                    await self.say(f"elliott.invalidated.{tf}", f"Elliott {tfl}: il prezzo (${price:,.0f}) ha superato l'invalidazione del conteggio preferito "
-                                   f"({_ew_name(c)}, ${lvl:,.0f}): il conteggio verrà ricalcolato alla chiusura della candela.", data=data)
-                    self.state[f"ew_b_{tf}"] = bkey
-
-
-class VerifierAgent(Agent):
-    """Track record: confronta le previsioni degli agenti con la realtà e calcola l'affidabilità di ciascuno."""
-
-    def compute(self):
-        return {"t": _call("tracking", "build", mode="all")}
-
-    async def act(self, r):
-        t = r["t"]
-        ov = t.get("overall") or {}
-        if ov.get("n_resolved"):
-            text = (f"Previsioni verificate: {ov['n_resolved']}, direzione corretta {ov.get('hit_rate', 0):.1f}% "
-                    f"(ultimi 90 giorni {((ov.get('last90') or {}).get('hit_rate') or 0):.1f}%), Brier {ov.get('brier', 0):.3f}.")
-            self.finding(Finding("Affidabilità complessiva", text, "neutral", 80))
-            await self.say("verifier.summary", text, to="analyst", data={"hit_rate": ov.get("hit_rate")})
-        w = t.get("weights") or {}
-        if isinstance(w, dict) and w:
-            best = max(w.items(), key=lambda kv: kv[1])
-            worst = min(w.items(), key=lambda kv: kv[1])
-            self.finding(Finding("Pesi di affidabilità", f"Fonte più affidabile: {best[0]} ({best[1]:.2f}); meno affidabile: {worst[0]} ({worst[1]:.2f}).",
-                                 "neutral", 70))
-            _REL["t"] = 0.0  # l'Analista ricarica i pesi aggiornati
-
-
-class AlertsAgent(Agent):
-    """Motore delle notifiche: segue gli avvisi emessi (soglie, cooldown, anti-spam) e li riassume al team."""
-
-    def compute(self):
-        from .. import alerts
-        return {"h": alerts.history(limit=20), "st": alerts.status()}
-
-    async def act(self, r):
-        items = [a for a in (r.get("h") or []) if not a.get("silent")]
-        last_seen = self.state.get("last_seen", 0)
-        new = [a for a in items if (a.get("id") or 0) > last_seen] if isinstance(last_seen, int) else items
+    async def _a_scenarios(self, r):
+        sc = r["sc"]
+        items = sc.get("scenarios") or []
         if items:
-            self.state["last_seen"] = max(a.get("id") or 0 for a in items) if all(isinstance(a.get("id"), int) for a in items) else last_seen
-            top = items[0]
-            self.finding(Finding("Ultimo avviso", f"{top.get('title')}: {top.get('text')}", "neutral", 70))
-        for a in new[:3]:
-            await self.say("alerts.sent", f"Notifica inviata: {a.get('title')}.", data={"severity": a.get("severity")})
+            parts = []
+            for it in items[:3]:
+                trig = (it.get("trigger") or {}).get("text") or ""
+                tgt = (it.get("targets") or [{}])[0]
+                parts.append(f"{it.get('title')}: {trig.rstrip('.')} → {_k(tgt.get('price'))}")
+            text = " | ".join(parts)
+            self.finding(Finding("Piano scenari", text, "neutral", 60))
+            await self.say("scenario.plan", f"{sc.get('state_label') or 'Scenari aggiornati'}. " + (items[0].get("title") or ""),
+                           to="analyst", data={"n": len(items)})
+
+    async def on_message(self, m):
+        if m["topic"] == "market.price":
+            self.refresh("opening")
+            self.trigger()
+        elif m["topic"].startswith(("liquidity.sweep", "timepivot.alert")):
+            self.refresh("scenarios")
+            self.trigger()
 
 
-class OptionsAgent(Agent):
-    """Opzioni Deribit: max pain per scadenza, put/call, skew, DVOL, muri di gamma."""
+class PositioningAgent(MultiAgent):
+    """Posizionamento: opzioni Deribit (max pain, put/call, skew, DVOL), holder STH/LTH e indice contrarian di sentiment."""
 
-    def compute(self):
+    PARTS = (("options", 120, "_c_options", "_a_options"), ("sentiment", 300, "_c_sentiment", "_a_sentiment"), ("holders", 1800, "_c_holders", "_a_holders"))
+
+    def _c_options(self):
         return {"o": _call("positioning", "build_options")}
 
-    async def act(self, r):
+    def _c_holders(self):
+        return {"h": _call("positioning", "build_holders")}
+
+    def _c_sentiment(self):
+        return {"s": _call("positioning", "build_sentiment")}
+
+    async def _a_options(self, r):
         k = r["o"].get("kpi") or {}
         exps = r["o"].get("expiries") or []
         big = max((e for e in exps if e.get("notional_usd")), key=lambda e: e.get("notional_usd") or 0, default=None)
@@ -1292,14 +1033,7 @@ class OptionsAgent(Agent):
             await self.ask("levels", "request.levels", f"Il max pain {_k(k['next_max_pain'])} coincide con un livello chiave?",
                            {"prices": [k["next_max_pain"]] + ([big["max_pain"]] if big and big.get("max_pain") else [])})
 
-
-class HoldersAgent(Agent):
-    """Holder a breve e lungo termine: prezzo medio di carico, MVRV, SOPR."""
-
-    def compute(self):
-        return {"h": _call("positioning", "build_holders")}
-
-    async def act(self, r):
+    async def _a_holders(self, r):
         k = r["h"].get("kpi") or {}
         if k.get("sth_realized_price"):
             above = k.get("regime") == "above"
@@ -1315,14 +1049,7 @@ class HoldersAgent(Agent):
                                kind="alert", tone=tone)
             self.state["regime"] = k.get("regime")
 
-
-class SentimentAgent(Agent):
-    """Sentiment contrarian: indice composito paura/euforia con backtest."""
-
-    def compute(self):
-        return {"s": _call("positioning", "build_sentiment")}
-
-    async def act(self, r):
+    async def _a_sentiment(self, r):
         c = r["s"].get("current") or {}
         if c.get("value") is not None:
             v = c["value"]
@@ -1380,42 +1107,54 @@ class SupplyDemandAgent(Agent):
             await self.say("supply.attention", text, data={"avg_30d": ak["avg_30d"], "percentile": ak.get("percentile")})
 
 
-class ImagePatternAgent(Agent):
-    """Ricerca da immagine: quando l'utente carica uno screenshot, riporta al team i pattern storici trovati."""
+class VerifierAgent(Agent):
+    """Track record: confronta le previsioni degli agenti con la realtà e calcola l'affidabilità di ciascuno."""
 
     def compute(self):
-        from ..routers import image_pattern as ipr
-        return {"last": dict(ipr.LAST)}
+        return {"t": _call("tracking", "build", mode="all")}
 
     async def act(self, r):
-        last = r.get("last") or {}
-        if not last.get("n") or last["n"] == self.state.get("seen"):
-            return
-        self.state["seen"] = last["n"]
-        res = last.get("res") or {}
-        ms = res.get("matches") or []
-        if not ms:
-            return
-        m = ms[0]
-        tf = m.get("tf") or ""
-        period = (m.get("period") or {}).get("label") or ""
-        o = m.get("outcome") or {}
-        label = period if f"({tf}" in period or not tf else f"{period} ({tf})"
-        text = (f"Pattern da immagine: miglior corrispondenza {label}, somiglianza {m.get('similarity') or 0:.0f}%; "
-                f"dopo {o.get('candles')} candele BTC {o.get('change') or 0:+.1f}%.")
-        self.finding(Finding("Ricerca da immagine", text, "neutral", min(85, m.get("similarity") or 50)))
-        await self.say("image.match", text, data={"tf": tf, "period": period})
-        await self.say("image.match", text, to="analogs", kind="finding")
+        t = r["t"]
+        ov = t.get("overall") or {}
+        if ov.get("n_resolved"):
+            text = (f"Previsioni verificate: {ov['n_resolved']}, direzione corretta {ov.get('hit_rate', 0):.1f}% "
+                    f"(ultimi 90 giorni {((ov.get('last90') or {}).get('hit_rate') or 0):.1f}%), Brier {ov.get('brier', 0):.3f}.")
+            self.finding(Finding("Affidabilità complessiva", text, "neutral", 80))
+            await self.say("verifier.summary", text, to="analyst", data={"hit_rate": ov.get("hit_rate")})
+        w = t.get("weights") or {}
+        if isinstance(w, dict) and w:
+            best = max(w.items(), key=lambda kv: kv[1])
+            worst = min(w.items(), key=lambda kv: kv[1])
+            self.finding(Finding("Pesi di affidabilità", f"Fonte più affidabile: {best[0]} ({best[1]:.2f}); meno affidabile: {worst[0]} ({worst[1]:.2f}).",
+                                 "neutral", 70))
+            _REL["t"] = 0.0  # l'Analista ricarica i pesi aggiornati
 
 
-class CustomAlertsAgent(Agent):
-    """Avvisi personali: tiene d'occhio le regole dell'utente e segnala al team quelle vicine alla soglia o scattate."""
+class AlertsAgent(MultiAgent):
+    """Avvisi: riassume le notifiche emesse e segue le regole personali dell'utente. Il motore vero è app/alerts.py."""
 
-    def compute(self):
+    PARTS = (("history", 30, "_c_history", "_a_history"), ("rules", 60, "_c_rules", "_a_rules"))
+
+    def _c_history(self):
+        from .. import alerts
+        return {"h": alerts.history(limit=20), "st": alerts.status()}
+
+    def _c_rules(self):
         from .. import alert_rules as ar
         return {"rules": [ar.public(r) for r in ar.list_rules()]}
 
-    async def act(self, r):
+    async def _a_history(self, r):
+        items = [a for a in (r.get("h") or []) if not a.get("silent")]
+        last_seen = self.state.get("last_seen", 0)
+        new = [a for a in items if (a.get("id") or 0) > last_seen] if isinstance(last_seen, int) else items
+        if items:
+            self.state["last_seen"] = max(a.get("id") or 0 for a in items) if all(isinstance(a.get("id"), int) for a in items) else last_seen
+            top = items[0]
+            self.finding(Finding("Ultimo avviso", f"{top.get('title')}: {top.get('text')}", "neutral", 70))
+        for a in new[:3]:
+            await self.say("alerts.sent", f"Notifica inviata: {a.get('title')}.", data={"severity": a.get("severity")})
+
+    async def _a_rules(self, r):
         rules = r.get("rules") or []
         active = [x for x in rules if x.get("status") == "active"]
         errors = [x for x in rules if x.get("status") == "error"]
@@ -1433,57 +1172,6 @@ class CustomAlertsAgent(Agent):
             if self.state.get("last_fired") is not None:
                 await self.say("custom.fired", f"Scattato l'avviso personale «{last['name']}».", kind="alert")
             self.state["last_fired"] = last["last_fired"]
-
-
-class JournalAgent(Agent):
-    """Diario: verifica le viste dell'utente alla scadenza e riporta l'hit rate al team."""
-
-    def compute(self):
-        from .. import journal as jr
-        return jr.reviews()
-
-    async def act(self, r):
-        st = r.get("stats") or {}
-        tot, pend = st.get("total") or 0, st.get("pending") or 0
-        if tot:
-            text = f"Diario: {tot} viste verificate, hit rate {st.get('hit_rate') or 0:.0f}%; {pend} in attesa di scadenza."
-        elif pend:
-            text = f"Diario: {pend} viste in attesa di scadenza, nessuna ancora verificata."
-        else:
-            text = "Diario: nessuna vista con direzione e orizzonte da verificare."
-        tone = "neutral"
-        self.finding(Finding("Diario di studio", text, tone, 40))
-        await self.say("journal.state", text, data={"total": tot, "pending": pend, "hit_rate": st.get("hit_rate")})
-        if tot != self.state.get("total"):
-            if self.state.get("total") is not None and tot > self.state["total"]:
-                it = (r.get("items") or [{}])[0]
-                rv = it.get("review") or {}
-                await self.say("journal.review", f"Verificata la vista «{it.get('title') or 'senza titolo'}»: "
-                               f"{'centrata' if rv.get('hit') else 'mancata'} ({rv.get('change_pct') or 0:+.1f}%).", kind="alert")
-            self.state["total"] = tot
-
-
-class DerivSignalsAgent(Agent):
-    """Derivati pro (basis, CME COT, leva aggregata): riporta al team i segnali verificati del proprio modulo."""
-
-    BUILDERS = {"basis": ("build_basis", "Basis e curva futures"), "cme": ("build_cme", "CME COT"),
-                "agg_leverage": ("build_aggregate", "Leva aggregata")}
-
-    def compute(self):
-        fn, _ = self.BUILDERS[self.id]
-        return _call("derivatives", fn)
-
-    async def act(self, r):
-        _, title = self.BUILDERS[self.id]
-        sig = [x for x in (r.get("signals") or []) if x.get("text")]
-        if not sig:
-            return
-        tones = [x.get("tone") for x in sig[:3]]
-        tone = "bullish" if tones.count("bullish") > tones.count("bearish") else "bearish" if tones.count("bearish") > tones.count("bullish") else "neutral"
-        text = " ".join(x["text"] for x in sig[:2])
-        self.finding(Finding(title, text, tone, 55))
-        await self.say(f"{self.id}.state", text, tone=tone)
-        await self.say(f"{self.id}.state", text, to="derivatives", tone=tone)
 
 
 VWAP_NAME = {"w": "settimanale", "m": "mensile", "q": "trimestrale", "y": "annuale"}
@@ -1505,14 +1193,6 @@ class VwapAgent(Agent):
     TOUCH = 0.10         # % di distanza per il "tocco" di un livello del periodo precedente
     CROSS_COOLDOWN = 1800
     TOUCH_COOLDOWN = 4 * 3600
-
-    def finding(self, f: Finding) -> None:
-        """Una sola voce per titolo (i numeri cambiano ogni minuto: si aggiorna la voce invece di accodarne di nuove)."""
-        for i, x in enumerate(list(self.findings)):
-            if x["title"] == f.title:
-                del self.findings[i]
-                break
-        self.findings.appendleft(f.as_dict())
 
     def compute(self):
         from ..analysis import vwap as vw
@@ -1629,6 +1309,11 @@ ANOM_VERDICT_IT = {"strong": "differenza significativa anche dopo la correzione 
                    "none": "nessuna differenza distinguibile dal caso", "anecdotal": "casi troppo pochi per un giudizio"}
 
 
+def _art_it(d: str) -> str:
+    from ..util import art
+    return art(d, "il")
+
+
 def _anom_value(ev: dict) -> str:
     v, u = ev.get("value") or 0, ev.get("unit")
     if u == "pct_8h":
@@ -1686,26 +1371,46 @@ class AnomalyAgent(Agent):
             self.finding(Finding("Ultima anomalia", f"{(lambda x: x[:1].upper() + x[1:])(ANOM_PHRASE_IT.get(ev['id'], ev['id']))} {_art_it(util_data(ev['time']))} (z {ev['z']:+.1f}).", "neutral", 50))
 
 
-class OrderBookAgent(Agent):
-    """Order book Binance USDⓈ-M BTCUSDT (collector app/ob_collector.py): descrive muri, ritiri, squilibri e divergenze delta/CVD.
+class OrderFlowAgent(MultiAgent):
+    """Order flow in tempo reale, solo descrizione (nessun segnale operativo): il book Binance perpetual e i trade di sette mercati.
 
-    Soglie dichiarate: muro = bucket da $10 ≥ k × mediana dei bucket entro ±1% (k = 5, min 2 BTC, ≥ 20 s); ritiro prima del tocco =
-    muro sceso sotto il 30% del massimo con prezzo entro 0,15% e senza scambi a quel livello; squilibrio persistente = quota bid
-    entro ±0,5% media > 60% (o < 40%) con > 80% dei campioni dello stesso lato negli ultimi 15 min; divergenza = prezzo ±0,2% in
-    un'ora con CVD di segno opposto e ≥ 10% del volume. Tono sempre neutrale: la liquidità visibile non rivela intenzioni.
+    Book (app/ob_collector.py), soglie dichiarate: muro = bucket da $10 ≥ k × mediana dei bucket entro ±1% (k = 5, min 2 BTC, ≥ 20 s);
+    ritiro prima del tocco = muro sceso sotto il 30% del massimo con prezzo entro 0,15% e senza scambi a quel livello; squilibrio
+    persistente = quota bid entro ±0,5% media > 60% (o < 40%) con > 80% dei campioni dello stesso lato negli ultimi 15 min;
+    divergenza = prezzo ±0,2% in un'ora con CVD di segno opposto e ≥ 10% del volume. Tono sempre neutrale: la liquidità visibile non
+    rivela intenzioni.
+
+    Trade (app/terminal_collector.py: Binance, Bybit, OKX perp e spot + Coinbase): divergenza tra CVD spot e perp aggregati nell'ultima
+    ora (segni opposti, |delta| ≥ 5% del volume spot e ≥ 3% del perp), squilibrio persistente degli acquisti/vendite aggressivi (ultimi
+    15 minuti: quota acquisti ≥ 58% o ≤ 42% con ≥ 73% dei minuti dallo stesso lato), grandi trade (≥ $1M negli ultimi 5 minuti) e
+    raffiche di liquidazioni reali (≥ $5M di un lato in 5 minuti).
     """
 
-    def finding(self, f: Finding) -> None:
-        for i, x in enumerate(list(self.findings)):
-            if x["title"] == f.title:
-                del self.findings[i]
-                break
-        self.findings.appendleft(f.as_dict())
+    PARTS = (("book", 30, "_c_book", "_a_book"), ("trades", 60, "_c_trades", "_a_trades"), ("moves", 300, "_c_moves", "_a_moves"))
 
-    def compute(self):
+    def _c_book(self):
         return {"sig": _call("orderbook", "build_signals", market="futures")}
 
-    async def act(self, r):
+    def _c_trades(self):
+        return {"tsig": _call("terminal", "build_signals")}
+
+    def _c_moves(self):
+        return {"mv": _call("scoreboard", "recent_moves")}
+
+    async def _a_moves(self, r):
+        """Ultimo movimento forte: cronaca descrittiva. Un movimento finito da meno di 2 ore diventa un avviso informativo, una volta sola."""
+        from ..analysis import moves
+        ev = r["mv"].get("events") or []
+        if not ev:
+            return
+        e = ev[0]
+        text = moves.describe_it(e)
+        self.finding(Finding("Dopo il movimento", text, "neutral", 55))
+        if e["id"] != self.state.get("move_said") and time.time() - e["to"] <= 7200:
+            self.state["move_said"] = e["id"]
+            await self.say("flow.move", text, kind="alert", data={"id": e["id"], "ret_pct": e["ret_pct"], "tags": e["tags"]})
+
+    async def _a_book(self, r):
         s = r["sig"]
         if not s.get("synced") or not s.get("mid"):
             self.finding(Finding("Stato del book", "Book Binance perpetual in sincronizzazione: nessuna lettura finché snapshot e diff stream non sono allineati.", "neutral", 40))
@@ -1767,31 +1472,11 @@ class OrderBookAgent(Agent):
             self.finding(Finding("Delta e CVD", text, "neutral", 50))
             if div and self.state.get("div") != div:
                 await self.say("orderbook.cvd", text, data={"divergence": div, "cvd": cv["cvd"], "price_change_pct": cv["price_change_pct"]})
+                await self._flow_context(cv["cvd"])
             self.state["div"] = div
 
-
-class TerminalFlowAgent(Agent):
-    """Order flow multi-exchange del Terminale (app/terminal_collector.py: trade di Binance, Bybit, OKX perp e spot + Coinbase).
-
-    Descrive, senza segnali: divergenza tra CVD spot e CVD perp aggregati nell'ultima ora (segni opposti, |delta| ≥ 5% del volume
-    spot e ≥ 3% del perp), squilibrio persistente degli acquisti/vendite aggressivi (ultimi 15 minuti: quota acquisti ≥ 58% o
-    ≤ 42% con ≥ 73% dei minuti dallo stesso lato), grandi trade (≥ $1M negli ultimi 5 minuti) e raffiche di liquidazioni reali
-    (≥ $5M di un lato in 5 minuti). Il CVD del solo perpetual Binance rispetto al prezzo resta all'agente "orderbook": quando
-    ne annuncia una divergenza, questo agente risponde con il contesto aggregato degli altri exchange (nessun doppione).
-    """
-
-    def finding(self, f: Finding) -> None:
-        for i, x in enumerate(list(self.findings)):
-            if x["title"] == f.title:
-                del self.findings[i]
-                break
-        self.findings.appendleft(f.as_dict())
-
-    def compute(self):
-        return {"sig": _call("terminal", "build_signals")}
-
-    async def act(self, r):
-        s = r["sig"]
+    async def _a_trades(self, r):
+        s = r["tsig"]
         if not s.get("streams_live"):
             self.finding(Finding("Stato della raccolta", "Nessuno stream di trade connesso: order flow aggregato non disponibile.", "neutral", 30))
             return
@@ -1804,9 +1489,9 @@ class TerminalFlowAgent(Agent):
                     + ("; lo spot compra in modo aggressivo mentre i perpetual vendono (divergenza)." if div == "spot_buy_perp_sell" else
                        "; lo spot vende in modo aggressivo mentre i perpetual comprano (divergenza)." if div == "spot_sell_perp_buy" else "."))
             self.finding(Finding("CVD spot vs perp", text, "neutral", 55))
-            if div and self.state.get("div") != div:
+            if div and self.state.get("tdiv") != div:
                 await self.say("flow.divergence", text, data={"divergence": div, "spot": cv["spot"], "perp": cv["perp"]})
-            self.state["div"] = div
+            self.state["tdiv"] = div
         else:
             self.finding(Finding("CVD spot vs perp", "Servono almeno 30 minuti di trade raccolti da tutti gli exchange per confrontare CVD spot e perp.", "neutral", 30))
         im = s.get("imbalance")
@@ -1842,98 +1527,25 @@ class TerminalFlowAgent(Agent):
         elif lq:
             self.finding(Finding("Liquidazioni recenti", f"Ultimi 5 minuti: long {_usd(lq.get('long_usd'))}, short {_usd(lq.get('short_usd'))} ({lq.get('n', 0)} eventi).", "neutral", 45))
 
-    async def on_message(self, m):
-        # l'agente orderbook ha visto una divergenza delta/CVD sul solo perpetual Binance: contesto aggregato (se disponibile)
-        if m["topic"] != "orderbook.cvd":
-            return
-        cv = (self.state.get("sig") or {}).get("cvd")
+    async def _flow_context(self, cvd: float) -> None:
+        """Divergenza delta/CVD sul solo perpetual Binance: aggiunge il contesto aggregato degli altri exchange (se disponibile)."""
+        cv = (self.state.get("tsig") or {}).get("cvd")
         if not cv:
             return
-        same = "conferma" if (cv["perp"] > 0) == (((m.get("data") or {}).get("cvd") or 0) > 0) else "non conferma"
+        same = "conferma" if (cv["perp"] > 0) == (cvd > 0) else "non conferma"
         await self.say("flow.context", f"Contesto multi-exchange: il CVD perp aggregato di Binance, Bybit e OKX nell'ultima ora è {cv['perp']:+,.0f} BTC e "
-                       f"{same} la lettura del solo Binance; CVD spot aggregato {cv['spot']:+,.0f} BTC.", to=m["from"], data={"perp": cv["perp"], "spot": cv["spot"]})
+                       f"{same} la lettura del solo Binance; CVD spot aggregato {cv['spot']:+,.0f} BTC.", data={"perp": cv["perp"], "spot": cv["spot"]})
 
 
 STREAM_IT = {"binance_perp": "Binance perp", "bybit_perp": "Bybit perp", "okx_perp": "OKX perp", "binance_spot": "Binance spot",
              "coinbase_spot": "Coinbase", "bybit_spot": "Bybit spot", "okx_spot": "OKX spot"}
 
 
-class KronosAgent(Agent):
-    """Kronos (foundation model per candele): annuncia la previsione corrente 1h/4h/1D (mediana, banda 90%, regime) con il
-    verdetto del backtest fuori campione DOPO il pre-addestramento. Tono sempre neutro: descrizione, mai un segnale."""
-
-    REG = {"trend_up": "trend al rialzo", "trend_down": "trend al ribasso", "choppy": "laterale"}
-    VER = {"edge": "batte il naive in modo significativo", "small_edge": "batte il naive di poco (significativo)",
-           "no_edge": "nessun vantaggio significativo sul naive", "worse": "peggiore del naive (significativo)",
-           "worse_ns": "nessun vantaggio sul naive", "n_a": "verdetto non disponibile"}
-
-    def finding(self, f: Finding) -> None:
-        for i, x in enumerate(list(self.findings)):
-            if x["title"] == f.title:
-                del self.findings[i]
-                break
-        self.findings.appendleft(f.as_dict())
-
-    def compute(self):
-        from ..analysis import kronos_forecast as kf  # noqa: PLC0415
-        return {"s": kf.summary()}
-
-    async def act(self, r):
-        s = r.get("s") or {}
-        hl = ((s.get("backtest") or {}).get("headline") or {}).get("small", {})
-        for tf in ("1h", "4h", "1d"):
-            f = (s.get("forecasts") or {}).get(tf)
-            if not f:
-                continue
-            e, g = f["end"], f["regime"]
-            tfl = {"1h": "1h", "4h": "4h", "1d": "1G"}[tf]
-            h = hl.get(tf) or {}
-            bt = (f"Backtest dopo il pre-addestramento (dal 1 lug 2024), 1 giorno avanti: MASE {h['day_mase']:.3f}, "
-                  f"{self.VER.get((h.get('day') or {}).get('code'), 'n/d')}" if h.get("day_mase") is not None else "Backtest non ancora calcolato: nessun verdetto")
-            text = (f"Kronos {tfl} (24 candele, 100 percorsi, fino al {util_data(f['target'])}): mediana {_usd(e['median'])} "
-                    f"({e['change_pct']:+.2f}%), banda 90% {_k(e['p05'])}–{_k(e['p95'])}, P(rialzo) {e['up_prob']:.0f}%, "
-                    f"regime {self.REG.get(g['code'], g['code'])} (accordo dei percorsi {100 * g['agree']:.0f}%). {bt}. "
-                    "Descrizione statistica, non un segnale.")
-            self.finding(Finding(f"Kronos {tfl}", text, "neutral", 30))
-            key = f"{tf}:{f['origin']}"
-            if self.state.get(f"k_{tf}") != key:
-                await self.say(f"kronos.forecast.{tf}", text, data={"tf": tf, "median": e["median"], "p05": e["p05"], "p95": e["p95"],
-                                                                   "up_prob": e["up_prob"], "regime": g["code"], "agree": g["agree"],
-                                                                   "bt_day_mase": h.get("day_mase"), "bt_verdict": (h.get("day") or {}).get("code")})
-                self.state[f"k_{tf}"] = key
-
-
 class ForecastAgent(Agent):
     def compute(self):
-        out = {"f": _call("forecast", "get_forecast", horizon=90)}
-        try:
-            from ..analysis import forecast_oneday as fod  # noqa: PLC0415
-            out["d1"] = fod.summary()
-        except Exception as e:  # noqa: BLE001  (modello a 1 giorno non pronto: il resto dell'agente prosegue)
-            log.info("previsione 1g non disponibile per l'agente: %s", e)
-            out["d1"] = None
-        return out
-
-    def _oneday_finding(self, d1: dict) -> None:
-        """Finding sobrio sulla previsione a 1 giorno: valore, bande e verdetto contro il naive (mai un segnale)."""
-        tm, a = d1["tomorrow"], d1["all"]
-        v = a.get("verdict", {})
-        mase, p = a.get("mase"), a.get("dm_p")
-        if mase is None:
-            return
-        verdict = {"edge": "vantaggio significativo sul naive", "small_edge": "vantaggio piccolo ma significativo sul naive",
-                   "no_edge": "nessun vantaggio significativo sul naive", "worse": "peggiore del naive",
-                   "worse_ns": "nessun vantaggio sul naive"}.get(v.get("code"), "confronto con il naive non disponibile")
-        text = (f"Previsione a 1 giorno (chiusura del {util_data(tm['target'])}): {_usd(tm['median'])}, banda 90% "
-                f"{_k(tm['p05'])}–{_k(tm['p95'])}, P(rialzo) {tm['up_prob']:.0f}%. Fuori campione dal 2019: MASE {mase:.3f} "
-                f"(naive = 1){f', test Diebold-Mariano p = {p:.2f}' if p is not None else ''}: {verdict}. A un giorno la miglior stima resta vicina al "
-                "prezzo di oggi.")
-        if text not in [f["text"] for f in list(self.findings)[:6]]:
-            self.findings.appendleft(Finding("Previsione a 1 giorno", text, "neutral", 35).as_dict())
+        return {"f": _call("forecast", "get_forecast", horizon=90)}
 
     async def act(self, r):
-        if r.get("d1"):
-            self._oneday_finding(r["d1"])
         ts = {t["days"]: t for t in r["f"].get("targets", [])}
         t30 = ts.get(30)
         if t30:
@@ -1955,15 +1567,16 @@ class AnalystAgent(Agent):
     """Orchestratore: raccoglie i finding di tutti, calcola il consenso e (se c'è LM Studio) scrive la sintesi."""
 
     def compute(self):
+        sb = _optional("scoreboard", "build")
         views = []
         for a in bus.agents.values():
             if a.id == self.id:
                 continue
-            for f in list(a.findings)[:2]:
+            for f in list(a.findings)[:a.views]:
                 views.append({"agent": a.name, "id": a.id, **f})
         rel = _reliability()
         for v in views:
-            v["w"] = v["confidence"] * (0.5 + rel.get(v["id"], 0.5))
+            v["w"] = v["confidence"] * (0.5 + rel.get(v.get("src") or v["id"], 0.5))
         score = sum((1 if v["tone"] == "bullish" else -1 if v["tone"] == "bearish" else 0) * v["w"] for v in views)
         weight = sum(v["w"] for v in views) or 1
         consensus = score / weight * 100
@@ -1988,9 +1601,13 @@ class AnalystAgent(Agent):
                     summary = None
         except Exception as e:  # noqa: BLE001
             log.info("analyst senza LLM: %s", e)
-        return {"consensus": consensus, "summary": summary, "n": len(views)}
+        return {"consensus": consensus, "summary": summary, "n": len(views), "sb": sb}
 
     async def act(self, r):
+        sb = r.get("sb")
+        if sb:
+            # il tabellone conta punti: resta neutrale per non pesare due volte nel consenso del team
+            self.finding(Finding("Tabellone Bull vs Bear", f"{sb['bull']} punti rialzisti, {sb['bear']} ribassisti da regole dichiarate. È un conteggio, non una previsione.", "neutral", 60))
         c = r["consensus"]
         tone = "bullish" if c > 15 else "bearish" if c < -15 else "neutral"
         label = {"bullish": "rialzista", "bearish": "ribassista", "neutral": "neutrale"}[tone]
@@ -2010,98 +1627,30 @@ class AnalystAgent(Agent):
 
 def build_team() -> list[Agent]:
     return [
-        AnalystAgent("analyst", "Analista AI", "Orchestratore: raccoglie i report di tutti gli agenti, calcola il consenso e scrive la sintesi (LLM locale).",
-                     "BrainCircuit", "#a78bfa", 120, subscribes=["liquidity.", "levels.confluence", "pattern.", "correlation.", "cycle.", "onchain.", "derivatives.signal", "flows.", "analogs.", "timepivot.", "macro.", "clock.", "miners.", "leverage.", "usdt_analogs.", "stablecoins.", "structure.", "opening.", "scenario.", "events.", "verifier.", "options.", "holders.", "sentiment.", "image.", "forecast.", "vwap.", "timing.", "elliott.", "anomalies.", "orderbook.", "flow.", "kronos.", "market.alert", "levels.touch"], publishes=["analyst.summary"]),
-        MarketAgent("market", "Market Data", "Monitora prezzo, range 24h e sentiment in tempo reale e avvisa gli altri agenti dei movimenti.",
-                    "Activity", "#f7931a", 5, subscribes=[], publishes=["market.price", "market.alert"]),
-        LevelsAgent("levels", "Pivot & Livelli", "Calcola pivot (classici, Fibonacci, Camarilla), swing e zone di supporto/resistenza; verifica confluenze su richiesta.",
-                    "Layers", "#38bdf8", 30, subscribes=["market.price", "request.levels"], publishes=["levels.key", "levels.touch", "levels.confluence"]),
-        LiquidityAgent("liquidity", "Liquidazioni", "Stima la heatmap delle liquidazioni da OI e leva, individua cluster, magneti e pool di liquidità.",
-                       "Flame", "#f43f5e", 30, subscribes=["market.price", "derivatives.oi", "request.liquidity"], publishes=["liquidity.cluster", "liquidity.sweep", "request.levels"]),
-        PatternAgent("patterns", "Frattali & Pattern", "Cerca nello storico movimenti simili (4H/1D), proietta gli scenari e individua i retest probabili.",
-                     "Shapes", "#22d3ee", 60, subscribes=["correlation."], publishes=["pattern.projection", "pattern.retest", "pattern.confirmation", "request.levels"]),
-        CorrelationAgent("correlation", "USDT & Correlazioni", "Ricostruisce la USDT dominance, misura correlazioni e lead/lag con BTC, trova divergenze e frattali congiunti.",
-                         "GitCompareArrows", "#10b981", 60, subscribes=[], publishes=["correlation.usdt", "correlation.fractal"]),
-        CycleAgent("cycles", "Cicli", "Riconosce top/bottom storici, la fase attuale del ciclo e stima in modo adattivo i prossimi top e bottom.",
-                   "RefreshCcw", "#fbbf24", 300, subscribes=[], publishes=["cycle.phase"]),
-        OnchainAgent("onchain", "On-Chain", "Valuta MVRV, NUPL, prezzo realizzato, hashrate e Puell per capire se BTC è caro o economico.",
-                     "Blocks", "#818cf8", 300, subscribes=[], publishes=["onchain.valuation"]),
-        DerivativesAgent("derivatives", "Derivati", "Segue funding, open interest, long/short e basis per misurare la leva nel mercato.",
-                         "Gauge", "#fb923c", 20, subscribes=[], publishes=["derivatives.funding", "derivatives.oi", "derivatives.signal"]),
-        FlowsAgent("flows", "Flussi Spot/Futures", "Confronta acquisti e vendite aggressive su spot e futures perpetual: delta, CVD, divergenze e picchi di leva.",
-                   "ArrowLeftRight", "#2dd4bf", 30, subscribes=["derivatives.funding"],
-                   publishes=["flows.divergence", "flows.spike", "flows.leverage", "request.liquidity"]),
-        AnalogsAgent("analogs", "Analoghi grafici", "Trova nello storico i grafici più simili a quello attuale (forma, candele, gambe, figure) e spiega cosa corrisponde a cosa.",
-                     "ScanSearch", "#e879f9", 120, subscribes=["pattern.projection"],
-                     publishes=["analogs.match", "analogs.pattern", "analogs.check", "analogs.structure"]),
-        TimePivotsAgent("timepivots", "Pivot temporali", "Individua le date in cui BTC ha reagito in modo ricorrente (stagionalità, tempi di ciclo, Fibonacci temporali, eventi) e avvisa quando si avvicinano.",
-                        "CalendarClock", "#facc15", 600, subscribes=["cycle.phase"],
-                        publishes=["timepivot.next", "timepivot.alert", "timepivot.check"]),
-        MacroAgent("macro", "Macro e rotazione", "Segue dollaro, tassi, volatilità, liquidità e rotazione BTC/altcoin; segnala i cambi di regime risk-on/risk-off.",
-                   "Globe2", "#94a3b8", 300, subscribes=["correlation.usdt"],
-                   publishes=["macro.context", "macro.rotation", "macro.alert", "macro.riskoff", "macro.riskon"]),
-        CycleClockAgent("clock", "Orologio del ciclo", "Calcola lo score di ciclo 0-100 (Pi Cycle, MVRV-Z, NUPL, Puell, Mayer, power law...) e confronta oggi con lo stesso giorno dei cicli passati.",
-                        "Clock", "#f59e0b", 300, subscribes=["cycle.phase"], publishes=["clock.score", "clock.zone", "clock.compare", "clock.check"]),
-        MinerAgent("miners", "Miner", "Segue il ciclo dei miner: Hash Ribbons, Difficulty Ribbon, drawdown dell'hashrate e Puell.",
-                   "Pickaxe", "#a3e635", 600, subscribes=[], publishes=["miners.state", "miners.signal"]),
-        LeverageAgent("leverage", "Ciclo della leva", "Confronta funding e speculazione (volumi perp/spot) con la fase di ciclo e con i cicli passati.",
-                      "Scale", "#fb7185", 300, subscribes=["flows.spike"], publishes=["leverage.cycle", "leverage.check"]),
-        UsdtAnalogsAgent("usdt_analogs", "Analoghi USDT", "Cerca nello storico configurazioni grafiche simili della USDT dominance e riporta cosa ha fatto BTC dopo.",
-                         "ScanLine", "#34d399", 300, subscribes=["correlation.usdt"], publishes=["usdt_analogs.match"]),
-        StablecoinsAgent("stablecoins", "Stablecoin", "Misura la liquidità in stablecoin: supply totale, emissioni nette, dominance e Stablecoin Supply Ratio.",
-                         "Coins", "#22c55e", 600, subscribes=[], publishes=["stablecoins.liquidity", "stablecoins.alert"]),
-        RangeAgent("range", "Range e struttura", "Riconosce i range sui timeframe alti, gli sweep, le accettazioni e i retest e misura cosa è successo storicamente dopo.",
-                   "SquareDashed", "#60a5fa", 60, subscribes=[], publishes=["structure.range", "structure.event"]),
-        OpeningPivotAgent("opening", "Pivot di apertura", "Segue massimo e minimo del lunedì, aperture settimanali/mensili e chiusure settimanali con le statistiche di ritorno.",
-                          "CalendarRange", "#f59e0b", 60, subscribes=["market.price"], publishes=["opening.monday", "opening.break"]),
-        ScenarioAgent("scenarios", "Piano scenari", "Costruisce 2-3 scenari condizionali con trigger, obiettivi e invalidazione combinando struttura, livelli, liquidità, analoghi e pivot.",
-                      "Route", "#e2e8f0", 120, subscribes=["structure.event", "opening.break", "liquidity.sweep", "timepivot.alert"],
-                      publishes=["scenario.plan"]),
-        EventsAgent("events", "Eventi macro", "Segue FOMC, CPI, dati sul lavoro, scadenze opzioni, CME e ciclo politico (midterm) con la reazione storica di BTC.",
-                    "CalendarDays", "#94a3b8", 600, subscribes=[], publishes=["events.next", "events.soon"]),
-        AstroAgent("astro", "Astronomia e numeri", "Calcola fasi lunari, eclissi, Mercurio retrogrado, ciclo solare e livelli numerici, li testa sullo storico di BTC contro il caso e annuncia gli eventi imminenti con il verdetto statistico.",
-                   "MoonStar", "#9B87F5", 1800, subscribes=[], publishes=["astro.summary", "astro.soon"]),
-        TimingAgent("timing", "Timing Gann · Wyckoff", "Proietta i conteggi di Gann dai pivot maggiori, riconosce fasi ed eventi di Wyckoff su 1D/4H e verifica i ritmi di calendario: annuncia date chiave, eventi e ritmi sempre con il loro track record contro il caso.",
-                    "Hourglass", "#9B87F5", 600, subscribes=[], publishes=["timing.key_date", "timing.wyckoff.1d", "timing.wyckoff.4h", "timing.rhythm"]),
-        ElliottAgent("elliott", "Onde di Elliott", "Conta le onde di Elliott su 4H, 1D e 1W con regole rigide e linee guida a punteggio: comunica il conteggio preferito, l'invalidazione, gli obiettivi e i cambi di conteggio, sempre con il verdetto del backtest walk-forward. Solo descrizione, nessun segnale operativo.",
-                     "Waves", "#9B87F5", 300, subscribes=[], publishes=["elliott.count.4h", "elliott.count.1d", "elliott.count.1w", "elliott.invalidated"]),
-        VerifierAgent("verifier", "Verifica", "Registra le previsioni di ogni agente, le confronta con la realtà e calcola l'affidabilità usata dall'Analista per pesare i pareri.",
-                      "BadgeCheck", "#4c8dff", 1800, subscribes=[], publishes=["verifier.summary"]),
-        AlertsAgent("alerts", "Avvisi", "Motore delle notifiche: valuta soglie e cooldown, evita lo spam e invia i toast per gli eventi importanti.",
-                    "Bell", "#f59e0b", 30, subscribes=[], publishes=["alerts.sent"]),
-        OptionsAgent("options", "Opzioni", "Legge il mercato opzioni Deribit: max pain delle scadenze, put/call, skew, volatilità implicita e muri di gamma.",
-                     "Sigma", "#a78bfa", 120, subscribes=[], publishes=["options.state", "request.levels"]),
-        HoldersAgent("holders", "Holder STH/LTH", "Segue il prezzo medio di carico e l'MVRV degli holder recenti e di lungo periodo (dati con 7 giorni di ritardo).",
-                     "Users", "#5eead4", 1800, subscribes=[], publishes=["holders.state", "holders.cross"]),
-        SentimentAgent("sentiment", "Sentiment", "Indice contrarian di paura/euforia (Fear & Greed, funding, flussi, premio Coinbase, skew, DVOL) con backtest.",
-                       "Thermometer", "#f472b6", 300, subscribes=[], publishes=["sentiment.state", "sentiment.extreme"]),
-        SupplyDemandAgent("supply_demand", "Domanda e offerta", "Segue riserve e flussi degli exchange, flussi degli ETF spot con l'assorbimento dei BTC emessi dai miner e l'attenzione retail su Wikipedia.",
-                          "Coins", "#3CC6B0", 1800, subscribes=[], publishes=["supply.exchanges", "supply.etf", "supply.etf.big", "supply.attention"]),
-        ImagePatternAgent("image", "Ricerca da immagine", "Legge gli screenshot di TradingView caricati dall'utente, ricostruisce le candele e cerca nello storico i pattern più simili.",
-                          "ImageUp", "#e879f9", 15, subscribes=[], publishes=["image.match"]),
-        CustomAlertsAgent("custom_alerts", "Avvisi personali", "Controlla le regole personali dell'utente su prezzo, livelli e indicatori e informa il team quando scattano.",
-                          "BellRing", "#fbbf24", 60, subscribes=[], publishes=["custom.state", "custom.fired"]),
-        JournalAgent("journal", "Diario", "Verifica alla scadenza le viste annotate nel diario e tiene il conto dell'hit rate per orizzonte e direzione.",
-                     "NotebookPen", "#94a3b8", 600, subscribes=[], publishes=["journal.state", "journal.review"]),
-        DerivSignalsAgent("basis", "Basis futures", "Calcola il basis annualizzato e la curva dei futures (Deribit, Binance COIN-M e USDⓈ-M) con percentile storico e verifica sul dato ufficiale.",
-                          "TrendingUp", "#38bdf8", 900, subscribes=[], publishes=["basis.state"]),
-        DerivSignalsAgent("cme", "CME COT", "Legge il Commitment of Traders CFTC sui futures Bitcoin CME (leveraged funds, asset manager, dealer) e lo verifica sul report ufficiale.",
-                          "Scale", "#818cf8", 3600, subscribes=[], publishes=["cme.state"]),
-        DerivSignalsAgent("agg_leverage", "Leva aggregata", "Somma open interest, funding e long/short di Binance, Bybit e OKX in un'unica misura della leva sul mercato perpetual.",
-                          "Layers", "#f97316", 300, subscribes=[], publishes=["agg_leverage.state"]),
-        VwapAgent("vwap", "VWAP ancorati", "Calcola i VWAP settimanale, mensile, trimestrale e annuale (ancore UTC, bande ±σ) e i livelli del periodo precedente; segnala posizione del prezzo, cross e tocchi.",
-                  "Anchor", "#3CC6B0", 60, subscribes=[], publishes=["vwap.position", "vwap.cross", "vwap.touch", "vwap.confluence"]),
-        AnomalyAgent("anomalies", "Anomalie", "Cerca valori anomali (z robusto senza dati futuri) in funding, open interest, liquidazioni, volume e flussi ETF/exchange e li annuncia con il backtest storico di cosa è successo dopo.",
-                     "Radar", "#E8B04B", 1800, subscribes=[], publishes=["anomalies.funding", "anomalies.oi", "anomalies.liq_long", "anomalies.liq_short",
-                                                                        "anomalies.volume", "anomalies.etf", "anomalies.exchange"]),
-        OrderBookAgent("orderbook", "Order book", "Legge il book Binance perpetual raccolto in tempo reale: muri di liquidità vicini al prezzo (soglia k× la mediana), liquidità ritirata prima del tocco, squilibri bid/ask persistenti e delta/CVD divergenti dal prezzo. Solo descrizione, nessun segnale operativo.",
-                       "Grid3x3", "#5B8DEF", 30, subscribes=[], publishes=["orderbook.walls", "orderbook.pulled", "orderbook.imbalance", "orderbook.cvd"]),
-        TerminalFlowAgent("flow", "Order flow", "Segue i trade di sette mercati (Binance, Bybit e OKX perp e spot, Coinbase): divergenze tra CVD spot e perp aggregati, squilibri persistenti di acquisti e vendite aggressivi, grandi trade e raffiche di liquidazioni reali. Solo descrizione, nessun segnale operativo.",
-                          "AudioWaveform", "#3CC6B0", 60, subscribes=["orderbook.cvd"], publishes=["flow.divergence", "flow.imbalance", "flow.large", "flow.liquidations", "flow.context"]),
-        KronosAgent("kronos", "Kronos", "Foundation model per candele (Kronos-small, arXiv:2508.02739): percorsi probabilistici 1h/4h/1G con mediana, bande e regime, sempre accompagnati dal backtest fuori campione dopo il pre-addestramento.",
-                    "Sparkles", "#9B87F5", 120, subscribes=[], publishes=["kronos.forecast.1h", "kronos.forecast.4h", "kronos.forecast.1d"]),
-        ForecastAgent("forecast", "Previsioni ML", "Posizione nel ciclo + LightGBM + Monte Carlo, calibrati fuori campione: bande di probabilità da 7 a 365 giorni; previsione a 1 giorno confrontata con il naive.",
-                      "TrendingUp", "#60a5fa", 600, subscribes=["pattern.projection.d1"], publishes=["forecast.targets", "forecast.check"]),
+        AnalystAgent("analyst", "Analista AI", 120, subscribes=[
+            "liquidity.", "levels.confluence", "levels.touch", "market.alert", "pattern.", "correlation.", "cycle.", "clock.", "miners.", "leverage.",
+            "onchain.", "derivatives.signal", "flows.", "flow.", "orderbook.", "analogs.", "usdt_analogs.", "timepivot.", "macro.", "events.",
+            "stablecoins.", "structure.", "opening.", "scenario.", "verifier.", "options.", "holders.", "sentiment.", "forecast.", "vwap.", "anomalies."]),
+        MarketAgent("market", "Market Data", 5),
+        LevelsAgent("levels", "Pivot & Livelli", 30, subscribes=["market.price", "request.levels"]),
+        VwapAgent("vwap", "VWAP ancorati", 60),
+        LiquidityAgent("liquidity", "Liquidazioni", 30, subscribes=["market.price", "derivatives.oi", "request.liquidity"]),
+        AnalogsAgent("analogs", "Analoghi", 60, subscribes=["correlation."], views=6),
+        UsdtAgent("usdt", "USDT e stablecoin", 60, views=4),
+        CycleAgent("cycles", "Cicli", 300, subscribes=["flows.spike"], views=8),
+        OnchainAgent("onchain", "On-Chain", 300),
+        DerivativesAgent("derivatives", "Derivati", 20, views=8),
+        FlowsAgent("flows", "Flussi Spot/Futures", 30, subscribes=["derivatives.funding"]),
+        SupplyDemandAgent("supply_demand", "Domanda e offerta", 1800),
+        TimePivotsAgent("timepivots", "Pivot temporali", 600, subscribes=["cycle.phase"]),
+        MacroAgent("macro", "Macro ed eventi", 300, subscribes=["correlation.usdt"], views=4),
+        StructureAgent("structure", "Struttura", 60, subscribes=["market.price", "liquidity.sweep", "timepivot.alert"], views=6),
+        PositioningAgent("positioning", "Posizionamento", 120, views=6),
+        AnomalyAgent("anomalies", "Anomalie", 1800),
+        OrderFlowAgent("orderflow", "Order flow", 30, views=4),
+        ForecastAgent("forecast", "Previsioni ML", 600, subscribes=["pattern.projection.d1"]),
+        VerifierAgent("verifier", "Verifica", 1800),
+        AlertsAgent("alerts", "Avvisi", 30, views=4),
     ]
 
 
@@ -2117,50 +1666,17 @@ async def start() -> None:
     for a in team:
         bus.agents[a.id] = a
     # avvio scaglionato: prima i produttori di dati, l'analista per ultimo
-    order = {"market": 1, "derivatives": 3, "levels": 5, "liquidity": 8, "correlation": 11, "cycles": 14,
-             "onchain": 17, "patterns": 20, "forecast": 25, "flows": 6, "analogs": 22, "timepivots": 30, "macro": 33, "clock": 36, "miners": 38, "leverage": 40, "usdt_analogs": 42, "stablecoins": 44, "range": 46, "opening": 48, "scenarios": 52, "events": 54, "verifier": 70, "alerts": 12, "options": 56, "holders": 58, "sentiment": 62, "supply_demand": 64, "image": 9, "vwap": 4, "timing": 60, "elliott": 57, "anomalies": 50, "orderbook": 15, "flow": 19, "kronos": 68, "analyst": 66}
+    order = {"market": 1, "derivatives": 3, "vwap": 4, "levels": 5, "flows": 6, "liquidity": 8, "usdt": 11, "alerts": 12, "cycles": 14,
+             "orderflow": 15, "onchain": 17, "analogs": 20, "forecast": 25, "timepivots": 30, "macro": 33, "structure": 46, "anomalies": 50,
+             "positioning": 56, "supply_demand": 64, "analyst": 66, "verifier": 70}
     loop = asyncio.get_running_loop()
     for a in team:
         loop.create_task(a.inbox_loop())
         loop.create_task(a.loop(order.get(a.id, 5)))
-    log.info("team di %d agenti avviato", len(team))
+    log.info("%d agenti avviati", len(team))
 
 
-def graph() -> dict:
-    edges: dict[tuple[str, str], dict] = {}
-    # grafo statico dalle sottoscrizioni
-    for a in bus.agents.values():
-        for t in a.publishes:
-            for b in bus.subscribers(t):
-                if b.id != a.id:
-                    e = edges.setdefault((a.id, b.id), {"topics": set(), "count": 0, "last": None})
-                    e["topics"].add(t)
-    # richieste dirette osservate
-    for k, v in bus.edges.items():
-        e = edges.setdefault(k, {"topics": set(), "count": 0, "last": None})
-        e["topics"] |= v["topics"]
-        e["count"] = v["count"]
-        e["last"] = v["last"]
-    return {
-        "agents": [a.to_dict() for a in bus.agents.values()],
-        "edges": [{"from": f, "to": t, "topics": sorted(v["topics"]), "count": v["count"], "last": v["last"]} for (f, t), v in edges.items()],
-        "started_at": _started_at,
-    }
-
-
-_started_at = _now()
-
-
-def messages(limit: int = 100, agent: str | None = None) -> list[dict]:
-    out = []
-    for m in bus.messages:
-        if agent and agent not in (m["from"], m["to"]):
-            continue
-        out.append(m)
-        if len(out) >= limit:
-            break
-    return out
-
-
-def dumps(obj) -> str:
-    return json.dumps(obj)
+def status() -> dict:
+    """Riassunto per l'indicatore di stato della barra laterale."""
+    agents = list(bus.agents.values())
+    return {"total": len(agents), "errors": [{"id": a.id, "name": a.name, "error": a.error} for a in agents if a.status == "error"]}

@@ -520,6 +520,16 @@ def validate() -> dict:
     return out
 
 
+def near_totals(m: dict, pct: float = 5.0) -> dict:
+    """USD stimati entro ±pct% dal prezzo su tutte le posizioni del modello, non solo sui cluster principali."""
+    df = m["df"]
+    cur = float(df["close"].iloc[-1])
+    mask, amt = _active_at(m, len(df) - 1)
+    p, il = m["liq"][mask], m["is_long"][mask]
+    sel = np.abs(p / cur - 1) * 100 <= pct
+    return {"pct": pct, "long": float(amt[sel & il].sum()), "short": float(amt[sel & ~il].sum())}
+
+
 # ------------------------------------------------------------------ entry
 
 @util.ttl_cache(30)
@@ -537,7 +547,7 @@ def _static(rng: str) -> dict:
     except Exception as e:  # noqa: BLE001
         log.warning("validazione modello non calcolabile: %s", e)
         val = None
-    return {"heatmap": heatmap(m, rng), "clusters": cl, "pools": pools(cur), "magnet": magnet, "coverage": cov, "validation": val}
+    return {"heatmap": heatmap(m, rng), "clusters": cl, "near": near_totals(m), "pools": pools(cur), "magnet": magnet, "coverage": cov, "validation": val}
 
 
 def compute(rng: str = "7d") -> dict:

@@ -17,6 +17,7 @@ import { ApiError } from '../api/client'
 import { cap, t, tfLabel } from '../i18n'
 import { compact, date, dayUnit, int, pct, pts, usd } from '../lib/format'
 import { Field, INPUT, INPUT_ERR, Modal, NumInput, Select } from './forms'
+import { T } from '../theme/tokens'
 
 // ------------------------------------------------------------------ labels
 export const TYPE_META: Record<RuleType, { label: string; desc: string; icon: typeof TrendingUp }> = {
@@ -84,14 +85,6 @@ export const LEVEL_LABEL: Record<LevelId, { label: string; group: string }> = {
   vp_pw_poc: { label: 'POC della settimana precedente', group: 'Profilo di volume' },
   vp_pw_vah: { label: 'VAH della settimana precedente (value area)', group: 'Profilo di volume' },
   vp_pw_val: { label: 'VAL della settimana precedente (value area)', group: 'Profilo di volume' },
-  wy_1d_high: { label: 'Massimo del range Wyckoff 1G', group: 'Range Wyckoff' },
-  wy_1d_low: { label: 'Minimo del range Wyckoff 1G', group: 'Range Wyckoff' },
-  wy_4h_high: { label: 'Massimo del range Wyckoff 4h', group: 'Range Wyckoff' },
-  wy_4h_low: { label: 'Minimo del range Wyckoff 4h', group: 'Range Wyckoff' },
-  ew_1d_inv: { label: 'Invalidazione Elliott 1G', group: 'Onde di Elliott' },
-  ew_1d_target: { label: 'Obiettivo Elliott 1G', group: 'Onde di Elliott' },
-  ew_4h_inv: { label: 'Invalidazione Elliott 4h', group: 'Onde di Elliott' },
-  ew_4h_target: { label: 'Obiettivo Elliott 4h', group: 'Onde di Elliott' },
 }
 
 export const METRIC_META: Record<MetricKey, { label: string; unit: string; step: number; hint: string }> = {
@@ -114,16 +107,16 @@ export const ZONE_LABEL: Record<string, string> = {
   bottom: 'Zona di minimo', accumulation: 'Accumulo', mid: 'Metà ciclo', euphoria: 'Euforia', top: 'Zona di massimo',
 }
 export const STATUS_META: Record<RuleStatus, { label: string; dot: string }> = {
-  active: { label: 'Attiva', dot: 'bg-up' },
-  paused: { label: 'In pausa', dot: 'bg-slate-500' },
-  expired: { label: 'Scaduta', dot: 'bg-slate-600' },
-  triggered: { label: 'Scattata', dot: 'bg-accent-blue' },
-  error: { label: 'Errore', dot: 'bg-down' },
+  active: { label: 'Attiva', dot: 'bg-accent' },
+  paused: { label: 'In pausa', dot: 'bg-fg-4' },
+  expired: { label: 'Scaduta', dot: 'bg-fg-off' },
+  triggered: { label: 'Scattata', dot: 'bg-accent' },
+  error: { label: 'Errore', dot: 'bg-warn' },
 }
 export const SEVERITY_META: Record<AlertSeverity, { label: string; hex: string }> = {
-  info: { label: 'Info', hex: '#5B8DEF' },
-  warning: { label: 'Attenzione', hex: '#E8B04B' },
-  critical: { label: 'Critico', hex: '#EF5466' },
+  info: { label: 'Info', hex: T.fg3 },
+  warning: { label: 'Attenzione', hex: T.warn },
+  critical: { label: 'Critico', hex: T.accent },
 }
 const REASON: Record<string, string> = {
   ready: 'Condizione vera ora: l’avviso partirà al primo controllo (entro 20 s).',
@@ -326,8 +319,8 @@ export function RuleEditor({ initial, onClose, onSaved }: { initial: Prefill; on
       subtitle={price ? t('Prezzo live {p} · le regole sono valutate ogni 20 secondi', { p: usd(price) }) : t('Le regole sono valutate ogni 20 secondi')}
       footer={
         <>
-          {err && <span className="mr-auto max-w-full truncate text-xs text-down" title={err.message}>{t('Salvataggio non riuscito: {e}', { e: err.message })}</span>}
-          {tried && !valid && !err && <span className="mr-auto text-xs text-down">{t('Controlla i campi evidenziati')}</span>}
+          {err && <span className="mr-auto max-w-full truncate text-xs text-warn" title={err.message}>{t('Salvataggio non riuscito: {e}', { e: err.message })}</span>}
+          {tried && !valid && !err && <span className="mr-auto text-xs text-warn">{t('Controlla i campi evidenziati')}</span>}
           <button className="btn-ghost" onClick={onClose}>{t('Annulla')}</button>
           <button className="btn-primary" onClick={save} disabled={create.isPending || update.isPending}>
             {editing ? t('Salva modifiche') : t('Crea avviso')}
@@ -343,9 +336,9 @@ export function RuleEditor({ initial, onClose, onSaved }: { initial: Prefill; on
                 const on = tp === d.type
                 return (
                   <button key={tp} type="button" onClick={() => setType(tp)} aria-pressed={on}
-                    className={clsx('flex min-w-0 items-center gap-2 rounded-[10px] border px-2.5 py-2 text-left transition-colors',
-                      on ? 'border-accent-blue/45 bg-accent-blue/[0.10] text-white' : 'border-white/[0.07] bg-white/[0.02] text-slate-300 hover:border-white/[0.14] hover:text-white')}>
-                    <M.icon size={14} className={on ? 'text-accent-blue' : 'text-slate-500'} />
+                    className={clsx('flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors',
+                      on ? 'border-accent/45 bg-accent/[0.10] text-white' : 'border-line bg-white/[0.02] text-fg-2 hover:border-line-strong hover:text-white')}>
+                    <M.icon size={14} className={on ? 'text-accent' : 'text-fg-4'} />
                     <span className="min-w-0 truncate text-xs font-medium">{t(M.label)}</span>
                   </button>
                 )
@@ -436,7 +429,7 @@ export function RuleEditor({ initial, onClose, onSaved }: { initial: Prefill; on
         </div>
 
         {/* live check */}
-        <aside className="flex min-w-0 flex-col gap-3 lg:border-l lg:border-white/[0.06] lg:pl-5">
+        <aside className="flex min-w-0 flex-col gap-3 lg:border-l lg:border-line-subtle lg:pl-5">
           <div className="label">{t('Controllo live')}</div>
           <LivePreview type={d.type} params={d.params} pv={pq.data} loading={pq.isFetching && !pq.data} error={pq.isError} />
           <ContextValues type={d.type} params={d.params} m={m} />
@@ -448,7 +441,7 @@ export function RuleEditor({ initial, onClose, onSaved }: { initial: Prefill; on
 
 function LivePreview({ type, params, pv, loading, error }: { type: RuleType; params: AnyParams; pv?: RulePreview; loading?: boolean; error?: boolean }) {
   if (loading) return <div className="h-[132px] animate-pulse rounded-xl bg-white/[0.03]" />
-  if (error || !pv) return <p className="text-xs text-slate-400">{t('Anteprima non disponibile: completa i campi.')}</p>
+  if (error || !pv) return <p className="text-xs text-fg-3">{t('Anteprima non disponibile: completa i campi.')}</p>
   const cond = pv.condition
   return (
     <div className="flex flex-col gap-2.5">
@@ -459,15 +452,15 @@ function LivePreview({ type, params, pv, loading, error }: { type: RuleType; par
         </div>
         <div className="px-3 py-2.5">
           <div className="label">{t('Soglia')}</div>
-          <div className="tnum mt-0.5 truncate text-lg font-semibold text-slate-300">{pv.threshold == null ? '—' : fmtRuleValue(type, params, pv.threshold)}</div>
+          <div className="tnum mt-0.5 truncate text-lg font-semibold text-fg-2">{pv.threshold == null ? '—' : fmtRuleValue(type, params, pv.threshold)}</div>
         </div>
       </div>
       <div className={clsx('flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs leading-relaxed ring-1 ring-inset',
-        pv.would_fire ? 'bg-amber-400/[0.08] text-slate-200 ring-amber-400/25' : 'bg-white/[0.03] text-slate-300 ring-white/[0.06]')}>
-        {cond ? <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-amber-400" /> : <CircleDashed size={14} className="mt-0.5 shrink-0 text-slate-500" />}
+        pv.would_fire ? 'bg-warn/[0.08] text-fg ring-warn/25' : 'bg-white/[0.03] text-fg-2 ring-line-subtle')}>
+        {cond ? <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-warn" /> : <CircleDashed size={14} className="mt-0.5 shrink-0 text-fg-4" />}
         <span>
           <span className="font-medium text-white">{cond == null ? t('Condizione non valutabile') : cond ? (pv.event ? t('Evento presente') : t('Condizione vera')) : (pv.event ? t('Nessun evento ora') : t('Condizione falsa'))}</span>
-          <span className="block text-slate-400">{reasonText(pv.reason)}</span>
+          <span className="block text-fg-3">{reasonText(pv.reason)}</span>
         </span>
       </div>
     </div>
@@ -499,9 +492,9 @@ function ContextValues({ type, params, m }: { type: RuleType; params: AnyParams;
   return (
     <div className="flex flex-col">
       {rows.map(([k, v], i) => (
-        <div key={i} className="flex items-baseline justify-between gap-3 border-t border-white/[0.05] py-1.5 text-xs first:border-t-0">
-          <span className="min-w-0 truncate text-slate-400">{k}</span>
-          <span className="tnum shrink-0 text-slate-200">{v}</span>
+        <div key={i} className="flex items-baseline justify-between gap-3 border-t border-line-subtle py-1.5 text-xs first:border-t-0">
+          <span className="min-w-0 truncate text-fg-3">{k}</span>
+          <span className="tnum shrink-0 text-fg">{v}</span>
         </div>
       ))}
     </div>

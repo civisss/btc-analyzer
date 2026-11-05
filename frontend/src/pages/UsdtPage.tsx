@@ -1,16 +1,13 @@
-import { useTab } from '../lib/useTab'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Activity, BarChart3, CandlestickChart, CirclePlus, Clock, Coins, DollarSign, FlipHorizontal2, Gauge, GitCompare, History, Layers, Lightbulb, LineChart, Link2, ListChecks, MessageSquareText,
-  Percent, PieChart, Route, Scale, ScanSearch, Settings2, SlidersHorizontal, Spline, Split, Target, Timer, Unlink, Waypoints,
+  Percent, PieChart, Route, Scale, ScanSearch, SlidersHorizontal, Spline, Split, Target, Timer, Unlink, Waypoints,
 } from 'lucide-react'
 import { useUsdt } from '../api/client'
 import { useStablecoins, useUsdtAnalogs, type Stablecoins, type UsdtAnalogMatch, type UsdtAnalogs, type UsdtPattern, type UsdtTf } from '../api/usdtAnalogs'
 import Sparkline from '../components/charts/Sparkline'
 import { C, hexA } from '../components/charts/theme'
-import {
-  Badge, Card, CardBody, CardHeader, Change, EmptyState, Fill, KpiCell, KpiStrip, Legend, MethodNote, PageTitle, PointsChange, ProgressBar, Q, Segmented, Skeleton, Toggle, ToneBadge, clsx, TabBar,
-} from '../components/ui'
+import { Badge, Card, CardBody, CardHeader, Change, EmptyState, Fill, KpiCell, KpiStrip, Legend, MethodNote, PointsChange, ProgressBar, Q, Segmented, Skeleton, Toggle, ToneBadge, clsx, PageActions, SettingsPanel, Section } from '../components/ui'
 import { TimeLinesChart } from '../widgets/charts'
 import { DCell, VisualBreakdown, plabel } from '../widgets/analogs'
 import { SignalList } from '../widgets/flows'
@@ -22,12 +19,6 @@ import { date, dayUnit, pct, pts, usd, usdCompact } from '../lib/format'
 import { usePrice } from '../widgets/hooks'
 import { cap, t, tfLabel } from '../i18n'
 
-type Tab = 'overview' | 'analogs' | 'stables'
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'overview', label: 'Panoramica' }, { value: 'analogs', label: 'Analoghi USDT' }, { value: 'stables', label: 'Stablecoin' },
-]
-
-/** Plain row list item (1px dividers, no boxes). */
 function Row({ children, className, title }: { children: ReactNode; className?: string; title?: string }) {
   return <div title={title} className={clsx('border-t border-line py-2.5 first:border-t-0 first:pt-0', className)}>{children}</div>
 }
@@ -42,19 +33,6 @@ const signTone = (v: number | null) => (v == null || v === 0 ? '' : v > 0 ? 'tex
 const nd = (n: number | string) => `${n}${dayUnit()}`
 /** Backend enum words (Italian, lowercase) → translated sentence case. */
 const word = (s: string | null | undefined) => (s ? t(cap(s)) : '—')
-
-/** Group heading for long tabs: same typography as the shared Section, without the accent bar. */
-function Section({ title, subtitle, children }: { title: ReactNode; subtitle?: ReactNode; children?: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="min-w-0 pb-1 pt-3">
-        <h2 className="text-lg font-semibold tracking-[-0.01em] text-white">{title}</h2>
-        {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
-      </div>
-      {children}
-    </section>
-  )
-}
 
 /** Up to 3 lines, then a "Mostra tutto" toggle when the text is longer. */
 function ClampText({ text, className }: { text: string; className?: string }) {
@@ -72,14 +50,14 @@ function ClampText({ text, className }: { text: string; className?: string }) {
   }, [text, open])
   return (
     <div>
-      <p ref={ref} className={clsx('max-w-[72ch] text-sm leading-relaxed text-slate-300', !open && 'line-clamp-3', className)}>{text}</p>
+      <p ref={ref} className={clsx('max-w-[72ch] text-sm leading-relaxed text-fg-2', !open && 'line-clamp-3', className)}>{text}</p>
       {(over || open) && <button type="button" onClick={() => setOpen((v) => !v)} className="link mt-1 text-xs">{open ? t('Mostra meno') : t('Mostra tutto')}</button>}
     </div>
   )
 }
 
 // ================================================================== PANORAMICA
-function OverviewTab() {
+export function OverviewTab() {
   const q = useUsdt()
   return (
     <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[460px]" /></div>} isEmpty={(d) => !d.series.length}>
@@ -100,28 +78,28 @@ function OverviewTab() {
                 info={t('La dominance di USDT è disegnata su un asse invertito: quando sale (capitali che si rifugiano in stablecoin) la curva scende, così i due grafici si muovono nella stessa direzione. Linee tratteggiate = livelli storici di rifiuto della dominance (R = resistenza, S = supporto); passa sopra per vedere tutte le etichette.')} />
               <CardBody><UsdtDominanceChart data={d} height={460} /></CardBody>
             </Card>
-            <div className="grid items-start gap-3 xl:grid-cols-2">
+            <div className="grid gap-3 xl:grid-cols-2">
               <Card>
                 <CardHeader title={t('Correlazione mobile')} icon={<Activity />} subtitle={t('Rendimenti giornalieri BTC vs USDT.D')} />
                 <CardBody>
                   <TimeLinesChart height={260} yFmt={(v) => v.toFixed(2)} markLines={[{ y: 0, color: hexA(C.grey, 0.5) }]}
-                    lines={[{ name: t('30 giorni'), data: d.correlation.r30, color: C.blue }, { name: t('90 giorni'), data: d.correlation.r90, color: C.purple }]} />
+                    lines={[{ name: t('30 giorni'), data: d.correlation.r30, color: C.accent }, { name: t('90 giorni'), data: d.correlation.r90, color: C.steel }]} />
                 </CardBody>
               </Card>
               <Card>
                 <CardHeader title={t('Anticipo / ritardo')} icon={<Timer />} subtitle={t('Lag positivo = USDT.D anticipa BTC · migliore {n}', { n: `${lag > 0 ? '+' : ''}${lag} ${dayUnit()}` })}
-                  info={t('Correlazione tra i rendimenti di BTC e quelli della USDT.D spostati di N giorni. La barra blu è il lag con la correlazione più forte.')} />
+                  info={t('Correlazione tra i rendimenti di BTC e quelli della USDT.D spostati di N giorni. La barra arancione è il lag con la correlazione più forte.')} />
                 <CardBody><LeadLagBars data={d.correlation.lead_lag} best={lag} unit={dayUnit()} height={260} /></CardBody>
               </Card>
             </div>
-            <div className="grid items-start gap-3 xl:grid-cols-3">
+            <div className="grid gap-3 xl:grid-cols-3">
               <Card>
                 <CardHeader title={t('Livelli USDT.D')} icon={<Layers />} subtitle={t('Zone di rifiuto storiche · distanza in pt')} />
                 <CardBody className="pt-0">
                   {[...d.levels].sort((a, b) => b.price - a.price).map((l, i) => (
                     <Row key={i} className="flex min-h-8 items-center justify-between gap-3 py-1.5">
-                      <span className="text-sm text-slate-400">{l.kind === 'resistance' ? t('Resistenza') : t('Supporto')}</span>
-                      <span className="tnum whitespace-nowrap text-sm font-medium text-white">{l.price.toFixed(2)}% <span className="ml-1 text-xs font-normal text-slate-400">{pts(l.price - d.current.usdt_d, 2)}</span></span>
+                      <span className="text-sm text-fg-3">{l.kind === 'resistance' ? t('Resistenza') : t('Supporto')}</span>
+                      <span className="tnum whitespace-nowrap text-sm font-medium text-white">{l.price.toFixed(2)}% <span className="ml-1 text-xs font-normal text-fg-3">{pts(l.price - d.current.usdt_d, 2)}</span></span>
                     </Row>
                   ))}
                 </CardBody>
@@ -132,8 +110,8 @@ function OverviewTab() {
                   {d.divergences.length === 0 && <EmptyState text={t('Nessuna divergenza recente')} compact />}
                   {d.divergences.map((v, i) => (
                     <Row key={i}>
-                      <div className="flex items-center justify-between"><ToneBadge tone={v.kind} /><span className="text-xs text-slate-400">{date(v.time)}</span></div>
-                      <p className="mt-1 line-clamp-2 text-sm text-slate-300" title={v.note}>{cap(v.note)}</p>
+                      <div className="flex items-center justify-between"><ToneBadge tone={v.kind} /><span className="text-xs text-fg-3">{date(v.time)}</span></div>
+                      <p className="mt-1 line-clamp-2 text-sm text-fg-2" title={v.note}>{cap(v.note)}</p>
                     </Row>
                   ))}
                 </CardBody>
@@ -143,9 +121,9 @@ function OverviewTab() {
                 <CardBody className="pt-0">
                   {d.fractal.matches.map((m, i) => (
                     <Row key={i}>
-                      <div className="flex justify-between text-sm"><span className="font-medium text-white">{date(m.start)} → {date(m.end)}</span><span className="tnum text-slate-300">{m.similarity.toFixed(1)}%</span></div>
-                      <ProgressBar value={m.similarity} color={C.blue} className="mt-1.5 h-1" />
-                      <div className="tnum mt-1.5 flex justify-between text-xs text-slate-400"><span>{t('Esito BTC')} <Change value={m.btc_outcome} digits={1} /></span><span>USDT.D <Change value={m.usdt_outcome} digits={1} /></span></div>
+                      <div className="flex justify-between text-sm"><span className="font-medium text-white">{date(m.start)} → {date(m.end)}</span><span className="tnum text-fg-2">{m.similarity.toFixed(1)}%</span></div>
+                      <ProgressBar value={m.similarity} color={C.accent} className="mt-1.5 h-1" />
+                      <div className="tnum mt-1.5 flex justify-between text-xs text-fg-3"><span>{t('Esito BTC')} <Change value={m.btc_outcome} digits={1} /></span><span>USDT.D <Change value={m.usdt_outcome} digits={1} /></span></div>
                     </Row>
                   ))}
                 </CardBody>
@@ -180,12 +158,12 @@ function Slider({ label, value, min, max, step = 1, onChange, suffix }: { label:
 
 /** Detected figures as plain text (confidence muted); the BTC reading is in the tooltip, never colour-coded. */
 function UsdtPatternLine({ patterns }: { patterns: UsdtPattern[] }) {
-  if (!patterns.length) return <div className="flex min-h-5 items-center text-xs text-slate-400">{t('Nessuna figura classica')}</div>
+  if (!patterns.length) return <div className="flex min-h-5 items-center text-xs text-fg-3">{t('Nessuna figura classica')}</div>
   return (
-    <div className="flex min-h-5 flex-wrap items-center gap-x-3 text-xs text-slate-300">
+    <div className="flex min-h-5 flex-wrap items-center gap-x-3 text-xs text-fg-2">
       {patterns.map((p) => (
         <span key={p.key} title={t('Confidenza {c}% · lettura per BTC: {r}', { c: p.confidence.toFixed(0), r: (p.btc_tone === 'bullish' ? t('Rialzista') : p.btc_tone === 'bearish' ? t('Ribassista') : t('Neutrale')).toLowerCase() })}>
-          {cap(p.label)} <span className="tnum text-slate-400">{p.confidence.toFixed(0)}%</span>
+          {cap(p.label)} <span className="tnum text-fg-3">{p.confidence.toFixed(0)}%</span>
         </span>
       ))}
     </div>
@@ -196,21 +174,21 @@ function MatchPicker({ m, selected, onClick }: { m: UsdtAnalogMatch; selected: b
   return (
     <button onClick={onClick} aria-pressed={selected}
       className={clsx('relative flex h-full flex-col rounded-2xl border border-line p-4 text-left transition-colors', selected ? 'bg-raised' : 'bg-surface hover:bg-white/[0.02]')}>
-      {selected && <span className="absolute inset-x-4 top-0 h-0.5 bg-accent-blue" />}
+      {selected && <span className="absolute inset-x-4 top-0 h-0.5 bg-accent" />}
       <div className="flex min-w-0 items-baseline gap-2">
-        <span className="tnum text-xs text-slate-400">#{m.rank}</span>
+        <span className="tnum text-xs text-fg-3">#{m.rank}</span>
         <span className="truncate text-sm font-medium text-white">{plabel(m.period.label)}</span>
       </div>
-      <div className="mt-2 h-8"><Sparkline data={m.usdt.values} color={selected ? C.blue : undefined} height={32} /></div>
-      <div className="mt-2 flex items-center justify-between text-xs"><span className="text-slate-400">{t('Similarità')}</span><span className="tnum font-medium text-white">{m.similarity.toFixed(0)}%</span></div>
-      <ProgressBar value={m.similarity} color={C.blue} className="mt-1 h-1" />
-      <div className="mt-2 flex items-center justify-between text-xs"><span className="text-slate-400">{t('BTC dopo')}</span><Change value={m.outcome.change} digits={1} /></div>
-      <div className="mt-1 flex items-center justify-between text-xs"><span className="text-slate-400">{t('USDT.D dopo')}</span><PointsChange value={m.outcome.usdt_change_pts} /></div>
+      <div className="mt-2 h-8"><Sparkline data={m.usdt.values} color={selected ? C.accent : undefined} height={32} /></div>
+      <div className="mt-2 flex items-center justify-between text-xs"><span className="text-fg-3">{t('Similarità')}</span><span className="tnum font-medium text-white">{m.similarity.toFixed(0)}%</span></div>
+      <ProgressBar value={m.similarity} color={C.accent} className="mt-1 h-1" />
+      <div className="mt-2 flex items-center justify-between text-xs"><span className="text-fg-3">{t('BTC dopo')}</span><Change value={m.outcome.change} digits={1} /></div>
+      <div className="mt-1 flex items-center justify-between text-xs"><span className="text-fg-3">{t('USDT.D dopo')}</span><PointsChange value={m.outcome.usdt_change_pts} /></div>
     </button>
   )
 }
 
-function AnalogsTab() {
+export function AnalogsTab() {
   const [tf, setTf] = useState<UsdtTf>('1d')
   const [win, setWin] = useState(60)
   const [horizon, setHorizon] = useState(30)
@@ -228,18 +206,14 @@ function AnalogsTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <Card>
-        <CardHeader title={t('Parametri')} icon={<Settings2 />} subtitle={t('Frattali storici della USDT dominance')} right={q.isFetching ? <span className="text-xs text-slate-400">{t('Calcolo in corso…')}</span> : null} />
-        <CardBody className="flex flex-wrap items-end gap-x-8 gap-y-4">
-          <div className="flex flex-col gap-2">
-            <span className="label">{t('Timeframe')}</span>
-            <Segmented value={tf} onChange={setTf} options={[{ value: '1d', label: tfLabel('1d') }, { value: '4h', label: `${tfLabel('4h')} (${t('stimato')})` }]} />
-          </div>
+      <PageActions>
+        <Segmented value={tf} onChange={setTf} options={[{ value: '1d', label: tfLabel('1d') }, { value: '4h', label: `${tfLabel('4h')} (${t('stimato')})` }]} />
+        <SettingsPanel busy={q.isFetching}>
           <Slider label={t('Finestra attuale (candele)')} value={win} min={20} max={200} step={2} onChange={setWin} />
           <Slider label={t('Orizzonte (candele dopo)')} value={horizon} min={5} max={100} onChange={setHorizon} />
           <Slider label={t('Numero di analoghi')} value={top} min={1} max={8} onChange={setTop} />
-        </CardBody>
-      </Card>
+        </SettingsPanel>
+      </PageActions>
       <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-44" /><Skeleton className="h-[400px]" /><Skeleton className="h-72" /></div>}
         isEmpty={(d) => !d.matches.length} empty={t('Nessun analogo trovato con questi parametri: prova una finestra più corta.')}>
         {(d) => <AnalogsBody d={d} sel={Math.min(sel, d.matches.length - 1)} setSel={setSel} hover={hover} setHover={setHover} layers={layers} setLayers={setLayers}
@@ -280,26 +254,26 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
             <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
               <div className="min-w-0 flex-1 basis-[420px]">
                 <h3 className="text-title font-semibold text-white">
-                  <span className="font-normal text-slate-400">{t('Mediana analoghi')}: </span>
+                  <span className="font-normal text-fg-3">{t('Mediana analoghi')}: </span>
                   <Change value={med.p50} digits={1} />
-                  <span className="text-slate-500"> · </span>
+                  <span className="text-fg-4"> · </span>
                   <span className="tnum">{med.p50 != null ? usd(toPrice(med.p50)) : '—'}</span>
                   {med.p25 != null && med.p75 != null && (
-                    <span className="tnum font-normal text-slate-400"> ({t('range')} {usd(toPrice(med.p25))}–{usd(toPrice(med.p75))})</span>
+                    <span className="tnum font-normal text-fg-3"> ({t('range')} {usd(toPrice(med.p25))}–{usd(toPrice(med.p75))})</span>
                   )}
                 </h3>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="mt-1 text-sm text-fg-3">
                   {t('In {n} {u} · da {p} · P25–P75 {a} / {b}', { n: d.horizon, u: unit, p: usd(price), a: pct(med.p25, 1), b: pct(med.p75, 1) })}
                 </p>
               </div>
-              <div className="min-w-0 flex-1 basis-[320px] border-line text-sm text-slate-400 sm:border-l sm:pl-6">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <span className="inline-block w-4 border-t-2 border-dashed" style={{ borderColor: C.blue }} />
+              <div className="min-w-0 flex-1 basis-[320px] border-line text-sm text-fg-3 sm:border-l sm:pl-6">
+                <div className="flex items-center gap-2 text-fg-2">
+                  <span className="inline-block w-4 border-t-2 border-dashed" style={{ borderColor: C.accent }} />
                   <span>{t('Analogo selezionato')} #{m.rank} · <span className="text-white">{pl}</span></span>
                 </div>
                 <p className="mt-1">
                   {t('Similarità {n}%', { n: Math.round(m.similarity) })} · {t('BTC dopo')} <Change value={m.outcome.change} digits={1} />
-                  {selTarget != null && <> · <span className="tnum text-slate-300">{usd(selTarget)}</span></>}
+                  {selTarget != null && <> · <span className="tnum text-fg-2">{usd(selTarget)}</span></>}
                 </p>
               </div>
             </div>
@@ -320,10 +294,10 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
               <Toggle on={layers.legs} onClick={() => setLayers({ ...layers, legs: !layers.legs })} color={LEG_COLOR}>{t('Gambe')}</Toggle>
               <Toggle on={layers.patterns} onClick={() => setLayers({ ...layers, patterns: !layers.patterns })} color={LINE_STYLE.neckline.color}>{t('Figure')}</Toggle>
               <Toggle on={layers.points} onClick={() => setLayers({ ...layers, points: !layers.points })} color={C.text}>{t('Punti')}</Toggle>
-              <Toggle on={showBtc} onClick={() => setShowBtc(!showBtc)} color={C.btc}>BTC</Toggle>
+              <Toggle on={showBtc} onClick={() => setShowBtc(!showBtc)} color={C.price}>BTC</Toggle>
             </>} />
           <CardBody>
-            <p className="mb-3 text-sm text-slate-400">
+            <p className="mb-3 text-sm text-fg-3">
               {t('La USDT.D attuale somiglia a {p}', { p: pl.replace(/ \(\w+\)$/, '') })} · {t('Somiglianza grafica')} <span className="tnum text-white">{Math.round(m.visual_similarity)}%</span> · {t('contesto')} <span className="tnum text-white">{Math.round(m.context_similarity)}%</span> ·{' '}
               {t('USDT.D nella finestra')} <PointsChange value={d.current.change_pts} /> {t('oggi vs')} <PointsChange value={m.usdt.window_change_pts} /> {m.period.when}
             </p>
@@ -331,7 +305,7 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
               <div className="min-w-0">
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-sm">
                   <span className="flex items-center gap-2 font-medium text-white"><span className="h-2 w-2 rounded-sm" style={{ background: USDT_COLOR }} />{t('Oggi')} · {plabel(d.current.label)}</span>
-                  <span className="tnum text-slate-400">{d.current.usdt_d.toFixed(2)}% · BTC {usd(price)}</span>
+                  <span className="tnum text-fg-3">{d.current.usdt_d.toFixed(2)}% · BTC {usd(price)}</span>
                 </div>
                 <UsdtPatternLine patterns={m.patterns.current} />
                 <UsdtCurve times={d.current.times} values={d.current.usdt} btc={d.current.btc_path} windowLen={w} side="current" mapping={m.mapping} legs={m.legs_current}
@@ -340,7 +314,7 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
               <div className="min-w-0">
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-sm">
                   <span className="flex items-center gap-2 font-medium text-white"><span className="h-2 w-2 rounded-sm" style={{ background: ANALOG_COLOR }} />{t('Analogo')} · {pl}</span>
-                  <span className="tnum text-slate-400">{anaWin[anaWin.length - 1]?.toFixed(2)}% · {t('Tratteggio = dopo')}</span>
+                  <span className="tnum text-fg-3">{anaWin[anaWin.length - 1]?.toFixed(2)}% · {t('Tratteggio = dopo')}</span>
                 </div>
                 <UsdtPatternLine patterns={m.patterns.analog} />
                 <UsdtCurve times={m.usdt.times} values={m.usdt.values} btc={m.btc.values} windowLen={w} side="analog" mapping={m.mapping} legs={m.legs_analog}
@@ -353,7 +327,7 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
                 { label: t('Resistenza'), color: LINE_STYLE.resistance.color, dashed: true },
                 { label: t('Supporto'), color: LINE_STYLE.support.color, dashed: true },
                 { label: t('Neckline'), color: LINE_STYLE.neckline.color, dashed: true },
-                { label: t('BTC (↓ invertito)'), color: C.btc },
+                { label: t('BTC (↓ invertito)'), color: C.price },
               ]} />
             </div>
           </CardBody>
@@ -372,7 +346,7 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
           <Card>
             <CardHeader title={t('Concordanza')} icon={<Scale />} right={<ToneBadge tone={s.bias} />} />
             <CardBody className="flex flex-col gap-3">
-              <div className="flex items-baseline justify-between text-sm text-slate-400">
+              <div className="flex items-baseline justify-between text-sm text-fg-3">
                 <span>BTC <span className="tnum text-white">{s.up}</span> {t('saliti')} · <span className="tnum text-white">{s.down}</span> {t('scesi')}</span>
                 <span>{t('Accordo')} <span className="tnum text-white">{s.agreement?.toFixed(0) ?? '—'}%</span></span>
               </div>
@@ -391,7 +365,7 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
           </Card>
           <Card className="flex-1">
             <CardHeader title={t('In sintesi')} icon={<MessageSquareText />} />
-            <CardBody className="flex flex-col gap-2 text-sm text-slate-300">
+            <CardBody className="flex flex-col gap-2 text-sm text-fg-2">
               {m.narrative_llm ? <p>{m.narrative_llm}</p> : m.narrative.map((x, i) => <p key={i}>{x}</p>)}
             </CardBody>
           </Card>
@@ -404,7 +378,7 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
         <div className="grid gap-3 xl:grid-cols-12">
           <Card className="xl:col-span-5">
             <CardHeader title={t('Somiglianza grafica')} icon={<ScanSearch />} subtitle={t('Componenti visive (80% del punteggio)')}
-              right={<span className="text-xs text-slate-400">{t('Totale')} <b className="tnum text-lg font-semibold text-white">{Math.round(m.visual_similarity)}%</b></span>} />
+              right={<span className="text-xs text-fg-3">{t('Totale')} <b className="tnum text-lg font-semibold text-white">{Math.round(m.visual_similarity)}%</b></span>} />
             <CardBody className="flex flex-col [&>div]:flex-1 [&>div]:justify-around"><VisualBreakdown components={m.visual.components} /></CardBody>
           </Card>
           <div className="flex flex-col gap-3 xl:col-span-7">
@@ -418,8 +392,8 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
               <CardBody className="grid gap-x-6 pt-0 sm:grid-cols-2">
                 {m.context.map((f) => (
                   <div key={f.key} className="border-t border-line py-2" title={f.explanation}>
-                    <div className="flex items-baseline justify-between gap-2 text-sm"><span className="text-slate-200">{cap(f.label)}</span><span className="tnum text-white">{f.similarity == null ? t('n/d') : `${Math.round(f.similarity)}%`}</span></div>
-                    <div className="tnum mt-0.5 text-xs text-slate-400">{t('Oggi')} {f.display_current} · {yr} {f.display_analog}</div>
+                    <div className="flex items-baseline justify-between gap-2 text-sm"><span className="text-fg">{cap(f.label)}</span><span className="tnum text-white">{f.similarity == null ? t('n/d') : `${Math.round(f.similarity)}%`}</span></div>
+                    <div className="tnum mt-0.5 text-xs text-fg-3">{t('Oggi')} {f.display_current} · {yr} {f.display_analog}</div>
                   </div>
                 ))}
               </CardBody>
@@ -434,7 +408,7 @@ function AnalogsBody({ d, sel, setSel, hover, setHover, layers, setLayers, showB
       </Section>
 
       <Section title={t('Tutti gli analoghi')} subtitle={t('Seleziona per confrontare')}>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-[repeat(auto-fit,minmax(240px,1fr))]">
+        <div className={clsx('grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[repeat(auto-fit,minmax(240px,1fr))]', d.matches.length === 5 && 'grid-5-md')}>
           {d.matches.map((mm, i) => <MatchPicker key={mm.rank} m={mm} selected={i === sel} onClick={() => setSel(i)} />)}
         </div>
       </Section>
@@ -499,17 +473,17 @@ function MirrorSection({ d }: { d: UsdtAnalogs }) {
               ))}
             </div>
             {mi.current_break && (
-              <p className="flex gap-2 text-sm text-slate-300"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" /><span><span className="font-medium text-white">{t('In corso')}: </span>{mi.current_break.text}</span></p>
+              <p className="flex gap-2 text-sm text-fg-2"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-warn" /><span><span className="font-medium text-white">{t('In corso')}: </span>{mi.current_break.text}</span></p>
             )}
             {mi.breaks.length === 0 && <EmptyState text={t('Nessuna rottura registrata')} compact />}
             <div className="min-h-0 flex-1 overflow-y-auto">
               {breaks.map((b, i) => (
                 <Row key={i}>
                   <div className="flex items-center justify-between gap-2 text-sm">
-                    <span className="text-slate-200">{b.kind === 'both_up' ? t('Entrambi su') : t('Entrambi giù')}</span>
-                    <span className="text-xs text-slate-400">{b.label}</span>
+                    <span className="text-fg">{b.kind === 'both_up' ? t('Entrambi su') : t('Entrambi giù')}</span>
+                    <span className="text-xs text-fg-3">{b.label}</span>
                   </div>
-                  <div className="tnum mt-1 grid grid-cols-3 gap-2 text-xs text-slate-400">
+                  <div className="tnum mt-1 grid grid-cols-3 gap-2 text-xs text-fg-3">
                     <span>BTC <Change value={b.btc_change} digits={1} /></span>
                     <span>USDT.D <PointsChange value={b.usdt_change_pts} /></span>
                     <span className="text-right">{t('Dopo {n}', { n: nd(30) })} <Change value={b.btc_after_30} digits={1} /></span>
@@ -551,10 +525,10 @@ function TechSection({ d }: { d: UsdtAnalogs }) {
               {tc.zones.map((z, i) => (
                 <Row key={i}>
                   <div className="flex items-center justify-between gap-2 text-sm">
-                    <span className="text-slate-400">{z.kind === 'resistance' ? t('Resistenza') : t('Supporto')}</span>
-                    <span className="tnum whitespace-nowrap font-medium text-white">{z.low.toFixed(2)}–{z.high.toFixed(2)}% <span className="text-xs font-normal text-slate-400">{pts(z.distance_pts, 2)}</span></span>
+                    <span className="text-fg-3">{z.kind === 'resistance' ? t('Resistenza') : t('Supporto')}</span>
+                    <span className="tnum whitespace-nowrap font-medium text-white">{z.low.toFixed(2)}–{z.high.toFixed(2)}% <span className="text-xs font-normal text-fg-3">{pts(z.distance_pts, 2)}</span></span>
                   </div>
-                  <div className="tnum mt-1 flex justify-between gap-2 text-xs text-slate-400">
+                  <div className="tnum mt-1 flex justify-between gap-2 text-xs text-fg-3">
                     <span>{t('{r} reazioni · {t} tocchi', { r: z.reactions, t: z.touches })}</span>
                     <span>BTC {nd(30)} <Change value={z.btc_after_30_median} digits={1} /> · {z.btc_up_rate_30 != null ? t('{n}% su', { n: z.btc_up_rate_30.toFixed(0) }) : '—'}</span>
                   </div>
@@ -581,7 +555,7 @@ function TechSection({ d }: { d: UsdtAnalogs }) {
 }
 
 // ================================================================== STABLECOIN
-function StablesTab() {
+export function StablesTab() {
   const q = useStablecoins()
   return (
     <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[360px]" /></div>} isEmpty={(s) => !s.series.length}>
@@ -597,12 +571,12 @@ function StablesBody({ s, updatedAt }: { s: Stablecoins; updatedAt: number }) {
       <KpiStrip cols="grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
         <KpiCell icon={<Coins />} label={t('Supply stablecoin')} value={usdCompact(c.supply, 1)} foot={c.at_ath ? t('Massimo storico') : undefined}
           delta={c.at_ath ? undefined : <Change value={(c.supply / c.supply_ath - 1) * 100} digits={1} suffix={t('dal max')} />} />
-        <KpiCell icon={<CirclePlus />} label={t('Emissione netta {n}', { n: nd(30) })} value={<span className={signTone(c.net_30d)}>{signedUsd(c.net_30d)}</span>} delta={<><Change value={c.pct_30d} digits={2} /> <span className="text-slate-400">· {nd(90)}</span> <Change value={c.pct_90d} digits={1} /></>} />
+        <KpiCell icon={<CirclePlus />} label={t('Emissione netta {n}', { n: nd(30) })} value={<span className={signTone(c.net_30d)}>{signedUsd(c.net_30d)}</span>} delta={<><Change value={c.pct_30d} digits={2} /> <span className="text-fg-3">· {nd(90)}</span> <Change value={c.pct_90d} digits={1} /></>} />
         <KpiCell icon={<PieChart />} label={t('Dominance')} value={`${c.dominance.toFixed(2)}%`} delta={<PointsChange value={c.dominance_change_30d} suffix={nd(30)} />} />
         <KpiCell icon={<Gauge />} label="SSR" value={c.ssr.toFixed(2)} foot={`z ${c.ssr_z != null ? `${c.ssr_z >= 0 ? '+' : '−'}${Math.abs(c.ssr_z).toFixed(2)}` : '—'} · ${t('media')} ${c.ssr_mid?.toFixed(2) ?? '—'}`} />
         <KpiCell icon={<Percent />} label={t('Quota USDT')} value={`${c.usdt_share.toFixed(1)}%`} foot={t('Sul totale stablecoin')} className="col-span-2 md:col-span-1" />
       </KpiStrip>
-      <div className="grid items-start gap-3 xl:grid-cols-2">
+      <div className="grid gap-3 xl:grid-cols-2">
         <Card>
           <CardHeader title={t('Supply totale e dominance')} subtitle={t('Stablecoin in USD (DefiLlama)')} icon={<Coins />} updatedAt={updatedAt}
             info={t('Dominance = quota delle stablecoin sulla capitalizzazione crypto totale.')} />
@@ -614,22 +588,22 @@ function StablesBody({ s, updatedAt }: { s: Stablecoins; updatedAt: number }) {
           <CardBody><SsrChart s={s} height={340} /></CardBody>
         </Card>
       </div>
-      <div className="grid items-start gap-3 xl:grid-cols-12">
+      <div className="grid gap-3 xl:grid-cols-12">
         <Card className="xl:col-span-7">
           <CardHeader title={t('Mint / burn settimanale')} icon={<BarChart3 />} subtitle={t('Variazione netta della supply · ultime 104 settimane')} />
           <CardBody>
             <div className="dgrid mb-3 grid-cols-2 sm:grid-cols-4">
-              <DCell label={t('7 giorni')} value={<span className={signTone(c.net_7d)}>{signedUsd(c.net_7d)}</span>} foot={<><Change value={c.pct_7d} digits={2} /> <span className="text-slate-500">{t('della supply')}</span></>} />
-              <DCell label={t('30 giorni')} value={<span className={signTone(c.net_30d)}>{signedUsd(c.net_30d)}</span>} foot={<><Change value={c.pct_30d} digits={2} /> <span className="text-slate-500">{t('della supply')}</span></>} />
-              <DCell label={t('90 giorni')} value={<span className={signTone(c.net_90d)}>{signedUsd(c.net_90d)}</span>} foot={<><Change value={c.pct_90d} digits={2} /> <span className="text-slate-500">{t('della supply')}</span></>} />
-              <DCell label={t('1 anno')} value={<span className={signTone(c.net_365d)}>{signedUsd(c.net_365d)}</span>} foot={<><Change value={c.pct_365d} digits={1} /> <span className="text-slate-500">{t('della supply')}</span></>} />
+              <DCell label={t('7 giorni')} value={<span className={signTone(c.net_7d)}>{signedUsd(c.net_7d)}</span>} foot={<><Change value={c.pct_7d} digits={2} /> <span className="text-fg-4">{t('della supply')}</span></>} />
+              <DCell label={t('30 giorni')} value={<span className={signTone(c.net_30d)}>{signedUsd(c.net_30d)}</span>} foot={<><Change value={c.pct_30d} digits={2} /> <span className="text-fg-4">{t('della supply')}</span></>} />
+              <DCell label={t('90 giorni')} value={<span className={signTone(c.net_90d)}>{signedUsd(c.net_90d)}</span>} foot={<><Change value={c.pct_90d} digits={2} /> <span className="text-fg-4">{t('della supply')}</span></>} />
+              <DCell label={t('1 anno')} value={<span className={signTone(c.net_365d)}>{signedUsd(c.net_365d)}</span>} foot={<><Change value={c.pct_365d} digits={1} /> <span className="text-fg-4">{t('della supply')}</span></>} />
             </div>
             <MintBurnChart data={s.weekly_net} height={260} />
           </CardBody>
         </Card>
         <Card className="xl:col-span-5">
           <CardHeader title={t('Emissione vs rendimenti BTC')} icon={<Timer />} subtitle={t('Correlazione a 4 settimane · lag in settimane')}
-            info={t("Lag positivo = l'emissione di stablecoin anticipa i rendimenti di BTC. La barra blu è il lag con la correlazione più forte.")} />
+            info={t("Lag positivo = l'emissione di stablecoin anticipa i rendimenti di BTC. La barra arancione è il lag con la correlazione più forte.")} />
           <CardBody className="flex flex-col gap-3">
             <LeadLagBars data={s.issuance.lead_lag} best={s.issuance.best_lag} unit={t('sett.')} height={200} />
             <div className="no-scrollbar -mx-4 overflow-x-auto sm:-mx-5">
@@ -638,7 +612,7 @@ function StablesBody({ s, updatedAt }: { s: Stablecoins; updatedAt: number }) {
                 <tbody>
                   {s.issuance.regimes.map((r) => (
                     <tr key={r.key}>
-                      <td className="whitespace-normal pl-4 text-slate-200 sm:pl-5">{cap(r.label)}{r.key === s.issuance.current_regime && <Badge color="blue" className="ml-2">{t('Oggi')}</Badge>}</td>
+                      <td className="whitespace-normal pl-4 text-fg sm:pl-5">{cap(r.label)}{r.key === s.issuance.current_regime && <Badge color="blue" className="ml-2">{t('Oggi')}</Badge>}</td>
                       <td className="text-right"><Change value={r.median} digits={1} /></td>
                       <td className="pr-4 text-right sm:pr-5">{r.up_rate?.toFixed(0) ?? '—'}%</td>
                     </tr>
@@ -649,7 +623,7 @@ function StablesBody({ s, updatedAt }: { s: Stablecoins; updatedAt: number }) {
           </CardBody>
         </Card>
       </div>
-      <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3 min-[2200px]:grid-cols-5">
+      <div className={clsx('grid gap-3 sm:grid-cols-2 xl:grid-cols-3 min-[2200px]:grid-cols-5', s.interpretation.length === 5 && 'grid-5')}>
         {s.interpretation.map((it) => (
           <Card key={it.key}>
             <CardHeader title={it.title} icon={<Lightbulb />} right={<ToneBadge tone={it.tone} />} />
@@ -658,25 +632,6 @@ function StablesBody({ s, updatedAt }: { s: Stablecoins; updatedAt: number }) {
         ))}
       </div>
       <MethodNote><p>{s.note}</p></MethodNote>
-    </div>
-  )
-}
-
-// ================================================================== pagina
-export default function UsdtPage() {
-  const [tab, setTab] = useTab<Tab>(TABS.map((x) => x.value), 'overview')
-  const sub: Record<Tab, string> = {
-    overview: t('Dominance di Tether e prezzo di Bitcoin: correlazioni, anticipo, livelli.'),
-    analogs: t('Periodi storici in cui la USDT dominance aveva la stessa forma di oggi.'),
-    stables: t('Liquidità delle stablecoin: supply, dominance, SSR ed effetto su BTC.'),
-  }
-  return (
-    <div>
-      <PageTitle title="USDT" subtitle={sub[tab]} />
-      <TabBar tabs={TABS.map((x) => ({ ...x, label: t(x.label) }))} value={tab} onChange={setTab} />
-      {tab === 'overview' && <OverviewTab />}
-      {tab === 'analogs' && <AnalogsTab />}
-      {tab === 'stables' && <StablesTab />}
     </div>
   )
 }

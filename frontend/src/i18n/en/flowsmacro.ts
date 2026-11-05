@@ -2,9 +2,6 @@
 const en: Record<string, string> = {
   // ---------------------------------------------------------------- derivatives
   Derivati: 'Derivatives',
-  'Funding rate, open interest, rapporti long/short e basis dei futures perpetui.': 'Funding rate, open interest, long/short ratios and basis of perpetual futures.',
-  'Flussi taker su Binance: spot e futures perpetui a confronto.': 'Taker flows on Binance: spot vs perpetual futures.',
-  'Futures perpetui': 'Perpetual futures',
   'Spot vs Futures': 'Spot vs futures',
   'Funding attuale': 'Current funding',
   'Per 8h · annuo {v}': 'Per 8h · annualized {v}',
@@ -123,7 +120,7 @@ const en: Record<string, string> = {
   'Var. {p}': '{p} chg.',
   Livelli: 'Levels',
   'Ritardo liquidità → BTC': 'Liquidity → BTC lag',
-  'Correlazione per ritardo in giorni · blu = migliore': 'Correlation by lag in days · blue = best',
+  'Correlazione per ritardo in giorni · arancione = migliore': 'Correlation by lag in days · orange = best',
   'Ritardo migliore': 'Best lag',
   '≈ {n} settimane': '≈ {n} weeks',
   Correlazione: 'Correlation',
@@ -151,7 +148,7 @@ const en: Record<string, string> = {
   Ora: 'Now',
   Oro: 'Gold',
   'Matrice di correlazione': 'Correlation matrix',
-  'Rendimenti giornalieri · verde positiva, rosso negativa': 'Daily returns · green positive, red negative',
+  'Rendimenti giornalieri · arancione positiva, azzurro negativa': 'Daily returns · orange positive, blue negative',
   'BTC vs mercati tradizionali': 'BTC vs traditional markets',
   'Correlazione mobile 90 giorni e beta di BTC': '90-day rolling correlation and BTC beta',
   "Beta = variazione media di BTC per ogni 1% di variazione dell'asset (es. beta 1.5 sull'S&P 500: +1% S&P → +1.5% BTC in media).":

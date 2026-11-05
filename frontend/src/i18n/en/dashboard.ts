@@ -2,7 +2,6 @@
 const en: Record<string, string> = {
   'Prezzo BTC': 'BTC price',
   'Market cap': 'Market cap',
-  'Volume 24h · Binance spot': '24h volume · Binance spot',
   'Volume 24h': '24h volume',
   'Volume spot BTC/USDT su Binance (non il volume globale)': 'BTC/USDT spot volume on Binance (not global volume)',
   'Dominance BTC': 'BTC dominance',

@@ -11,7 +11,7 @@ import { TimeLinesChart } from './charts'
 
 // ------------------------------------------------------------------ helpers
 const signedUsd = (v: number | null | undefined, d = 1) => (v == null ? '—' : `${v > 0 ? '+' : ''}${usdCompact(v, d)}`.replace(/\.0(?=[KMBT])/, ''))
-const deltaCls = (v: number | null | undefined) => (v == null ? 'text-slate-400' : v > 0 ? 'text-up' : v < 0 ? 'text-down' : 'text-slate-300')
+const deltaCls = (v: number | null | undefined) => (v == null ? 'text-fg-3' : v > 0 ? 'text-up' : v < 0 ? 'text-down' : 'text-fg-2')
 /** '7d' → '7G' (IT) / '7D' (EN): the shared timeframe label */
 const winLabel = (l: string) => tfLabel(l)
 const WINDOW_VALUES: FlowWindowLabel[] = ['1h', '4h', '24h', '7d', '30d']
@@ -26,7 +26,7 @@ export function SignalList({ signals }: { signals: { text: string; tone: string 
       {signals.map((s, i) => (
         <li key={i} className="flex flex-1 flex-col justify-center gap-1 border-t border-line py-2.5 first:border-t-0 first:pt-0">
           <ToneBadge tone={s.tone} className="self-start" />
-          <p className="line-clamp-2 text-sm text-slate-300" title={s.text}>{s.text}</p>
+          <p className="line-clamp-2 text-sm text-fg-2" title={s.text}>{s.text}</p>
         </li>
       ))}
     </ul>
@@ -49,7 +49,7 @@ export function PressureBar({ label, buyPct, delta }: { label: string; buyPct: n
   return (
     <div>
       <div className="flex h-5 items-center justify-between gap-2 text-sm">
-        <span className="font-medium text-slate-200">{label}</span>
+        <span className="font-medium text-fg">{label}</span>
         <span className={clsx('tnum font-medium', deltaCls(delta))}>{signedUsd(delta)}</span>
       </div>
       <div className="relative mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
@@ -57,7 +57,7 @@ export function PressureBar({ label, buyPct, delta }: { label: string; buyPct: n
         <div className="h-full flex-1 bg-down/60" />
         <span className="absolute inset-y-0 left-1/2 w-px bg-bg" />
       </div>
-      <div className="tnum mt-1 flex justify-between text-xs text-slate-400">
+      <div className="tnum mt-1 flex justify-between text-xs text-fg-3">
         <span>{t('Acquisti')} {buyPct == null ? '—' : `${b.toFixed(1)}%`}</span>
         <span>{t('Vendite')} {buyPct == null ? '—' : `${(100 - b).toFixed(1)}%`}</span>
       </div>
@@ -68,8 +68,8 @@ export function PressureBar({ label, buyPct, delta }: { label: string; buyPct: n
 function KV({ k, children }: { k: string; children: ReactNode }) {
   return (
     <div className="flex min-h-8 items-center justify-between gap-3 border-t border-line text-sm">
-      <span className="text-slate-400">{k}</span>
-      <span className="tnum whitespace-nowrap text-slate-200">{children}</span>
+      <span className="text-fg-3">{k}</span>
+      <span className="tnum whitespace-nowrap text-fg">{children}</span>
     </div>
   )
 }
@@ -98,7 +98,7 @@ export function FlowsCard() {
             const ratio = useLive && lf.spot!.volume > 0 ? lf.perp!.volume / lf.spot!.volume : w.perp_spot_ratio
             return (
               <>
-                <p className="text-sm text-slate-300">{flowSummary(w.label, spotDelta, perpDelta)}</p>
+                <p className="text-sm text-fg-2">{flowSummary(w.label, spotDelta, perpDelta)}</p>
                 <PressureBar label="Spot" buyPct={spotBuy} delta={spotDelta} />
                 <PressureBar label={t('Futures (perp)')} buyPct={perpBuy} delta={perpDelta} />
                 {/* rows stretch to the card height so the card matches its row neighbours without a blank bottom */}
@@ -108,8 +108,8 @@ export function FlowsCard() {
                   <KV k={t('Bias spot')}>{TONE_LABEL[d.current.bias] ?? d.current.bias}</KV>
                   <KV k={t('Ultimi 60 min (live)')}>
                     {lf.minutes > 0 ? (
-                      <>Spot <span className={deltaCls(lf.spot?.delta)}>{signedUsd(lf.spot?.delta)}</span> · perp <span className={deltaCls(lf.perp?.delta)}>{signedUsd(lf.perp?.delta)}</span>{lf.minutes < 60 && <span className="text-slate-400"> · {lf.minutes}/60 min</span>}</>
-                    ) : <span className="text-slate-400">{t('In attesa dello stream…')}</span>}
+                      <>Spot <span className={deltaCls(lf.spot?.delta)}>{signedUsd(lf.spot?.delta)}</span> · perp <span className={deltaCls(lf.perp?.delta)}>{signedUsd(lf.perp?.delta)}</span>{lf.minutes < 60 && <span className="text-fg-3"> · {lf.minutes}/60 min</span>}</>
+                    ) : <span className="text-fg-3">{t('In attesa dello stream…')}</span>}
                   </KV>
                 </div>
               </>
@@ -202,9 +202,9 @@ export function FlowsSection() {
   const cvdLines = useMemo(() => {
     const s = q.data?.series ?? []
     return [
-      { name: 'CVD spot', data: s.map((p) => ({ time: p.time, value: p.spot_cvd })), color: C.blue, width: 1.5, area: true },
-      { name: 'CVD futures', data: s.map((p) => ({ time: p.time, value: p.perp_cvd })), color: C.purple, width: 1.5 },
-      { name: t('Prezzo BTC'), data: s.map((p) => ({ time: p.time, value: p.price })), color: C.btc, axis: 1 as const, width: 1.4, dashed: true },
+      { name: 'CVD spot', data: s.map((p) => ({ time: p.time, value: p.spot_cvd })), color: C.accent, width: 1.5, area: true },
+      { name: 'CVD futures', data: s.map((p) => ({ time: p.time, value: p.perp_cvd })), color: C.steel, width: 1.5 },
+      { name: t('Prezzo BTC'), data: s.map((p) => ({ time: p.time, value: p.price })), color: C.price, axis: 1 as const, width: 1.4, dashed: true },
     ]
   }, [q.data])
   const controls = (
@@ -220,15 +220,15 @@ export function FlowsSection() {
         return (
           <div className="flex flex-col gap-3">
             <KpiStrip>
-              <KpiCell icon={<ShoppingCart />} label={t('Acquisti spot 24h')} value={`${d.current.spot_buy_pct_24h.toFixed(1)}%`} delta={<><span className="text-slate-400">{t('Netto')}</span> <span className={deltaCls(w24?.spot_delta)}>{signedUsd(w24?.spot_delta)}</span></>} />
-              <KpiCell icon={<Activity />} label={t('Acquisti perp 24h')} value={`${d.current.perp_buy_pct_24h.toFixed(1)}%`} delta={<><span className="text-slate-400">{t('Netto')}</span> <span className={deltaCls(w24?.perp_delta)}>{signedUsd(w24?.perp_delta)}</span></>} />
+              <KpiCell icon={<ShoppingCart />} label={t('Acquisti spot 24h')} value={`${d.current.spot_buy_pct_24h.toFixed(1)}%`} delta={<><span className="text-fg-3">{t('Netto')}</span> <span className={deltaCls(w24?.spot_delta)}>{signedUsd(w24?.spot_delta)}</span></>} />
+              <KpiCell icon={<Activity />} label={t('Acquisti perp 24h')} value={`${d.current.perp_buy_pct_24h.toFixed(1)}%`} delta={<><span className="text-fg-3">{t('Netto')}</span> <span className={deltaCls(w24?.perp_delta)}>{signedUsd(w24?.perp_delta)}</span></>} />
               <KpiCell icon={<Crown />} label={t('Mercato dominante')} value={d.current.dominant === 'perp' ? 'Futures' : 'Spot'} foot={`Perp/spot ${w24 ? `${w24.perp_spot_ratio.toFixed(1)}×` : '—'}`} />
               <KpiCell icon={<Compass />} label={t('Bias spot')} value={TONE_LABEL[d.current.bias] ?? d.current.bias} foot={t('Da flussi spot e perp')} />
               <KpiCell icon={<Link2 />} label={t('Correlazione delta')} value={d.delta_correlation != null ? d.delta_correlation.toFixed(2) : '—'} foot={t('Spot vs perp')} />
               <KpiCell icon={<Timer />} label={t('Ultimi 60 min (live)')} value={<span className={deltaCls(lf.spot?.delta)}>{signedUsd(lf.spot?.delta)}</span>}
                 foot={<>Perp <span className={deltaCls(lf.perp?.delta)}>{signedUsd(lf.perp?.delta)}</span>{lf.minutes > 0 && lf.minutes < 60 ? ` · ${lf.minutes}/60 min` : ''}</>} />
             </KpiStrip>
-            {w24 && <p className="text-sm text-slate-300">{flowSummary('24h', w24.spot_delta, w24.perp_delta)}</p>}
+            {w24 && <p className="text-sm text-fg-2">{flowSummary('24h', w24.spot_delta, w24.perp_delta)}</p>}
             <div className="grid gap-3 xl:grid-cols-2">
               <Card className="h-full">
                 <CardHeader title={t('CVD spot vs futures')} subtitle={t("Delta cumulato taker · prezzo sull'asse destro")} icon={<LineChart />} updatedAt={q.dataUpdatedAt} right={controls} />

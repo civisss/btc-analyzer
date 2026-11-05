@@ -162,7 +162,7 @@ class Hub:
             if msg["type"] == "kline" and tfs and msg["tf"] not in tfs:
                 continue
             out = text
-            if self.lang.get(ws) == "en" and msg["type"] in ("agent_message", "toast"):
+            if self.lang.get(ws) == "en" and msg["type"] == "toast":
                 if text_en is None:
                     from .. import i18n
                     text_en = json.dumps(i18n.translate_obj(msg), ensure_ascii=False)

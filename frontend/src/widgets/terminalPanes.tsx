@@ -46,11 +46,11 @@ function Pane({ id, data, tf, live, sync, height, last }: { id: PaneId; data: Te
   useEffect(() => {
     const e = el.current!
     const chart = createChart(e, chartOptions(e, FMT[id], last))
-    chart.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.12, bottom: 0.08 } } })
+    chart.applyOptions({ rightPriceScale: { scaleMargins: { top: meta.kind === 'hist' ? 0.24 : 0.12, bottom: 0.08 } } })
     const s: ISeriesApi<SeriesType> = meta.kind === 'candle'
       ? chart.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderUpColor: C.up, borderDownColor: C.down, wickUpColor: C.up, wickDownColor: C.down,
-        priceFormat: { type: 'custom', formatter: FMT[id], minMove: 0.001 }, priceLineStyle: LineStyle.Dotted, priceLineColor: C.muted })
-      : chart.addHistogramSeries({ priceFormat: { type: 'custom', formatter: FMT[id], minMove: 0.00001 }, priceLineVisible: false, base: 0 })
+        priceFormat: { type: 'custom', formatter: FMT[id], minMove: 0.001 }, priceLineStyle: LineStyle.Dotted, priceLineColor: C.text })
+      : chart.addHistogramSeries({ priceFormat: { type: 'custom', formatter: FMT[id], minMove: 0.00001 }, priceLineVisible: false, lastValueVisible: false, base: 0 })
     rt.current = { chart, s }
     const ro = new ResizeObserver(() => chart.applyOptions({ width: e.clientWidth, height: e.clientHeight }))
     ro.observe(e)
@@ -119,7 +119,7 @@ function Pane({ id, data, tf, live, sync, height, last }: { id: PaneId; data: Te
       for (let i = 0; i < data.t.length; i++) {
         const v = arr[i]
         vals.push(v)
-        pts.push(v == null ? { time: lt(data.t[i]) } : { time: lt(data.t[i]), value: v, color: hexA(v >= 0 ? C.blue : C.amber, 0.85) })
+        pts.push(v == null ? { time: lt(data.t[i]) } : { time: lt(data.t[i]), value: v, color: hexA(v >= 0 ? C.accent : C.steel, 0.5) })
       }
     }
     s.vals = vals
@@ -127,7 +127,7 @@ function Pane({ id, data, tf, live, sync, height, last }: { id: PaneId; data: Te
     // inizio della raccolta multi-exchange sui CVD (prima: solo Binance, dalle kline ufficiali)
     if (GROUP_OF[id] && data.multi_from) {
       const bt = Math.floor(data.multi_from / TF_S[tf]) * TF_S[tf]
-      if (bt > data.t[0]) r.s.setMarkers([{ time: lt(bt), position: 'aboveBar', color: C.amber, shape: 'arrowDown', text: t('7 mercati') }])
+      if (bt > data.t[0]) r.s.setMarkers([{ time: lt(bt), position: 'aboveBar', color: C.warn, shape: 'arrowDown', text: t('7 mercati') }])
       else r.s.setMarkers([])
     }
     if (sync.last) r.chart.timeScale().setVisibleLogicalRange(sync.last)
@@ -162,7 +162,7 @@ function Pane({ id, data, tf, live, sync, height, last }: { id: PaneId; data: Te
         v = b.oi[3]
       } else if ((id === 'funding' && b.f8 != null) || (id === 'premium' && b.pm != null)) {
         v = (id === 'funding' ? b.f8 : b.pm) as number
-        r.s.update({ time: lt(b.t), value: v, color: hexA(v >= 0 ? C.blue : C.amber, 0.85) } as never)
+        r.s.update({ time: lt(b.t), value: v, color: hexA(v >= 0 ? C.accent : C.steel, 0.5) } as never)
       }
       if (v != null) {
         s.vals[s.vals.length - 1] = v
@@ -175,14 +175,14 @@ function Pane({ id, data, tf, live, sync, height, last }: { id: PaneId; data: Te
 
   const unit = id.startsWith('cvd') || id === 'oi' ? ' BTC' : ''
   return (
-    <div className="relative flex min-h-0 flex-col border-t border-white/[0.05] first:border-t-0" style={{ height }}>
+    <div className="relative flex min-h-0 flex-col border-t border-line-subtle first:border-t-0" style={{ height }}>
       {/* right-0 + pr-20: the header can shrink (label truncates) and the value never wraps over the plot */}
       <div className="pointer-events-none absolute left-2 right-0 top-1 z-[2] flex min-w-0 items-baseline gap-2 pr-20">
-        <span className="label min-w-0 truncate !text-slate-400">{t(meta.label)}</span>
-        <span className={`tnum shrink-0 whitespace-nowrap text-xs font-semibold ${val.v == null ? 'text-slate-500' : id === 'oi' ? 'text-white' : val.v >= 0 ? (meta.kind === 'hist' ? 'text-accent-blue' : 'text-up') : (meta.kind === 'hist' ? 'text-amber-400' : 'text-down')}`}>
+        <span className="label min-w-0 truncate !text-fg-3">{t(meta.label)}</span>
+        <span className={`tnum shrink-0 whitespace-nowrap text-xs font-semibold ${val.v == null ? 'text-fg-4' : id === 'oi' ? 'text-white' : meta.kind === 'hist' ? 'text-white' : val.v >= 0 ? 'text-up' : 'text-down'}`}>
           {val.v == null ? '—' : FMT[id](val.v) + unit}
         </span>
-        {val.hover && val.t != null && <span className="tnum hidden text-2xs text-slate-500 sm:inline">{dateTime(val.t)}</span>}
+        {val.hover && val.t != null && <span className="tnum hidden text-2xs text-fg-4 sm:inline">{dateTime(val.t)}</span>}
       </div>
       <div ref={el} className="min-h-0 flex-1" />
     </div>

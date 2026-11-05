@@ -8,14 +8,15 @@
 import type { IChartApi, ISeriesApi, SeriesType } from 'lightweight-charts'
 import { cap, months } from '../../i18n'
 import { usdAxis } from './theme'
+import { T, channels } from '../../theme/tokens'
 
 export const PILL_H = 16
 const p2 = (n: number) => String(n).padStart(2, '0')
 
-/** Opaque blend of `hex` at alpha `a` over the card surface (#0E1424). */
+/** Opaque blend of `hex` at alpha `a` over the card surface. */
 export function mix(hex: string, a: number): string {
   const n = parseInt(hex.slice(1), 16)
-  const bg = [14, 20, 36]
+  const bg = channels(T.surface).split(' ').map(Number)
   const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((x, i) => Math.round(x * a + bg[i] * (1 - a)))
   return `rgb(${c[0]},${c[1]},${c[2]})`
 }

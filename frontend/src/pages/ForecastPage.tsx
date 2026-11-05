@@ -1,16 +1,11 @@
 import { useMemo, useState } from 'react'
 import { CalendarClock, Compass, Gauge, GitCompareArrows, History, Layers, LineChart, ShieldCheck, Sigma, Spline, Target, TrendingUp, Waypoints } from 'lucide-react'
 import { useForecastV2, type EvalModelKey, type ForecastMetrics, type ForecastV2 } from '../api/forecastV2'
-import {
-  Badge, Card, CardBody, CardHeader, Change, Fill, KpiCell, KpiStrip, MethodNote, PageTitle, ProgressBar, Q, Section, Segmented, Skeleton, TabBar, Toggle, ToneBadge, clsx,
-} from '../components/ui'
-import { useForecastOneDay, type ForecastOneDay } from '../api/forecastOneDay'
-import { useTab } from '../lib/useTab'
-import ForecastOneDayTab from './ForecastOneDayTab'
-import ForecastKronosTab from './ForecastKronosTab'
+import { Badge, Card, CardBody, CardHeader, Change, Fill, KpiCell, KpiStrip, MethodNote, ProgressBar, Q, Section, Segmented, Skeleton, Toggle, ToneBadge, clsx, PageActions } from '../components/ui'
 import { CalibrationChart, DriverBars, ForecastPathChart, MEMBER_COLOR, MEMBER_ORDER, MEMBER_SHORT, WeightsByHorizon, cycleColor } from '../widgets/forecast'
 import { cap, t } from '../i18n'
 import { date, dateTime, dayUnit, usd, usdCompact } from '../lib/format'
+import { T } from '../theme/tokens'
 
 type Num = number | null | undefined
 const fin = (v: Num): v is number => v != null && Number.isFinite(v)
@@ -23,14 +18,14 @@ const EVAL_HORIZONS = [7, 30, 60, 90, 180, 365]
 const TONE: Record<string, string> = { bull: 'bullish', bear: 'bearish', accumulation: 'neutral' }
 
 /** MASE colour: below 0.95 clearly better than the random walk, around 1 = no edge. */
-const maseCls = (v: Num) => (!fin(v) ? 'text-slate-400' : v <= 0.9 ? 'text-up' : v < 0.97 ? 'text-slate-100' : v > 1.03 ? 'text-down' : 'text-slate-300')
+const maseCls = (v: Num) => (!fin(v) ? 'text-fg-3' : v <= 0.9 ? 'text-accent' : v < 0.97 ? 'text-fg' : v > 1.03 ? 'text-warn' : 'text-fg-2')
 
 function ProbBar({ value }: { value: number }) {
   const v = Math.max(0, Math.min(100, value))
   return (
     <div className="relative h-1 w-16 rounded-full bg-white/[0.08]" title={t('Tacca = 50%')}>
-      <div className={clsx('h-full rounded-full', v >= 50 ? 'bg-up/80' : 'bg-down/80')} style={{ width: `${v}%` }} />
-      <span className="absolute -top-1 left-1/2 h-3 w-px bg-slate-500" />
+      <div className={clsx('h-full rounded-full', v >= 50 ? 'bg-accent/80' : 'bg-fg-4/70')} style={{ width: `${v}%` }} />
+      <span className="absolute -top-1 left-1/2 h-3 w-px bg-fg-4" />
     </div>
   )
 }
@@ -40,7 +35,7 @@ function Cell({ k, v, sub, className }: { k: React.ReactNode; v: React.ReactNode
     <div className={clsx('min-w-0 px-3 py-2.5', className)}>
       <div className="label truncate">{k}</div>
       <div className="tnum mt-1 truncate text-xl font-semibold text-white">{v}</div>
-      <div className="tnum mt-0.5 truncate text-xs text-slate-400">{sub ?? <span className="text-slate-600">—</span>}</div>
+      <div className="tnum mt-0.5 truncate text-xs text-fg-3">{sub ?? <span className="text-fg-off">—</span>}</div>
     </div>
   )
 }
@@ -70,22 +65,22 @@ function PositionCard({ d }: { d: ForecastV2 }) {
           {cm.anchors.map((a) => (
             <div key={a.key} className="border-t border-line py-2 first:border-t-0 first:pt-0">
               <div className="flex items-baseline justify-between gap-2 text-sm">
-                <span className="text-slate-200">{t(cap(a.label))}</span>
+                <span className="text-fg">{t(cap(a.label))}</span>
                 <span className="tnum font-semibold text-white">{a.days} {dayUnit()}</span>
               </div>
               <div className="mt-1 flex items-center gap-2">
                 <ProgressBar value={a.weight} color={C_ANCHOR[a.key]} className="h-1 min-w-[48px] flex-1" />
-                <span className="tnum shrink-0 whitespace-nowrap text-right text-2xs text-slate-400">{t('peso {p}% · {d}', { p: a.weight.toFixed(0), d: date(a.event_time) })}</span>
+                <span className="tnum shrink-0 whitespace-nowrap text-right text-2xs text-fg-3">{t('peso {p}% · {d}', { p: a.weight.toFixed(0), d: date(a.event_time) })}</span>
               </div>
             </div>
           ))}
         </div>
         {ts && avg != null && (
-          <div className="rounded-xl border border-line bg-white/[0.02] p-3">
+          <div className="tile p-3">
             <div className="label">{t('Velocità del ciclo')} · {t(ts.segment)}</div>
             <div className="mt-1 text-sm font-semibold text-white">{speed}</div>
-            <div className="tnum mt-0.5 text-xs text-slate-400">{t('{a} giorni oggi contro {b} in media ({n} cicli)', { a: ts.current_days, b: Math.round(avg), n: ts.past.length })}</div>
-            <div className="tnum mt-1 text-2xs text-slate-500">{t('Riscalatura con esponente')} {ts.gammas.map((g) => `${g.gamma === 0.5 ? '½' : g.gamma} (${(g.weight * 100).toFixed(0)}%)`).join(' · ')}</div>
+            <div className="tnum mt-0.5 text-xs text-fg-3">{t('{a} giorni oggi contro {b} in media ({n} cicli)', { a: ts.current_days, b: Math.round(avg), n: ts.past.length })}</div>
+            <div className="tnum mt-1 text-2xs text-fg-4">{t('Riscalatura con esponente')} {ts.gammas.map((g) => `${g.gamma === 0.5 ? '½' : g.gamma} (${(g.weight * 100).toFixed(0)}%)`).join(' · ')}</div>
           </div>
         )}
         <div className="dgrid -mx-1 grid-cols-2">
@@ -96,7 +91,7 @@ function PositionCard({ d }: { d: ForecastV2 }) {
     </Card>
   )
 }
-const C_ANCHOR = { top: '#EF5466', bottom: '#2EBD85', halving: '#E8B04B' } as const
+const C_ANCHOR = { top: T.steel, bottom: T.accent, halving: T.sand } as const
 
 function CyclesCard({ d, n }: { d: ForecastV2; n: number }) {
   const cycles = d.cycle_model.cycles.slice(0, n)
@@ -109,8 +104,8 @@ function CyclesCard({ d, n }: { d: ForecastV2; n: number }) {
           <div key={c.key} className="grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-x-2.5 border-t border-line py-2 first:border-t-0 first:pt-0" title={t('Velocità ×{a} · ampiezza ×{b}', { a: c.time_scale.toFixed(2), b: c.amplitude_scale.toFixed(2) })}>
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: cycleColor(i, c.weight, maxW) }} />
             <div className="min-w-0">
-              <div className="truncate text-sm text-slate-200">{c.label}</div>
-              <div className="tnum text-2xs text-slate-500">{t('Similarità {n}/100', { n: c.similarity.toFixed(0) })} · {t('dopo 1 anno')} <Change value={c.return_365} digits={0} className="text-2xs" /></div>
+              <div className="truncate text-sm text-fg">{c.label}</div>
+              <div className="tnum text-2xs text-fg-4">{t('Similarità {n}/100', { n: c.similarity.toFixed(0) })} · {t('dopo 1 anno')} <Change value={c.return_365} digits={0} className="text-2xs" /></div>
             </div>
             <span className="tnum text-sm font-semibold text-white">{c.weight.toFixed(0)}%</span>
           </div>
@@ -134,20 +129,20 @@ function HorizonsTable({ d }: { d: ForecastV2 }) {
           {d.horizons.map((h) => (
             <tr key={h.days}>
               <td className="pl-4 font-medium text-white sm:pl-5">{t('{n} giorni', { n: h.days })}</td>
-              <td className="text-slate-300">{date(h.time)}</td>
+              <td className="text-fg-2">{date(h.time)}</td>
               <td className="text-right font-medium text-white">{usd(h.median)}</td>
               <td className="text-right"><Change value={h.change_pct} digits={1} /></td>
-              <td className="text-right text-slate-300">{usdCompact(h.p25, 1)} – {usdCompact(h.p75, 1)}</td>
-              <td className="text-right text-slate-300">{usdCompact(h.p05, 1)} – {usdCompact(h.p95, 1)}</td>
+              <td className="text-right text-fg-2">{usdCompact(h.p25, 1)} – {usdCompact(h.p75, 1)}</td>
+              <td className="text-right text-fg-2">{usdCompact(h.p05, 1)} – {usdCompact(h.p95, 1)}</td>
               <td><div className="flex items-center gap-2"><ProbBar value={h.up_prob} /><span className="tnum text-white">{h.up_prob.toFixed(0)}%</span></div></td>
               <td>
                 <div className="flex h-2 w-32 overflow-hidden rounded-full bg-white/[0.05]" title={MEMBER_ORDER.map((k) => `${t(MEMBER_SHORT[k])} ${(h.weights[k] ?? 0).toFixed(0)}%`).join(' · ')}>
                   {MEMBER_ORDER.map((k) => <span key={k} style={{ width: `${h.weights[k] ?? 0}%`, background: MEMBER_COLOR[k] }} />)}
                 </div>
               </td>
-              <td className="text-right text-slate-300">{p0(h.backtest.hit_rate)}</td>
+              <td className="text-right text-fg-2">{p0(h.backtest.hit_rate)}</td>
               <td className={clsx('text-right font-medium', maseCls(h.backtest.mase))}>{x2(h.backtest.mase)}</td>
-              <td className="pr-4 text-right text-slate-300 sm:pr-5">{p0(h.backtest.coverage_90)}</td>
+              <td className="pr-4 text-right text-fg-2 sm:pr-5">{p0(h.backtest.coverage_90)}</td>
             </tr>
           ))}
         </tbody>
@@ -187,16 +182,16 @@ function EvalTable({ rows, sel }: { rows: { key: EvalModelKey; kind: string; m: 
           {rows.map((r) => (
             <tr key={r.key} className={clsx(r.key === sel && '[&>td]:bg-white/[0.035]')}>
               <td className="pl-4 sm:pl-5">
-                <span className={clsx(r.key === 'ensemble' ? 'font-semibold text-white' : 'text-slate-200')}>{t(MODEL_NAME[r.key] ?? r.key)}</span>
-                {r.kind === 'baseline' && <span className="ml-1.5 text-2xs text-slate-500">{t('baseline')}</span>}
+                <span className={clsx(r.key === 'ensemble' ? 'font-semibold text-white' : 'text-fg')}>{t(MODEL_NAME[r.key] ?? r.key)}</span>
+                {r.kind === 'baseline' && <span className="ml-1.5 text-2xs text-fg-4">{t('baseline')}</span>}
               </td>
-              <td className="text-right text-slate-400">{r.m.n}</td>
-              <td className="text-right text-slate-300">{p0(r.m.hit_rate)}</td>
+              <td className="text-right text-fg-3">{r.m.n}</td>
+              <td className="text-right text-fg-2">{p0(r.m.hit_rate)}</td>
               <td className={clsx('text-right font-medium', maseCls(r.m.mase))}>{x2(r.m.mase)}</td>
-              <td className="text-right text-slate-300">{p0(r.m.mape, 1)}</td>
-              <td className="text-right text-slate-300">{p0(r.m.coverage_50)}</td>
-              <td className="text-right text-slate-300">{p0(r.m.coverage_90)}</td>
-              <td className={clsx('pr-4 text-right sm:pr-5', fin(r.m.brier_skill) && r.m.brier_skill > 2 ? 'text-up' : fin(r.m.brier_skill) && r.m.brier_skill < -2 ? 'text-down' : 'text-slate-300')}>
+              <td className="text-right text-fg-2">{p0(r.m.mape, 1)}</td>
+              <td className="text-right text-fg-2">{p0(r.m.coverage_50)}</td>
+              <td className="text-right text-fg-2">{p0(r.m.coverage_90)}</td>
+              <td className={clsx('pr-4 text-right sm:pr-5', fin(r.m.brier_skill) && r.m.brier_skill > 2 ? 'text-accent' : fin(r.m.brier_skill) && r.m.brier_skill < -2 ? 'text-warn' : 'text-fg-2')}>
                 {fin(r.m.brier_skill) ? `${r.m.brier_skill > 0 ? '+' : ''}${r.m.brier_skill.toFixed(1)}%` : '—'}
               </td>
             </tr>
@@ -221,9 +216,9 @@ function ReliabilitySection({ d }: { d: ForecastV2 }) {
       <Card>
         <CardHeader title={t('In breve')} icon={<ShieldCheck />} subtitle={t('MASE = errore della mediana diviso quello del random walk: sotto 1 la previsione batte il caso')} />
         <CardBody className="flex flex-col gap-4">
-          <div className="grid gap-x-8 gap-y-2 text-sm leading-relaxed text-slate-300 lg:grid-cols-2">
-            <p className="flex gap-2.5"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />{v.short}</p>
-            <p className="flex gap-2.5"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-up" />{v.long}</p>
+          <div className="grid gap-x-8 gap-y-2 text-sm leading-relaxed text-fg-2 lg:grid-cols-2">
+            <p className="flex gap-2.5"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-fg-3" />{v.short}</p>
+            <p className="flex gap-2.5"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />{v.long}</p>
           </div>
           <div className="dgrid -mx-1 grid-cols-2 sm:grid-cols-3 2xl:grid-cols-6">
             {d.evaluation.horizons.map((e) => {
@@ -234,10 +229,10 @@ function ReliabilitySection({ d }: { d: ForecastV2 }) {
                   className={clsx('min-w-0 px-3 py-2.5 text-left transition-colors', e.horizon === h ? 'bg-white/[0.04]' : 'hover:bg-white/[0.02]')}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="label">{t('{n} giorni', { n: e.horizon })}</span>
-                    <Badge color={beats ? 'up' : 'slate'}>{beats ? t('Batte le baseline') : t('≈ random walk')}</Badge>
+                    <Badge color={beats ? 'btc' : 'slate'}>{beats ? t('Batte le baseline') : t('≈ random walk')}</Badge>
                   </div>
                   <div className={clsx('tnum mt-1 text-xl font-semibold', maseCls(m?.mase))}>MASE {x2(m?.mase)}</div>
-                  <div className="tnum mt-0.5 truncate text-xs text-slate-400">{t('Direzione {a} · copertura 90% {b}', { a: p0(m?.hit_rate), b: p0(m?.coverage_90) })}</div>
+                  <div className="tnum mt-0.5 truncate text-xs text-fg-3">{t('Direzione {a} · copertura 90% {b}', { a: p0(m?.hit_rate), b: p0(m?.coverage_90) })}</div>
                 </button>
               )
             })}
@@ -255,7 +250,7 @@ function ReliabilitySection({ d }: { d: ForecastV2 }) {
             </>} />
           <CardBody className="flex flex-col gap-4">
             <EvalTable rows={rows} sel="ensemble" />
-            {win === 'last12' && <p className="text-xs text-slate-400">{t('Ultimi 12 mesi: pochi casi indipendenti, soprattutto oltre i 90 giorni — numeri molto rumorosi.')}</p>}
+            {win === 'last12' && <p className="text-xs text-fg-3">{t('Ultimi 12 mesi: pochi casi indipendenti, soprattutto oltre i 90 giorni — numeri molto rumorosi.')}</p>}
             <div>
               <div className="label mb-1">{t('Per regime di mercato')} · MASE</div>
               <div className="no-scrollbar -mx-4 overflow-x-auto sm:-mx-5">
@@ -264,12 +259,12 @@ function ReliabilitySection({ d }: { d: ForecastV2 }) {
                   <tbody>
                     {ev.by_regime.map((r) => (
                       <tr key={r.regime} className={clsx(r.regime === d.regime.key && '[&>td]:bg-white/[0.035]')}>
-                        <td className="pl-4 text-slate-200 sm:pl-5">{cap(t(r.label))}{r.regime === d.regime.key && <span className="ml-1.5 text-2xs text-slate-400">{t('oggi')}</span>}</td>
-                        <td className="text-right text-slate-400">{r.ensemble.n}</td>
+                        <td className="pl-4 text-fg sm:pl-5">{cap(t(r.label))}{r.regime === d.regime.key && <span className="ml-1.5 text-2xs text-fg-3">{t('oggi')}</span>}</td>
+                        <td className="text-right text-fg-3">{r.ensemble.n}</td>
                         <td className={clsx('text-right font-medium', maseCls(r.ensemble.mase))}>{x2(r.ensemble.mase)}</td>
                         <td className={clsx('text-right', maseCls(r.cycle.mase))}>{x2(r.cycle.mase)}</td>
-                        <td className="text-right text-slate-400">{x2(r.rw0.mase)}</td>
-                        <td className="pr-4 text-right text-slate-300 sm:pr-5">{p0(r.ensemble.hit_rate)}</td>
+                        <td className="text-right text-fg-3">{x2(r.rw0.mase)}</td>
+                        <td className="pr-4 text-right text-fg-2 sm:pr-5">{p0(r.ensemble.hit_rate)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -303,21 +298,21 @@ function ReliabilitySection({ d }: { d: ForecastV2 }) {
               </tr></thead>
               <tbody>
                 {cbc.map((r, i) => (
-                  <tr key={`${r.horizon}-${r.label}`} className={clsx(i > 0 && cbc[i - 1].horizon !== r.horizon && '[&>td]:border-t [&>td]:border-white/10')}>
-                    <td className="pl-4 text-slate-200 sm:pl-5">{i === 0 || cbc[i - 1].horizon !== r.horizon ? t('{n} giorni', { n: r.horizon }) : ''}</td>
-                    <td className="text-slate-300">{r.label}</td>
-                    <td className="text-right text-slate-400">{r.ensemble.n}</td>
+                  <tr key={`${r.horizon}-${r.label}`} className={clsx(i > 0 && cbc[i - 1].horizon !== r.horizon && '[&>td]:border-t [&>td]:border-line')}>
+                    <td className="pl-4 text-fg sm:pl-5">{i === 0 || cbc[i - 1].horizon !== r.horizon ? t('{n} giorni', { n: r.horizon }) : ''}</td>
+                    <td className="text-fg-2">{r.label}</td>
+                    <td className="text-right text-fg-3">{r.ensemble.n}</td>
                     <td className={clsx('text-right', maseCls(r.cycle.mase))}>{x2(r.cycle.mase)}</td>
                     <td className={clsx('text-right font-medium', maseCls(r.ensemble.mase))}>{x2(r.ensemble.mase)}</td>
                     <td className={clsx('text-right', maseCls(r.rw_drift.mase))}>{x2(r.rw_drift.mase)}</td>
-                    <td className="text-right text-slate-300">{p0(r.ensemble.hit_rate)}</td>
-                    <td className="pr-4 text-right text-slate-300 sm:pr-5">{p0(r.ensemble.coverage_90)}</td>
+                    <td className="text-right text-fg-2">{p0(r.ensemble.hit_rate)}</td>
+                    <td className="pr-4 text-right text-fg-2 sm:pr-5">{p0(r.ensemble.coverage_90)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-slate-400">{t('I risultati a 180 e 365 giorni poggiano su circa 3 cicli passati con finestre sovrapposte: i campioni effettivi sono molti meno di n.')}</p>
+          <p className="text-xs text-fg-3">{t('I risultati a 180 e 365 giorni poggiano su circa 3 cicli passati con finestre sovrapposte: i campioni effettivi sono molti meno di n.')}</p>
         </CardBody>
       </Card>
     </Section>
@@ -345,8 +340,8 @@ function HowSection({ d }: { d: ForecastV2 }) {
                   <div key={k} className="flex gap-2.5 border-t border-line py-2">
                     <span className="mt-1.5 h-2 w-2 shrink-0 rounded-sm" style={{ background: MEMBER_COLOR[k] }} />
                     <div className="min-w-0">
-                      <div className="text-sm text-slate-200">{cap(t(m.name))}</div>
-                      <p className="line-clamp-2 text-xs text-slate-400" title={m.note}>{m.note}</p>
+                      <div className="text-sm text-fg">{cap(t(m.name))}</div>
+                      <p className="line-clamp-2 text-xs text-fg-3" title={m.note}>{m.note}</p>
                     </div>
                   </div>
                 )
@@ -368,7 +363,7 @@ function HowSection({ d }: { d: ForecastV2 }) {
               <DriverBars top={dr.top} />
               <div className="flex flex-wrap gap-1.5">
                 {groups.map((g) => (
-                  <span key={g.group} className="inline-flex h-7 items-center gap-1.5 rounded border border-line px-2 text-xs text-slate-300">
+                  <span key={g.group} className="inline-flex h-7 items-center gap-1.5 rounded border border-line px-2 text-xs text-fg-2">
                     {cap(t(g.group))}<b className={clsx('tnum font-medium', g.contribution >= 0 ? 'text-up' : 'text-down')}>{g.contribution >= 0 ? '+' : '−'}{Math.abs(g.contribution).toFixed(1)}%</b>
                   </span>
                 ))}
@@ -424,7 +419,7 @@ function Body({ d, updatedAt }: { d: ForecastV2; updatedAt: number }) {
                 <Cell k={t('Prob. rialzo')} v={`${sel.up_prob.toFixed(0)}%`} sub={t('Prezzo sopra quello di oggi')} />
               </div>
             )}
-            <p className="text-sm leading-relaxed text-slate-300">{d.cycle_model.position.text}</p>
+            <p className="text-sm leading-relaxed text-fg-2">{d.cycle_model.position.text}</p>
           </CardBody>
         </Card>
         <div className="flex flex-col gap-3 xl:col-span-4 2xl:col-span-3">
@@ -441,7 +436,7 @@ function Body({ d, updatedAt }: { d: ForecastV2; updatedAt: number }) {
       <HowSection d={d} />
       <ReliabilitySection d={d} />
 
-      <p className="text-xs text-slate-400">{t('Stime statistiche su dati storici. Non è consulenza finanziaria.')}</p>
+      <p className="text-xs text-fg-3">{t('Stime statistiche su dati storici. Non è consulenza finanziaria.')}</p>
       <MethodNote>
         <p>{d.cycle_model.method}</p>
         <p>{d.evaluation.note}</p>
@@ -452,61 +447,29 @@ function Body({ d, updatedAt }: { d: ForecastV2; updatedAt: number }) {
     </div>
   )
 }
-const C_BLUE = '#5B8DEF'
+const C_BLUE = T.accent
 
 function TrainingChip({ d }: { d: ForecastV2 }) {
   const tr = d.training
-  const color = tr.status === 'ready' ? 'bg-up' : tr.status === 'training' ? 'bg-amber-400 animate-pulse' : 'bg-down'
+  const color = tr.status === 'ready' ? 'bg-accent' : tr.status === 'training' ? 'bg-warn animate-pulse' : 'bg-fg-off'
   const label = tr.status === 'ready' ? t('Modello addestrato {d}', { d: dateTime(tr.trained_at) })
     : tr.status === 'training' ? t('Addestramento in corso{p}', { p: tr.progress ? ` · ${tr.progress}` : '' })
       : t('Errore di addestramento: {e}', { e: tr.error ?? '—' })
   return (
-    <span className="inline-flex h-8 items-center gap-2 rounded-lg border border-line px-3 text-xs text-slate-300" title={t('Dati fino al {d}', { d: tr.data_day })}>
+    <span className="inline-flex h-8 items-center gap-2 rounded-lg border border-line px-3 text-xs text-fg-2" title={t('Dati fino al {d}', { d: tr.data_day })}>
       <span className={clsx('h-1.5 w-1.5 rounded-full', color)} />{label}
     </span>
   )
 }
 
-function OneDayChip({ d }: { d: ForecastOneDay }) {
-  const tr = d.training
-  const color = tr.status === 'ready' ? 'bg-up' : tr.status === 'training' ? 'bg-amber-400 animate-pulse' : 'bg-down'
-  const label = tr.status === 'training' ? t('Aggiornamento in corso{p}', { p: tr.progress ? ` · ${tr.progress}` : '' })
-    : tr.status === 'error' ? t('Errore di aggiornamento: {e}', { e: tr.error ?? '—' })
-      : t('Dati fino al {d} · aggiornato {t}', { d: date(new Date(`${d.data_day}T00:00:00Z`).getTime() / 1000), t: dateTime(tr.trained_at) })
-  return (
-    <span className="inline-flex h-8 max-w-full items-center gap-2 truncate rounded-lg border border-line px-3 text-xs text-slate-300" title={t('Ricalcolo una volta al giorno dopo la chiusura UTC')}>
-      <span className={clsx('h-1.5 w-1.5 shrink-0 rounded-full', color)} /><span className="truncate">{label}</span>
-    </span>
-  )
-}
-
-const TABS = [{ value: 'percorso', label: 'Percorso a 12 mesi' }, { value: 'oneday', label: 'Previsione a 1 giorno' }, { value: 'kronos', label: 'Kronos' }] as const
-type Tab = (typeof TABS)[number]['value']
-
-function PathTab() {
+export default function ForecastPage() {
   const q = useForecastV2()
   return (
-    <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[560px]" /><Skeleton className="h-60" /></div>} isEmpty={(d) => !d.path?.length}>
-      {(d) => <Body d={d} updatedAt={q.dataUpdatedAt} />}
-    </Q>
-  )
-}
-
-export default function ForecastPage() {
-  const [tab, setTab] = useTab<Tab>(TABS.map((x) => x.value), 'percorso')
-  const q = useForecastV2(tab === 'percorso')     // shared cache with PathTab (same query key)
-  const q1 = useForecastOneDay(tab === 'oneday')
-  return (
-    <div>
-      <PageTitle title={t('Previsioni')}
-        subtitle={tab === 'kronos'
-          ? t('Foundation model per candele: percorsi probabilistici su 1h, 4h e 1G, valutati fuori campione dopo il pre-addestramento.')
-          : tab === 'oneday'
-          ? t('Prezzo di domani previsto fuori campione e confrontato onestamente con il naive "domani = oggi".')
-          : t('Percorso di prezzo a 12 mesi dalla posizione nel ciclo attuale e da come si sono mossi i cicli passati.')}
-        right={tab === 'kronos' ? undefined : tab === 'oneday' ? (q1.data?.training ? <OneDayChip d={q1.data} /> : undefined) : (q.data?.training ? <TrainingChip d={q.data} /> : undefined)} />
-      <TabBar tabs={TABS.map((x) => ({ value: x.value, label: t(x.label) }))} value={tab} onChange={setTab} />
-      {tab === 'kronos' ? <ForecastKronosTab /> : tab === 'oneday' ? <ForecastOneDayTab /> : <PathTab />}
-    </div>
+    <>
+      {q.data?.training && <PageActions><TrainingChip d={q.data} /></PageActions>}
+      <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[560px]" /><Skeleton className="h-60" /></div>} isEmpty={(d) => !d.path?.length}>
+        {(d) => <Body d={d} updatedAt={q.dataUpdatedAt} />}
+      </Q>
+    </>
   )
 }

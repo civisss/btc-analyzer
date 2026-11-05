@@ -139,6 +139,8 @@ export type LiqRange = '1d' | '3d' | '7d' | '30d'
 export interface Liquidations {
   heatmap: { times: T[]; prices: number[]; values: number[][]; max: number; candles: Candle[] }
   clusters: { price: number; usd: number; side: 'long' | 'short'; distance: number }[]
+  /** USD stimati entro ±pct% su tutte le posizioni del modello */
+  near?: { pct: number; long: number; short: number }
   pools: { price: number; kind: 'buy_side' | 'sell_side'; source: string; strength: number }[]
   /** real liquidations collected live (most recent first, max 300); exchange/symbol/qty added in DERIVATIVES PRO */
   events: { time: T; side: 'long' | 'short'; price: number; usd: number; qty?: number; exchange?: LiqExchange; symbol?: string }[]
@@ -247,46 +249,7 @@ export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 export interface Status {
   datasets: { name: string; rows: number; last: T | null; age_s: number | null }[]
   llm: { available: boolean; model: string | null }
+  agents?: { total: number; errors: { id: string; name: string; error: string | null }[] }
   liquidation_stream: boolean
   stream?: { clients: number; connected: { spot: boolean; futures: boolean }; last_price: number | null }
 }
-
-// ---------------------------------------------------------------- AGENTS
-export type KnownAgentId =
-  | 'market' | 'levels' | 'liquidity' | 'patterns' | 'correlation' | 'cycles' | 'onchain' | 'derivatives' | 'forecast' | 'analyst'
-  | 'flows' | 'analogs' | 'timepivots' | 'macro' | 'clock' | 'miners' | 'leverage' | 'usdt_analogs' | 'stablecoins'
-/** Known ids get autocompletion, but any string returned by the backend is accepted (agent team is data-driven). */
-export type AgentId = KnownAgentId | (string & {})
-export type AgentStatusKind = 'idle' | 'running' | 'error'
-export interface Agent {
-  id: AgentId
-  name: string
-  role: string
-  icon: string
-  color: string
-  status: AgentStatusKind
-  error: string | null
-  interval_s: number
-  runs: number
-  last_run: T | null
-  next_run: T | null
-  last_duration_ms: number | null
-  findings: { title: string; text: string; tone: Tone; confidence: number; time: T }[]
-  subscribes: string[]
-  publishes: string[]
-  stats: { messages_sent: number; messages_received: number }
-}
-export interface AgentMessage {
-  id: number
-  time: T
-  from: AgentId
-  to: AgentId | '*'
-  topic: string
-  kind: 'finding' | 'request' | 'reply' | 'alert'
-  text: string
-  tone: Tone
-  data?: Record<string, unknown>
-}
-export interface AgentEdge { from: AgentId; to: AgentId; topics: string[]; count: number; last: T | null }
-export interface AgentsResponse { agents: Agent[]; edges: AgentEdge[]; started_at: T }
-export interface AgentStatusMsg { id: AgentId; status: AgentStatusKind; last_run: T | null; next_run: T | null; last_duration_ms: number | null }

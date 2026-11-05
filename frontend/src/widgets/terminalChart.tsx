@@ -16,6 +16,7 @@ import { compact, usd, usdCompact } from '../lib/format'
 import { cap, months, t } from '../i18n'
 import { LUT, appendLive, type HmStore } from './orderbookHeatmap'
 import type { TermLive } from './terminalLive'
+import { T, alpha } from '../theme/tokens'
 
 export const TZ = -new Date().getTimezoneOffset() * 60
 export const lt = (x: number) => (x + TZ) as UTCTimestamp
@@ -48,8 +49,8 @@ export function chartOptions(el: HTMLElement, fmt: (p: number) => string, timeVi
     timeScale: { borderColor: C.axis, rightOffset: 4, timeVisible: true, secondsVisible: false, tickMarkFormatter: tickFmt, visible: timeVisible },
     crosshair: {
       mode: CrosshairMode.Normal,
-      vertLine: { color: 'rgba(160,175,225,0.35)', labelBackgroundColor: '#1E2840', style: LineStyle.Dashed },
-      horzLine: { color: 'rgba(160,175,225,0.35)', labelBackgroundColor: '#1E2840', style: LineStyle.Dashed },
+      vertLine: { color: alpha(T.fg3, 0.35), labelBackgroundColor: T.overlay, style: LineStyle.Dashed },
+      horzLine: { color: alpha(T.fg3, 0.35), labelBackgroundColor: T.overlay, style: LineStyle.Dashed },
     },
     localization: { locale: 'en-US', timeFormatter: timeFmt, priceFormatter: fmt },
     handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
@@ -134,7 +135,7 @@ export default function TerminalChart({ data, tf, heat, est, opts, live, sync, o
     const chart = createChart(e, chartOptions(e, pxFmt, true))
     const candle = chart.addCandlestickSeries({
       upColor: C.up, downColor: C.down, borderUpColor: C.up, borderDownColor: C.down, wickUpColor: C.up, wickDownColor: C.down,
-      priceFormat: { type: 'price', precision: 1, minMove: 0.1 }, lastValueVisible: true, priceLineVisible: true, priceLineColor: C.btc, priceLineStyle: LineStyle.Dotted,
+      priceFormat: { type: 'price', precision: 1, minMove: 0.1 }, lastValueVisible: true, priceLineVisible: true, priceLineColor: C.price, priceLineStyle: LineStyle.Dotted,
     })
     const vol = chart.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false })
     chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.84, bottom: 0 }, visible: false })
@@ -341,16 +342,16 @@ export default function TerminalChart({ data, tf, heat, est, opts, live, sync, o
         const y = Y(e.price)
         const txt = `${t('Stima')} ${e.side === 'long' ? 'long' : 'short'} ${usdCompact(e.usd, 0)}`
         const tw = oc.measureText(txt).width + 10
-        oc.fillStyle = 'rgba(14,20,36,0.82)'; oc.fillRect(w - tw - 6, y - 8, tw, 16)
-        oc.fillStyle = e.side === 'long' ? '#FF8A97' : '#5FD8A8'; oc.fillText(txt, w - 11, y)
+        oc.fillStyle = alpha(T.surface, 0.82); oc.fillRect(w - tw - 6, y - 8, tw, 16)
+        oc.fillStyle = e.side === 'long' ? T.downHi : T.upHi; oc.fillText(txt, w - 11, y)
       }
     }
     const mf = s.data.multi_from
     if (mf && mf > tStart) {
       const x = Math.round(X(mf)) + 0.5
       if (x > 0 && x < w) {
-        oc.strokeStyle = 'rgba(232,176,75,0.55)'; oc.setLineDash([4, 4]); oc.beginPath(); oc.moveTo(x, 0); oc.lineTo(x, h); oc.stroke(); oc.setLineDash([])
-        oc.fillStyle = C.amber; oc.font = `500 10px ${FONT}`; oc.textAlign = 'left'; oc.textBaseline = 'alphabetic'
+        oc.strokeStyle = alpha(T.warn, 0.55); oc.setLineDash([4, 4]); oc.beginPath(); oc.moveTo(x, 0); oc.lineTo(x, h); oc.stroke(); oc.setLineDash([])
+        oc.fillStyle = C.warn; oc.font = `500 10px ${FONT}`; oc.textAlign = 'left'; oc.textBaseline = 'alphabetic'
         oc.fillText(t('Raccolta multi-exchange'), x + 4, h - 8)
       }
     }
@@ -450,10 +451,10 @@ export default function TerminalChart({ data, tf, heat, est, opts, live, sync, o
           style={{ left: tip.x + 16 + 256 > W - SCALE_W ? Math.max(4, tip.x - 16 - 256) : tip.x + 16,
             // lower half of the chart: anchored by its bottom edge above the cursor, so it is never cut by the tile
             ...(tip.y > H / 2 ? { bottom: Math.max(4, H - tip.y + 12) } : { top: Math.max(4, tip.y + 12) }) }}>
-          <div className="label mb-1.5 text-slate-300">{tip.title}</div>
+          <div className="label mb-1.5 text-fg-2">{tip.title}</div>
           {tip.rows.map((x) => (
             <div key={x.k} className="flex items-baseline justify-between gap-3 py-0.5">
-              <span className="whitespace-nowrap text-slate-400">{x.k}</span>
+              <span className="whitespace-nowrap text-fg-3">{x.k}</span>
               <span className="tnum text-right font-medium text-white" style={x.c ? { color: x.c } : undefined}>{x.v}</span>
             </div>
           ))}

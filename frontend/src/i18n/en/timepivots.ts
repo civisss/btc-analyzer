@@ -122,7 +122,6 @@ const en: Record<string, string> = {
   'Candele orarie Binance dal 2017, ore UTC · barra evidenziata = ora attuale': 'Binance hourly candles since 2017, UTC hours · highlighted bar = current hour',
   'Rendimento medio (o escursione) per giorno × ora UTC · riquadro bianco = adesso': 'Average return (or range) by day × UTC hour · white box = now',
   'Rendimento medio per giorno del mese (dal 2011)': 'Average return by day of month (since 2011)',
-  "Rendimento medio per settimana ISO dell'anno (dal 2011)": 'Average return by ISO week of the year (since 2011)',
   'Giorni e orari': 'Days and hours',
   'Giorno×ora': 'Day×hour',
   'Giorno mese': 'Day of month',

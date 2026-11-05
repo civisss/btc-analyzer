@@ -1,10 +1,10 @@
 /*
  * Chart annotations for /grafici: toolbar (livello, trendline, marcatore tempo, nota, avviso al prezzo), pick flow on ProChart,
- * persisted per symbol/timeframe on the server (/api/journal/annotations), list/manage panel with inline editing.
+ * persisted per symbol/timeframe on the server (/api/annotations), list/manage panel with inline editing.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { BellPlus, Check, Minus, MoveDiagonal, PenLine, SeparatorVertical, StickyNote, X } from 'lucide-react'
-import { useAnnotations, useJournalMutations, type AnnColor, type AnnKind, type Annotation } from '../api/journal'
+import { useAnnotations, useAnnotationMutations, type AnnColor, type AnnKind, type Annotation } from '../api/annotations'
 import type { Tf } from '../api/types'
 import type { ChartAnnotationDef, ChartPoint } from '../components/charts/ProChart'
 import { ACCENT_HEX, Card, CardHeader, clsx } from '../components/ui'
@@ -24,7 +24,7 @@ const KIND_META: Record<AnnKind, { label: string; icon: typeof Minus; hint: stri
 
 export function useChartAnnotations(tf: Tf, price: number | null) {
   const q = useAnnotations(tf)
-  const m = useJournalMutations()
+  const m = useAnnotationMutations()
   const [tool, setTool] = useState<Tool | null>(null)
   const [draft, setDraft] = useState<ChartPoint | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
@@ -73,7 +73,7 @@ export function useChartAnnotations(tf: Tf, price: number | null) {
         return (
           <button key={k} type="button" onClick={() => pick(k)} aria-pressed={tool === k} title={t(M.label)} aria-label={t(M.label)}
             className={clsx('inline-flex h-8 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium transition-colors sm:h-7',
-              tool === k ? 'border-accent-blue/45 bg-accent-blue/[0.12] text-white' : 'border-line bg-white/[0.03] text-slate-400 hover:border-white/15 hover:text-white')}>
+              tool === k ? 'border-accent/45 bg-accent/[0.12] text-white' : 'border-line bg-white/[0.03] text-fg-3 hover:border-line-strong hover:text-white')}>
             <M.icon size={14} /><span className="hidden 2xl:inline">{t(M.label)}</span>
           </button>
         )
@@ -81,17 +81,17 @@ export function useChartAnnotations(tf: Tf, price: number | null) {
       <span className="mx-0.5 h-5 w-px bg-white/[0.08]" />
       <button type="button" onClick={() => pick('alert')} aria-pressed={tool === 'alert'} title={t('Crea avviso al prezzo')} aria-label={t('Crea avviso al prezzo')}
         className={clsx('inline-flex h-8 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium transition-colors sm:h-7',
-          tool === 'alert' ? 'border-amber-400/45 bg-amber-400/[0.12] text-white' : 'border-line bg-white/[0.03] text-slate-400 hover:border-white/15 hover:text-white')}>
+          tool === 'alert' ? 'border-warn/45 bg-warn/[0.12] text-white' : 'border-line bg-white/[0.03] text-fg-3 hover:border-line-strong hover:text-white')}>
         <BellPlus size={14} /><span className="hidden 2xl:inline">{t('Avviso')}</span>
       </button>
     </div>
   )
 
   const banner = hint ? (
-    <div className="mb-2 flex items-center gap-2 rounded-xl bg-accent-blue/[0.08] px-3 py-2 text-xs text-slate-200 ring-1 ring-inset ring-accent-blue/25">
-      <PenLine size={13} className="text-accent-blue" />
+    <div className="mb-2 flex items-center gap-2 rounded-xl bg-accent/[0.08] px-3 py-2 text-xs text-fg ring-1 ring-inset ring-accent/25">
+      <PenLine size={13} className="text-accent" />
       <span className="min-w-0 flex-1">{hint}</span>
-      <button className="link h-6" onClick={() => { setTool(null); setDraft(null) }}>{t('Annulla')} <kbd className="ml-1 rounded border border-white/10 px-1 text-2xs text-slate-400">Esc</kbd></button>
+      <button className="link h-6" onClick={() => { setTool(null); setDraft(null) }}>{t('Annulla')} <kbd className="ml-1 rounded border border-line px-1 text-2xs text-fg-3">Esc</kbd></button>
     </div>
   ) : null
 
@@ -137,27 +137,27 @@ function AnnotationsPanel({ tf, items, selected, onSelect, hidden, onHidden, loa
       <CardHeader title={t('Annotazioni')} icon={<PenLine />} subtitle={t('Timeframe {tf} · salvate sul server', { tf: tfLabel(tf) })}
         right={items.length ? <button className="btn-ghost" onClick={() => onHidden(!hidden)} aria-pressed={hidden}>{hidden ? t('Mostra') : t('Nascondi')}</button> : null} />
       <div className="pb-2">
-        {loading ? <p className="px-5 pb-3 text-xs text-slate-400">{t('Caricamento…')}</p> : items.length ? items.map((a) => (
+        {loading ? <p className="px-5 pb-3 text-xs text-fg-3">{t('Caricamento…')}</p> : items.length ? items.map((a) => (
           <AnnRow key={a.id} a={a} tf={tf} open={a.id === selected} onToggle={() => onSelect(a.id === selected ? null : a.id)} />
-        )) : <p className="px-4 pb-3 text-xs leading-relaxed text-slate-400 sm:px-5">{t('Nessuna annotazione su questo timeframe. Usa gli strumenti sopra il grafico per disegnare livelli, trendline, marcatori di tempo e note.')}</p>}
+        )) : <p className="px-4 pb-3 text-xs leading-relaxed text-fg-3 sm:px-5">{t('Nessuna annotazione su questo timeframe. Usa gli strumenti sopra il grafico per disegnare livelli, trendline, marcatori di tempo e note.')}</p>}
       </div>
     </Card>
   )
 }
 
 function AnnRow({ a, tf, open, onToggle }: { a: Annotation; tf: Tf; open: boolean; onToggle: () => void }) {
-  const { updateAnn, removeAnn } = useJournalMutations()
+  const { updateAnn, removeAnn } = useAnnotationMutations()
   const M = KIND_META[a.kind]
   const [text, setText] = useState(a.text)
   useEffect(() => setText(a.text), [a.text])
   const save = (patch: Partial<Annotation>) => updateAnn.mutate({ id: a.id, a: patch })
   return (
-    <div className={clsx('border-t border-white/[0.05] first:border-t-0', open && 'bg-white/[0.02]')}>
+    <div className={clsx('border-t border-line-subtle first:border-t-0', open && 'bg-white/[0.02]')}>
       <button onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-white/[0.03] sm:px-5">
-        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg ring-1 ring-inset ring-white/[0.06]" style={{ color: ACCENT_HEX[a.color], background: `${ACCENT_HEX[a.color]}1A` }}><M.icon size={14} /></span>
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg ring-1 ring-inset ring-line-subtle" style={{ color: ACCENT_HEX[a.color], background: `${ACCENT_HEX[a.color]}1A` }}><M.icon size={14} /></span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm text-white">{a.text || t(M.label)}</span>
-          <span className="tnum block truncate text-2xs text-slate-500">{annValue(a)}{a.tf == null ? ` · ${t('tutti i timeframe')}` : ''}</span>
+          <span className="tnum block truncate text-2xs text-fg-4">{annValue(a)}{a.tf == null ? ` · ${t('tutti i timeframe')}` : ''}</span>
         </span>
       </button>
       {open && (
@@ -178,13 +178,13 @@ function AnnRow({ a, tf, open, onToggle }: { a: Annotation; tf: Tf; open: boolea
             <div className="flex items-center gap-1.5" role="radiogroup" aria-label={t('Colore')}>
               {COLORS.map((c) => (
                 <button key={c} role="radio" aria-checked={a.color === c} aria-label={c} onClick={() => save({ color: c })}
-                  className={clsx('grid h-6 w-6 place-items-center rounded-full ring-2 ring-offset-2 ring-offset-[#0E1424] transition', a.color === c ? 'ring-white/70' : 'ring-transparent hover:ring-white/20')}
+                  className={clsx('grid h-6 w-6 place-items-center rounded-full ring-2 ring-offset-2 ring-offset-surface transition', a.color === c ? 'ring-white/70' : 'ring-transparent hover:ring-white/20')}
                   style={{ background: ACCENT_HEX[c] }} />
               ))}
             </div>
             <DeleteButton compact onConfirm={() => removeAnn.mutate(a.id)} busy={removeAnn.isPending} />
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-2">
             <span className="inline-flex items-center gap-1">
               <Switch on={a.tf == null} onChange={(v) => save({ tf: v ? null : tf })} label={t('Tutti i timeframe')} />{t('Tutti i timeframe')}
             </span>
@@ -194,7 +194,7 @@ function AnnRow({ a, tf, open, onToggle }: { a: Annotation; tf: Tf; open: boolea
               </span>
             )}
           </div>
-          {updateAnn.isError && <p className="flex items-center gap-1 text-xs text-down"><X size={12} />{(updateAnn.error as Error).message}</p>}
+          {updateAnn.isError && <p className="flex items-center gap-1 text-xs text-warn"><X size={12} />{(updateAnn.error as Error).message}</p>}
         </div>
       )}
     </div>

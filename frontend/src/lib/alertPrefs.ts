@@ -14,9 +14,8 @@ export const ALERT_CATEGORIES: { id: AlertCategory; label: string }[] = [
   { id: 'stablecoins', label: 'Stablecoin' },
   { id: 'macro', label: 'Macro' },
   { id: 'events', label: 'Eventi' },
-  { id: 'agents', label: 'Agenti' },
+  { id: 'agents', label: 'Segnali automatici' },
   { id: 'custom', label: 'Avvisi personali' },
-  { id: 'journal', label: 'Diario' },
 ]
 
 type Prefs = { lastRead: number | null; muted: string[] }

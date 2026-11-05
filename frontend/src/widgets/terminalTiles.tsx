@@ -11,6 +11,7 @@ import { agoSeconds, compact, dateTime, pct, usd, usdCompact } from '../lib/form
 import { t } from '../i18n'
 import { EX_LABEL } from './terminalChart'
 import { useSlice, type TermLive } from './terminalLive'
+import { EXCHANGE, T, alpha } from '../theme/tokens'
 
 type N = number | null | undefined
 
@@ -20,10 +21,10 @@ export const STREAM_LABEL: Record<StreamKey, string> = {
 }
 /** monogramma + tinta per exchange (palette dell'app, non i colori dei marchi) */
 const EX_TAG: Record<string, { s: string; c: string }> = {
-  binance: { s: 'BN', c: '#E8B04B' }, bybit: { s: 'BY', c: '#9B87F5' }, okx: { s: 'OK', c: '#B3BCD0' }, coinbase: { s: 'CB', c: '#5B8DEF' },
+  binance: { s: 'BN', c: EXCHANGE.binance }, bybit: { s: 'BY', c: EXCHANGE.bybit }, okx: { s: 'OK', c: EXCHANGE.okx }, coinbase: { s: 'CB', c: EXCHANGE.coinbase },
 }
 export function ExTag({ ex, className }: { ex: string; className?: string }) {
-  const x = EX_TAG[ex] ?? { s: ex.slice(0, 2).toUpperCase(), c: '#8C96AD' }
+  const x = EX_TAG[ex] ?? { s: ex.slice(0, 2).toUpperCase(), c: T.fg3 }
   return (
     <span title={EX_LABEL[ex] ?? ex} className={clsx('inline-grid h-4 w-[22px] shrink-0 place-items-center rounded text-[9px] font-semibold tracking-wide', className)}
       style={{ color: x.c, background: hexA(x.c, 0.14), boxShadow: `inset 0 0 0 1px ${hexA(x.c, 0.25)}` }}>{x.s}</span>
@@ -49,7 +50,7 @@ function Stat({ label, children, sub, className }: { label: string; children: Re
     <div className={clsx('min-w-0', className)}>
       <div className="label truncate">{label}</div>
       <div className="tnum mt-0.5 truncate text-sm font-semibold text-white">{children}</div>
-      {sub !== undefined && <div className="tnum truncate text-2xs text-slate-500">{sub}</div>}
+      {sub !== undefined && <div className="tnum truncate text-2xs text-fg-4">{sub}</div>}
     </div>
   )
 }
@@ -82,16 +83,16 @@ export function TickerBar({ live, right }: { live: TermLive; right?: ReactNode }
         <Stat label={t('Min 24h')}>{usd(tk?.low_24h ?? null, 1)}</Stat>
         <Stat label={t('Volume 24h')} sub={`${compact(tk?.vol_24h_btc ?? null, 1)} BTC`}>{usdCompact(tk?.vol_24h_usd ?? null, 2)}</Stat>
         <Stat label={t('Funding Binance')} sub={<><Countdown to={tk?.next_funding} /> {t('al prossimo')}</>}>
-          <span className={(tk?.funding_rate ?? 0) >= 0 ? 'text-accent-blue' : 'text-amber-400'}>{tk?.funding_rate != null ? `${tk.funding_rate.toFixed(4)}%` : '—'}</span>
+          <span>{tk?.funding_rate != null ? `${tk.funding_rate.toFixed(4)}%` : '—'}</span>
         </Stat>
         <Stat label={t('Funding medio')} sub={t('Ponderato OI · 8 h')}>
-          <span className={(tk?.f8 ?? 0) >= 0 ? 'text-accent-blue' : 'text-amber-400'}>{tk?.f8 != null ? `${tk.f8.toFixed(4)}%` : '—'}</span>
+          <span>{tk?.f8 != null ? `${tk.f8.toFixed(4)}%` : '—'}</span>
         </Stat>
         <Stat label={t('Open interest')} sub={tk?.oi_chg_1h != null ? `${pct(tk.oi_chg_1h, 2)} 1h · ${usdCompact(tk?.oi_usd ?? null, 1)}` : usdCompact(tk?.oi_usd ?? null, 1)}>
           {tk?.oi_btc != null ? `${compact(tk.oi_btc, 1)} BTC` : '—'}
         </Stat>
         <Stat label={t('Premio Coinbase')} sub={tk?.cb != null && tk?.bn != null ? `${usd(tk.cb - tk.bn, 1)}` : undefined}>
-          <span className={(tk?.premium ?? 0) >= 0 ? 'text-accent-blue' : 'text-amber-400'}>{tk?.premium != null ? pct(tk.premium, 3) : '—'}</span>
+          <span>{tk?.premium != null ? pct(tk.premium, 3) : '—'}</span>
         </Stat>
       </div>
       {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
@@ -109,12 +110,12 @@ export function ConnPill({ live }: { live: TermLive }) {
   return (
     <span className="flex flex-wrap items-center gap-2">
       <span className={clsx('inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium ring-1 ring-inset',
-        c === 'live' ? 'bg-up/10 text-up ring-up/20' : c === 'polling' ? 'bg-amber-400/10 text-amber-400 ring-amber-400/20' : 'bg-white/[0.04] text-slate-400 ring-white/10')}
+        c === 'live' ? 'bg-accent/10 text-accent-hi ring-accent/25' : c === 'polling' ? 'bg-warn/10 text-warn ring-warn/20' : 'bg-white/[0.04] text-fg-3 ring-line')}
         data-testid="term-conn" title={t('Stream connessi')}>
-        <span className={clsx('h-1.5 w-1.5 rounded-full', c === 'live' ? 'animate-pulse bg-up' : c === 'polling' ? 'bg-amber-400' : 'bg-slate-500')} />
+        <span className={clsx('h-1.5 w-1.5 rounded-full', c === 'live' ? 'live-dot bg-accent' : c === 'polling' ? 'bg-warn' : 'bg-fg-4')} />
         {txt}{n != null && <span className="tnum font-normal opacity-80">· {n}/7</span>}
       </span>
-      <span className="tnum hidden text-2xs text-slate-500 lg:inline" title={t('Frame al secondo · latenza server → schermo (mediana) · messaggi al secondo')}>
+      <span className="tnum hidden text-2xs text-fg-4 lg:inline" title={t('Frame al secondo · latenza server → schermo (mediana) · messaggi al secondo')}>
         {p.fps ?? '—'} fps · {p.latMs != null ? `${Math.round(p.latMs)} ms` : '—'} · {p.msgsPerS}/s
       </span>
     </span>
@@ -155,12 +156,12 @@ export function DomTile({ live, height, compactUi }: { live: TermLive; height: n
     const dv = deltas.current.get(p)
     return (
       <div className="relative grid h-[19px] grid-cols-[1fr_0.8fr_0.7fr_0.9fr] items-center gap-1 px-2 text-[11px] leading-none">
-        <span className="absolute inset-y-px right-0" style={{ width: `${(cum / (view?.mx || 1)) * 100}%`, background: side === 'b' ? 'rgba(46,189,133,0.10)' : 'rgba(239,84,102,0.10)' }} />
-        <span className="absolute inset-y-[5px] right-0" style={{ width: `${Math.min(100, (q / (view?.mx || 1)) * 300)}%`, background: side === 'b' ? 'rgba(46,189,133,0.28)' : 'rgba(239,84,102,0.28)' }} />
+        <span className="absolute inset-y-px right-0" style={{ width: `${(cum / (view?.mx || 1)) * 100}%`, background: side === 'b' ? alpha(T.up, 0.10) : alpha(T.down, 0.10) }} />
+        <span className="absolute inset-y-[5px] right-0" style={{ width: `${Math.min(100, (q / (view?.mx || 1)) * 300)}%`, background: side === 'b' ? alpha(T.up, 0.28) : alpha(T.down, 0.28) }} />
         <span className={clsx('tnum relative font-medium', side === 'b' ? 'text-up' : 'text-down')}>{p.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}</span>
-        <span className={clsx('tnum relative text-right', dv == null ? 'text-slate-600' : dv > 0 ? 'text-up/80' : 'text-down/80')}>{dv == null ? '' : signed(dv, (x) => x.toFixed(x < 10 ? 2 : 1))}</span>
-        <span className="tnum relative text-right text-slate-200">{q.toFixed(q < 10 ? 3 : 1)}</span>
-        <span className="tnum relative text-right text-slate-400">{cum.toFixed(cum < 100 ? 2 : 0)}</span>
+        <span className={clsx('tnum relative text-right', dv == null ? 'text-fg-off' : dv > 0 ? 'text-up/80' : 'text-down/80')}>{dv == null ? '' : signed(dv, (x) => x.toFixed(x < 10 ? 2 : 1))}</span>
+        <span className="tnum relative text-right text-fg">{q.toFixed(q < 10 ? 3 : 1)}</span>
+        <span className="tnum relative text-right text-fg-3">{cum.toFixed(cum < 100 ? 2 : 0)}</span>
       </div>
     )
   }
@@ -170,16 +171,16 @@ export function DomTile({ live, height, compactUi }: { live: TermLive; height: n
         <Segmented size="sm" value={mkt} onChange={(v) => setMkt(v)} options={[{ value: 'futures', label: t('Perp') }, { value: 'spot', label: t('Spot') }]} />
         <Segmented size="sm" value={step} onChange={setStep} options={STEPS.filter((s) => !compactUi || s >= 1).map((s) => ({ value: s, label: s < 1 ? '0.1' : String(s) }))} />
       </div>
-      <div className="grid grid-cols-[1fr_0.8fr_0.7fr_0.9fr] gap-1 border-b border-white/[0.05] px-2 pb-1 text-[10px] uppercase tracking-wider text-slate-500">
+      <div className="grid grid-cols-[1fr_0.8fr_0.7fr_0.9fr] gap-1 border-b border-line-subtle px-2 pb-1 text-[10px] uppercase tracking-wider text-fg-4">
         <span>{t('Prezzo')}</span><span className="text-right">Δ</span><span className="text-right">{t('BTC')}</span><span className="text-right">{t('Cumulato')}</span>
       </div>
-      {!view ? <div className="flex-1 p-3"><Skeleton className="h-full w-full" /><p className="mt-2 text-center text-xs text-slate-500">{d && !d.synced ? t('Book in sincronizzazione') : ''}</p></div> : (
+      {!view ? <div className="flex-1 p-3"><Skeleton className="h-full w-full" /><p className="mt-2 text-center text-xs text-fg-4">{d && !d.synced ? t('Book in sincronizzazione') : ''}</p></div> : (
         <div className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden">
           <div>{view.A.map((r) => <Row key={`a${r.p}`} {...r} side="a" />)}</div>
-          <div className="my-1 border-y border-white/[0.06] bg-white/[0.02] px-3 py-1.5">
+          <div className="my-1 border-y border-line-subtle bg-white/[0.02] px-3 py-1.5">
             <div className="flex items-baseline justify-between gap-2">
               <span className="tnum text-base font-semibold text-white">{usd((view.bb + view.ba) / 2, 1)}</span>
-              <span className="tnum text-2xs text-slate-400">{t('Spread')} {usd(view.ba - view.bb, 1)} ({((view.ba / view.bb - 1) * 100).toFixed(4)}%)</span>
+              <span className="tnum text-2xs text-fg-3">{t('Spread')} {usd(view.ba - view.bb, 1)} ({((view.ba / view.bb - 1) * 100).toFixed(4)}%)</span>
             </div>
             <div className="mt-1 flex items-center gap-2 text-2xs">
               <span className="tnum text-up">{t('Bid')} {pct(view.share * 100, 1, false)}</span>
@@ -205,10 +206,10 @@ function FeedCol({ items, title, live, mkt }: { items: FeedItem[]; title: string
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex items-baseline justify-between gap-2 px-2 pb-1">
         <span className="label">{title} · 5m</span>
-        <span className="tnum text-2xs text-slate-400">{usdCompact(vol ?? null, 1)} <span className={(dl ?? 0) >= 0 ? 'text-up' : 'text-down'}>{signed(dl, (x) => usdCompact(x, 1).replace('$', '$'))}</span></span>
+        <span className="tnum text-2xs text-fg-3">{usdCompact(vol ?? null, 1)} <span className={(dl ?? 0) >= 0 ? 'text-up' : 'text-down'}>{signed(dl, (x) => usdCompact(x, 1).replace('$', '$'))}</span></span>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
-        {items.length === 0 ? <p className="px-2 py-4 text-center text-2xs text-slate-500">{t('In attesa di trade')}</p> : items.map((x) => {
+        {items.length === 0 ? <p className="px-2 py-4 text-center text-2xs text-fg-4">{t('In attesa di trade')}</p> : items.map((x) => {
           const big = x.u >= 100_000
           const age = Math.max(0, Math.round((now - x.t) / 1000))
           return (
@@ -216,8 +217,8 @@ function FeedCol({ items, title, live, mkt }: { items: FeedItem[]; title: string
               style={big ? { background: hexA(x.b ? C.up : C.down, Math.min(0.32, 0.1 + Math.log10(x.u / 100_000 + 1) * 0.18)) } : undefined}>
               <ExTag ex={exOf(x.s)} />
               <span className={clsx('tnum truncate', x.b ? 'text-up' : 'text-down')}>{x.b ? '▲' : '▼'} {x.p != null ? x.p.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'}</span>
-              <span className={clsx('tnum text-right', big ? 'font-semibold text-white' : 'text-slate-300')}>{tradeUsd(x.u)}{x.a ? <span className="ml-0.5 text-slate-500">×{x.n}</span> : null}</span>
-              <span className="tnum text-right text-slate-500">{age < 60 ? `${age}s` : `${Math.floor(age / 60)}m`}</span>
+              <span className={clsx('tnum text-right', big ? 'font-semibold text-white' : 'text-fg-2')}>{tradeUsd(x.u)}{x.a ? <span className="ml-0.5 text-fg-4">×{x.n}</span> : null}</span>
+              <span className="tnum text-right text-fg-4">{age < 60 ? `${age}s` : `${Math.floor(age / 60)}m`}</span>
             </div>
           )
         })}
@@ -269,8 +270,8 @@ export function FlowTile({ live }: { live: TermLive }) {
         const share = w.buy_share ?? 0.5
         return (
           <div key={k} className="min-w-0">
-            <div className="flex items-baseline justify-between gap-2 text-2xs text-slate-400">
-              <span className="text-xs font-semibold text-white">{k}{w.cov_s != null && w.cov_s < w.win_s - 5 && <span className="ml-1.5 font-normal text-amber-400" title={t('Raccolta avviata da meno della durata della finestra')}>{t('{m} min raccolti', { m: Math.max(1, Math.round(w.cov_s / 60)) })}</span>}</span>
+            <div className="flex items-baseline justify-between gap-2 text-2xs text-fg-3">
+              <span className="text-xs font-semibold text-white">{k}{w.cov_s != null && w.cov_s < w.win_s - 5 && <span className="ml-1.5 font-normal text-warn" title={t('Raccolta avviata da meno della durata della finestra')}>{t('{m} min raccolti', { m: Math.max(1, Math.round(w.cov_s / 60)) })}</span>}</span>
               <span className="tnum truncate">{t('Trade')} {(w.n_buy + w.n_sell).toLocaleString('en-US')} · {t('taglia media')} {usdCompact(w.avg_usd, 1)}</span>
             </div>
             <div className="relative mt-1 flex h-2 overflow-hidden rounded-full bg-white/[0.04]">
@@ -285,7 +286,7 @@ export function FlowTile({ live }: { live: TermLive }) {
           </div>
         )
       })}
-      <div className="tnum flex justify-between border-t border-white/[0.05] pt-1.5 text-2xs text-slate-500">
+      <div className="tnum flex justify-between border-t border-line-subtle pt-1.5 text-2xs text-fg-4">
         <span>{t('Exchange attivi')} {fl.w5.exchanges}</span>
         <span>▲▼ {t('grandi')} ≥ $100K</span>
       </div>
@@ -303,16 +304,16 @@ export function LiqsTile({ live }: { live: TermLive }) {
   return (
     <div className="flex h-full min-h-0 flex-col px-3" data-testid="term-liqs">
       <div className="grid grid-cols-2 gap-2 pb-2">
-        <div className="rounded-lg border border-line bg-white/[0.02] px-2.5 py-1.5"><div className="label">{t('Long 1h')}</div><div className="tnum text-sm font-semibold text-down">{usdCompact(lu, 2)}</div></div>
-        <div className="rounded-lg border border-line bg-white/[0.02] px-2.5 py-1.5"><div className="label">{t('Short 1h')}</div><div className="tnum text-sm font-semibold text-up">{usdCompact(su, 2)}</div></div>
+        <div className="tile px-2.5 py-1.5"><div className="label">{t('Long 1h')}</div><div className="tnum text-sm font-semibold text-down">{usdCompact(lu, 2)}</div></div>
+        <div className="tile px-2.5 py-1.5"><div className="label">{t('Short 1h')}</div><div className="tnum text-sm font-semibold text-up">{usdCompact(su, 2)}</div></div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-        {live.liqs.length === 0 ? <p className="py-4 text-center text-xs text-slate-500">{t('Nessuna liquidazione nelle ultime 24 ore')}</p> : live.liqs.slice(0, 80).map((l, i) => (
-          <div key={`${l.t}-${l.price}-${i}`} className="tnum grid h-6 grid-cols-[22px_auto_1fr_auto] items-center gap-2 border-b border-white/[0.03] text-[11px]">
+        {live.liqs.length === 0 ? <p className="py-4 text-center text-xs text-fg-4">{t('Nessuna liquidazione nelle ultime 24 ore')}</p> : live.liqs.slice(0, 80).map((l, i) => (
+          <div key={`${l.t}-${l.price}-${i}`} className="tnum grid h-6 grid-cols-[22px_auto_1fr_auto] items-center gap-2 border-b border-line-subtle text-[11px]">
             <ExTag ex={l.ex} />
             <span className={l.side === 'long' ? 'text-down' : 'text-up'}>{l.side === 'long' ? t('Long') : t('Short')}</span>
-            <span className="truncate text-slate-300">{usd(l.price, 0)} <span className="text-slate-500">· {new Date(l.t * 1000).toLocaleTimeString('en-GB')}</span></span>
-            <span className={clsx('text-right font-medium', l.usd >= 1e6 ? 'text-white' : 'text-slate-300')}>{tradeUsd(l.usd)}</span>
+            <span className="truncate text-fg-2">{usd(l.price, 0)} <span className="text-fg-4">· {new Date(l.t * 1000).toLocaleTimeString('en-GB')}</span></span>
+            <span className={clsx('text-right font-medium', l.usd >= 1e6 ? 'text-white' : 'text-fg-2')}>{tradeUsd(l.usd)}</span>
           </div>
         ))}
       </div>
@@ -323,9 +324,9 @@ export function LiqsTile({ live }: { live: TermLive }) {
 // ------------------------------------------------------------------ integrità
 function Row({ k, v, tone }: { k: ReactNode; v: ReactNode; tone?: 'ok' | 'warn' }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-white/[0.04] py-1 last:border-0">
-      <span className="min-w-0 text-slate-400">{k}</span>
-      <span className={clsx('tnum shrink-0 text-right font-medium', tone === 'ok' ? 'text-up' : tone === 'warn' ? 'text-amber-400' : 'text-white')}>{v}</span>
+    <div className="flex items-baseline justify-between gap-3 border-b border-line-subtle py-1 last:border-0">
+      <span className="min-w-0 text-fg-3">{k}</span>
+      <span className={clsx('tnum shrink-0 text-right font-medium', tone === 'ok' ? 'text-fg' : tone === 'warn' ? 'text-warn' : 'text-white')}>{v}</span>
     </div>
   )
 }
@@ -350,16 +351,16 @@ export function IntegrityTile({ st }: { st: TermStatus | undefined }) {
               const s = st.streams[k]
               const kc = s.kline_check
               return (
-                <tr key={k} className="border-t border-white/[0.04]">
-                  <td className="px-2 py-1"><span className="inline-flex items-center gap-1.5"><span className={clsx('h-1.5 w-1.5 rounded-full', s.connected ? 'bg-up' : 'bg-down')} /><ExTag ex={s.ex} />{s.mkt === 'perp' ? t('Perp') : t('Spot')}</span></td>
-                  <td className="tnum px-2 py-1 text-right text-slate-300">{s.trades.toLocaleString('en-US')}</td>
-                  <td className="tnum px-2 py-1 text-right text-slate-400">{s.last_age_s != null ? agoSeconds(s.last_age_s).replace(/ (fa|ago)$/, '') : '—'}</td>
-                  <td className={clsx('tnum px-2 py-1 text-right', !kc.n ? 'text-slate-500' : (kc.median_abs ?? 9) < 1 ? 'text-up' : 'text-amber-400')}>
+                <tr key={k} className="border-t border-line-subtle">
+                  <td className="px-2 py-1"><span className="inline-flex items-center gap-1.5"><span className={clsx('h-1.5 w-1.5 rounded-full', s.connected ? 'bg-accent' : 'bg-fg-off')} /><ExTag ex={s.ex} />{s.mkt === 'perp' ? t('Perp') : t('Spot')}</span></td>
+                  <td className="tnum px-2 py-1 text-right text-fg-2">{s.trades.toLocaleString('en-US')}</td>
+                  <td className="tnum px-2 py-1 text-right text-fg-3">{s.last_age_s != null ? agoSeconds(s.last_age_s).replace(/ (fa|ago)$/, '') : '—'}</td>
+                  <td className={clsx('tnum px-2 py-1 text-right', !kc.n ? 'text-fg-4' : (kc.median_abs ?? 9) < 1 ? 'text-fg' : 'text-warn')}>
                     {kc.n ? `${(kc.median_abs ?? 0).toFixed(2)}% · ${(kc.max_abs ?? 0).toFixed(2)}%` : t('In attesa')}
                   </td>
-                  <td className="tnum hidden px-2 py-1 text-right text-slate-400 sm:table-cell">{kc.n || '—'}</td>
-                  <td className="tnum hidden px-2 py-1 text-right text-slate-400 sm:table-cell">{s.recoveries.n ? `${s.recoveries.ok}/${s.recoveries.n}` : '0'}</td>
-                  <td className="tnum hidden px-2 py-1 text-right text-slate-400 sm:table-cell">{s.reconnects}</td>
+                  <td className="tnum hidden px-2 py-1 text-right text-fg-3 sm:table-cell">{kc.n || '—'}</td>
+                  <td className="tnum hidden px-2 py-1 text-right text-fg-3 sm:table-cell">{s.recoveries.n ? `${s.recoveries.ok}/${s.recoveries.n}` : '0'}</td>
+                  <td className="tnum hidden px-2 py-1 text-right text-fg-3 sm:table-cell">{s.reconnects}</td>
                 </tr>
               )
             })}
@@ -368,7 +369,7 @@ export function IntegrityTile({ st }: { st: TermStatus | undefined }) {
       </div>
       <div className="grid gap-x-6 gap-y-0 md:grid-cols-2">
         <div>
-          <div className="label mb-1 mt-1 flex items-center gap-1.5">{okAll ? <CheckCircle2 size={12} className="text-up" /> : <AlertTriangle size={12} className="text-amber-400" />}{t('Verifiche')}</div>
+          <div className="label mb-1 mt-1 flex items-center gap-1.5">{okAll ? <CheckCircle2 size={12} className="text-accent" /> : <AlertTriangle size={12} className="text-warn" />}{t('Verifiche')}</div>
           <Row k={t('Contratto OKX (ctVal ufficiale)')} v={st.okx_ct ? `${st.okx_ct.ct_val} ${st.okx_ct.ccy}` : '—'} tone={st.okx_ct?.ok ? 'ok' : 'warn'} />
           <Row k={t('Premio live vs serie oraria')} v={st.premium_check?.n ? `${(st.premium_check.median_abs_pp ?? 0).toFixed(3)} pp · n ${st.premium_check.n}` : t('In attesa')} />
           <Row k={t('Taker buy Binance vs kline')} v={st.streams.binance_perp.kline_check.buy?.n ? `${(st.streams.binance_perp.kline_check.buy.median_abs ?? 0).toFixed(3)}%` : '—'} />

@@ -6,15 +6,16 @@ import { Toggle } from '../components/ui'
 import type { Candle, Forecast, Fractals, Liquidations, Pt, UsdtAnalysis } from '../api/types'
 import EChart from '../components/charts/EChart'
 import {
-  C, MAGMA, areaGradient, axisLabel, dataZoomInside, dataZoomSlider, dateFmt, hexA, legendBase, lineSeries, timeAxis,
+  C, HEAT, areaGradient, axisLabel, dataZoomInside, dataZoomSlider, dateFmt, hexA, legendBase, lineSeries, timeAxis,
   toXY, tooltipBase, usdAxisFmt, valueAxis,
   ANALOG_COLORS,
 } from '../components/charts/theme'
 import { date, dateTime, pct, usd, usdCompact } from '../lib/format'
 import { dateLocale, t } from '../i18n'
+import { T, alpha } from '../theme/tokens'
 
 type TipParam = { seriesName: string; value: unknown; color: string; axisValue?: number | string; marker?: string; data?: unknown }
-const tipHead = (s: string) => `<div style="color:#94a3b8;font-size:11px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.06)">${s}</div>`
+const tipHead = (s: string) => `<div style="color:${T.fg3};font-size:11px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid ${alpha(T.fg, 0.06)}">${s}</div>`
 const tipRow = (color: string, name: string, val: string) =>
   `<div style="display:flex;justify-content:space-between;gap:18px;align-items:center;line-height:20px"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px"></span>${name}</span><b style="font-variant-numeric:tabular-nums">${val}</b></div>`
 
@@ -28,12 +29,12 @@ export function anomalyMarkPoint(marks: AnomalyMark[] | undefined, xy: [number, 
   const data = marks.map((m) => byDay.get(dayKey(m.time))).filter((p): p is [number, number] => !!p).map((coord) => ({ coord }))
   if (!data.length) return undefined
   return { symbol: 'circle', symbolSize: 8, silent: true, animation: false, label: { show: false },
-    itemStyle: { color: C.amber, borderColor: '#0E1424', borderWidth: 1.5 }, data }
+    itemStyle: { color: C.warn, borderColor: T.surface, borderWidth: 1.5 }, data }
 }
 /** Tooltip row for an anomaly day ('' when the hovered day is not one). */
 export function anomalyTipRow(marks: AnomalyMark[] | undefined, ms: number) {
   const m = marks?.find((x) => dayKey(x.time) === dayKey(ms / 1000))
-  return m ? tipRow(C.amber, t('Anomalia'), `z ${m.z > 0 ? '+' : '−'}${Math.abs(m.z).toFixed(1)}`) : ''
+  return m ? tipRow(C.warn, t('Anomalia'), `z ${m.z > 0 ? '+' : '−'}${Math.abs(m.z).toFixed(1)}`) : ''
 }
 /** "Anomalie" toggle for a card header (the markers come from the Superchart anomaly engine, |z| ≥ 3 on daily data). */
 export function AnomalyToggle({ on, onClick, loading, count }: { on: boolean; onClick: () => void; loading?: boolean; count?: number }) {
@@ -42,7 +43,7 @@ export function AnomalyToggle({ on, onClick, loading, count }: { on: boolean; on
       <Toggle on={on} onClick={onClick}>
         <Radar size={13} className={loading ? 'animate-pulse' : undefined} />{t('Anomalie')}
         {/* how many fall inside the chart: 0 tells the toggle worked, there are simply none in this window */}
-        {on && !loading && count != null && <span className="tnum rounded bg-white/[0.08] px-1 text-2xs text-slate-300">{count}</span>}
+        {on && !loading && count != null && <span className="tnum rounded bg-white/[0.08] px-1 text-2xs text-fg-2">{count}</span>}
       </Toggle>
     </span>
   )
@@ -55,7 +56,7 @@ export function marksIn(marks: AnomalyMark[], pts: { time: number }[]): AnomalyM
 }
 
 // ------------------------------------------------------------------ Liquidation heatmap
-const HEAT_COLORS = MAGMA // magma is reserved for the liquidation heatmap
+const HEAT_COLORS = HEAT // magma is reserved for the liquidation heatmap
 
 export function LiqHeatmapChart({ data, height = 300, livePrice, compact = false }: { data: Liquidations['heatmap']; height?: number | string; livePrice?: number | null; compact?: boolean }) {
   const option = useMemo(() => {
@@ -79,7 +80,7 @@ export function LiqHeatmapChart({ data, height = 300, livePrice, compact = false
         formatter: (p: { seriesType: string; data: unknown }) => {
           if (p.seriesType === 'heatmap') {
             const [xi, yi, v] = p.data as [number, number, number]
-            return `${tipHead(dateTime(times[xi]))}${tipRow(C.btc, t('Prezzo ~{p}', { p: usd(prices[yi]) }), usdCompact(v))}`
+            return `${tipHead(dateTime(times[xi]))}${tipRow(C.price, t('Prezzo ~{p}', { p: usd(prices[yi]) }), usdCompact(v))}`
           }
           return ''
         },
@@ -94,11 +95,11 @@ export function LiqHeatmapChart({ data, height = 300, livePrice, compact = false
         text: [t('Alta'), t('Bassa')], textStyle: { color: C.muted, fontSize: 11 }, inRange: { color: HEAT_COLORS }, seriesIndex: 0,
       },
       series: [
-        { type: 'heatmap', data: heat, yAxisIndex: 0, progressive: 0, emphasis: { itemStyle: { borderColor: '#fff', borderWidth: 1 } } },
+        { type: 'heatmap', data: heat, yAxisIndex: 0, progressive: 0, emphasis: { itemStyle: { borderColor: T.fg, borderWidth: 1 } } },
         {
           type: 'candlestick', data: candleData, yAxisIndex: 1, barMaxWidth: 6, silent: true,
-          itemStyle: { color: '#E6E9EF', color0: 'rgba(15,23,42,0.9)', borderColor: '#E6E9EF', borderColor0: '#94a3b8' },
-          markLine: livePrice ? { symbol: 'none', silent: true, lineStyle: { color: C.btc, type: 'dashed' }, label: { color: '#0A0E17', backgroundColor: C.btc, padding: [2, 4], borderRadius: 3, formatter: () => usd(livePrice), fontSize: 11 }, data: [{ yAxis: livePrice }] } : undefined,
+          itemStyle: { color: T.fg, color0: alpha(T.bg, 0.9), borderColor: T.fg, borderColor0: T.fg3 },
+          markLine: livePrice ? { symbol: 'none', silent: true, lineStyle: { color: C.price, type: 'dashed' }, label: { color: T.bg, backgroundColor: C.price, padding: [2, 4], borderRadius: 3, formatter: () => usd(livePrice), fontSize: 11 }, data: [{ yAxis: livePrice }] } : undefined,
         },
       ],
     }
@@ -121,7 +122,7 @@ export function FractalChart({ data, height = 300, maxMatches = 5, showLegend = 
     const N = { band: t('Banda P10–P90'), cur: t('Attuale'), proj: t('Proiezione P50'), now: t('Ora') }
     const series: unknown[] = [
       lineSeries('P10', lower, 'transparent', { stack: 'band', lineStyle: { width: 0 }, tooltip: { show: false }, legendHoverLink: false }),
-      lineSeries(N.band, diff, 'transparent', { stack: 'band', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.blue, 0.10) } }),
+      lineSeries(N.band, diff, 'transparent', { stack: 'band', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.accent, 0.10) } }),
       ...matches.map((m, i) =>
         // one distinct hue per analog (same colour in legend and tooltip); hovering one fades the others
         lineSeries(m.label, [...m.path, ...m.future], ANALOG_COLORS[i % ANALOG_COLORS.length], {
@@ -129,10 +130,10 @@ export function FractalChart({ data, height = 300, maxMatches = 5, showLegend = 
           emphasis: { disabled: false, focus: 'series', lineStyle: { width: 2.4, opacity: 1 } },
         }),
       ),
-      lineSeries(N.cur, cur, C.btc, { lineStyle: { width: 2, color: C.btc }, areaStyle: { color: areaGradient(C.btc, 0.14, 0), origin: 'start' }, z: 10 }),
+      lineSeries(N.cur, cur, C.accent, { lineStyle: { width: 2, color: C.accent }, areaStyle: { color: areaGradient(C.accent, 0.14, 0), origin: 'start' }, z: 10 }),
       lineSeries(N.proj, pad(data.projection.p50), C.primary, {
         lineStyle: { width: 1.5, type: 'dashed', color: C.primary }, z: 9,
-        markLine: { symbol: 'none', silent: true, lineStyle: { color: 'rgba(226,232,240,0.5)', type: 'dashed' }, label: { color: C.text, formatter: N.now, position: 'end', fontSize: 11 }, data: [{ xAxis: '0' }] },
+        markLine: { symbol: 'none', silent: true, lineStyle: { color: alpha(T.fg, 0.5), type: 'dashed' }, label: { color: C.text, formatter: N.now, position: 'end', fontSize: 11 }, data: [{ xAxis: '0' }] },
       }),
     ]
     return {
@@ -178,9 +179,9 @@ export function UsdtBtcChart({ data, height = 300, levels = false, zoom = false,
         valueAxis({ position: 'right', inverse: true, splitLine: { show: false }, name: t('↓ Invertito'), nameLocation: 'start', nameGap: 10, nameTextStyle: { color: C.muted, fontSize: 11, align: 'right' }, axisLabel: { ...axisLabel, formatter: (v: number) => `${v.toFixed(1)}%` } }),
       ],
       series: [
-        lineSeries(nBtc, btc, C.btc, { areaStyle: { color: areaGradient(C.btc, compact ? 0.1 : 0.16, 0) }, lineStyle: { width: 2, color: C.btc } }),
-        lineSeries(nUd, ud, C.blue, {
-          yAxisIndex: 1, lineStyle: { width: 1.8, color: C.blue },
+        lineSeries(nBtc, btc, C.price, { areaStyle: { color: areaGradient(C.price, compact ? 0.1 : 0.16, 0) }, lineStyle: { width: 2, color: C.price } }),
+        lineSeries(nUd, ud, C.accent, {
+          yAxisIndex: 1, lineStyle: { width: 1.8, color: C.accent },
           markLine: levels ? {
             symbol: 'none', silent: false,
             // only the nearest level above / below the current dominance is labelled; the others on hover
@@ -189,9 +190,9 @@ export function UsdtBtcChart({ data, height = 300, levels = false, zoom = false,
               const on = l === nearAbove || l === nearBelow
               return {
                 yAxis: l.price,
-                lineStyle: { color: on ? 'rgba(148,163,184,0.6)' : 'rgba(148,163,184,0.3)', type: 'dashed', width: 1 },
+                lineStyle: { color: on ? alpha(T.fg3, 0.6) : alpha(T.fg3, 0.3), type: 'dashed', width: 1 },
                 label: { ...tag, show: on },
-                emphasis: { label: { ...tag, show: true }, lineStyle: { color: 'rgba(148,163,184,0.8)', width: 1 } },
+                emphasis: { label: { ...tag, show: true }, lineStyle: { color: alpha(T.fg3, 0.8), width: 1 } },
               }
             }),
           } : undefined,
@@ -212,7 +213,7 @@ export function ForecastFanChart({ data, height = 300, historyDays = 180, showSc
     const bb = [...anchor, ...b]
     const ms = (x: { time: number }) => x.time * 1000
     const N = { hist: t('Storico'), med: t('Mediana') }
-    const scenColors: Record<string, string> = { 0: C.up, 1: C.blue, 2: C.down }
+    const scenColors: Record<string, string> = { 0: C.up, 1: C.accent, 2: C.down }
     return {
       grid: { left: 8, right: 8, top: compact ? 24 : 40, bottom: 8, containLabel: true },
       legend: compact ? undefined : { ...legendBase, data: [N.hist, N.med, '50%', '90%', ...(showScenarios ? data.scenarios.map((s) => s.name) : [])] },
@@ -223,9 +224,9 @@ export function ForecastFanChart({ data, height = 300, historyDays = 180, showSc
           const band = bb.find((x) => x.time * 1000 === x0)
           let s = tipHead(dateFmt(x0))
           const histP = ps.find((p) => p.seriesName === N.hist)
-          if (histP) s += tipRow(C.btc, t('Prezzo'), usd((histP.value as number[])[1]))
+          if (histP) s += tipRow(C.price, t('Prezzo'), usd((histP.value as number[])[1]))
           if (band && band.time !== lastH?.time) {
-            s += tipRow('#E6E9EF', N.med, usd(band.p50)) + tipRow(hexA(C.purple, 0.8), t('Range 50%'), `${usdCompact(band.p25, 1)} – ${usdCompact(band.p75, 1)}`) + tipRow(hexA(C.blue, 0.6), t('Range 90%'), `${usdCompact(band.p05, 1)} – ${usdCompact(band.p95, 1)}`)
+            s += tipRow(T.fg, N.med, usd(band.p50)) + tipRow(hexA(C.steel, 0.8), t('Range 50%'), `${usdCompact(band.p25, 1)} – ${usdCompact(band.p75, 1)}`) + tipRow(hexA(C.accent, 0.6), t('Range 90%'), `${usdCompact(band.p05, 1)} – ${usdCompact(band.p95, 1)}`)
           }
           ps.filter((p) => data.scenarios.some((sc) => sc.name === p.seriesName)).forEach((p) => { s += tipRow(p.color, p.seriesName, usd((p.value as number[])[1])) })
           return s
@@ -235,15 +236,15 @@ export function ForecastFanChart({ data, height = 300, historyDays = 180, showSc
       yAxis: valueAxis({ position: 'right', axisLabel: { ...axisLabel, formatter: usdAxisFmt } }),
       series: [
         lineSeries('p05', bb.map((x) => [ms(x), x.p05]), 'transparent', { stack: 'b90', lineStyle: { width: 0 }, tooltip: { show: false } }),
-        lineSeries('90%', bb.map((x) => [ms(x), x.p95 - x.p05]), hexA(C.blue, 0.6), { stack: 'b90', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.blue, 0.16) } }),
+        lineSeries('90%', bb.map((x) => [ms(x), x.p95 - x.p05]), hexA(C.accent, 0.6), { stack: 'b90', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.accent, 0.16) } }),
         lineSeries('p25', bb.map((x) => [ms(x), x.p25]), 'transparent', { stack: 'b50', lineStyle: { width: 0 }, tooltip: { show: false } }),
-        lineSeries('50%', bb.map((x) => [ms(x), x.p75 - x.p25]), hexA(C.purple, 0.8), { stack: 'b50', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.purple, 0.3) } }),
-        lineSeries(N.hist, hist.map((p) => [p.time * 1000, p.value]), C.btc, {
-          lineStyle: { width: 2, color: C.btc }, areaStyle: { color: areaGradient(C.btc, 0.14, 0) },
-          markLine: lastH ? { symbol: 'none', silent: true, lineStyle: { color: 'rgba(226,232,240,0.45)', type: 'dashed' }, label: { color: C.text, formatter: t('Oggi'), fontSize: 11, position: 'end' }, data: [{ xAxis: lastH.time * 1000 }] } : undefined,
+        lineSeries('50%', bb.map((x) => [ms(x), x.p75 - x.p25]), hexA(C.steel, 0.8), { stack: 'b50', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.steel, 0.3) } }),
+        lineSeries(N.hist, hist.map((p) => [p.time * 1000, p.value]), C.price, {
+          lineStyle: { width: 2, color: C.price }, areaStyle: { color: areaGradient(C.price, 0.14, 0) },
+          markLine: lastH ? { symbol: 'none', silent: true, lineStyle: { color: alpha(T.fg, 0.45), type: 'dashed' }, label: { color: C.text, formatter: t('Oggi'), fontSize: 11, position: 'end' }, data: [{ xAxis: lastH.time * 1000 }] } : undefined,
         }),
-        lineSeries(N.med, bb.map((x) => [ms(x), x.p50]), '#E6E9EF', { lineStyle: { width: 2, type: 'dashed', color: '#E6E9EF' } }),
-        ...(showScenarios ? data.scenarios.map((s, i) => lineSeries(s.name, [[lastH.time * 1000, lastH.value], ...s.path.map((p) => [p.time * 1000, p.value])], scenColors[i] ?? C.cyan, { lineStyle: { width: 1.4, opacity: 0.85, color: scenColors[i] ?? C.cyan } })) : []),
+        lineSeries(N.med, bb.map((x) => [ms(x), x.p50]), T.fg, { lineStyle: { width: 2, type: 'dashed', color: T.fg } }),
+        ...(showScenarios ? data.scenarios.map((s, i) => lineSeries(s.name, [[lastH.time * 1000, lastH.value], ...s.path.map((p) => [p.time * 1000, p.value])], scenColors[i] ?? C.sand, { lineStyle: { width: 1.4, opacity: 0.85, color: scenColors[i] ?? C.sand } })) : []),
       ],
     }
   }, [data, historyDays, showScenarios, compact])

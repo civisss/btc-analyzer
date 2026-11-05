@@ -54,8 +54,11 @@ def status():
     except Exception:  # noqa: BLE001
         liq = False
         liq_multi = None
+    from ..agents import engine  # noqa: PLC0415
+
     return {
         "datasets": [_dataset(n) for n in store.REGISTRY],
+        "agents": engine.status(),
         "llm": llm.status(),
         "liquidation_stream": liq,
         "liquidation_streams": liq_multi,

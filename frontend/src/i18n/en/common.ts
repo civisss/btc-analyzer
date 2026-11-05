@@ -2,11 +2,7 @@
 const en: Record<string, string> = {
   // nav / groups
   Mercato: 'Market',
-  'Cicli e tempo': 'Cycles & time',
-  'Flussi e derivati': 'Flows & derivatives',
-  'On-chain e macro': 'On-chain & macro',
   Modelli: 'Models',
-  Altro: 'Other',
   Dashboard: 'Dashboard',
   Grafici: 'Charts',
   Sintesi: 'Insights',
@@ -18,7 +14,6 @@ const en: Record<string, string> = {
   Derivati: 'Derivatives',
   USDT: 'USDT',
   'On-Chain': 'On-Chain',
-  'Macro e rotazione': 'Macro & rotation',
   Previsioni: 'Forecasts',
   Agenti: 'Agents',
   Struttura: 'Structure',

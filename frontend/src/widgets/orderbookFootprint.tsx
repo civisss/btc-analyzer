@@ -8,6 +8,7 @@ import type { ObFootprint, ObLiveFp } from '../api/orderbook'
 import { FONT } from '../components/charts/theme'
 import { t } from '../i18n'
 import { usd } from '../lib/format'
+import { T, alpha } from '../theme/tokens'
 
 type N = number | null
 export interface FpCandle {
@@ -93,7 +94,7 @@ const FootprintCanvas = forwardRef<FpHandle, { store: FpStore; compactUi?: boole
     if (!canvas || !w || !h) return
     const ctx = canvas.getContext('2d')!
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.fillStyle = '#060912'; ctx.fillRect(0, 0, w, h)
+    ctx.fillStyle = T.bg; ctx.fillRect(0, 0, w, h)
     if (!view.current) view.current = defaultView()
     const v = view.current
     const n = store.candles.length
@@ -117,7 +118,7 @@ const FootprintCanvas = forwardRef<FpHandle, { store: FpStore; compactUi?: boole
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, pw, ph); ctx.clip()
     // griglia prezzi
     const pstep = Math.max(store.bin, niceStep(((v.p1 - v.p0) / ph) * 40))
-    ctx.strokeStyle = 'rgba(148,163,210,0.05)'; ctx.lineWidth = 1
+    ctx.strokeStyle = alpha(T.fg3, 0.05); ctx.lineWidth = 1
     for (let p = Math.ceil(v.p0 / pstep) * pstep; p <= v.p1; p += pstep) { const y = Math.round(Y(p)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke() }
     ctx.textBaseline = 'middle'
     for (let i = a; i < b; i++) {
@@ -128,7 +129,7 @@ const FootprintCanvas = forwardRef<FpHandle, { store: FpStore; compactUi?: boole
       const cwid = v.cw - strip - 6
       const up = c.c >= c.o
       // candela (wick + corpo) sul bordo sinistro
-      ctx.strokeStyle = up ? '#2EBD85' : '#EF5466'; ctx.fillStyle = up ? '#2EBD85' : '#EF5466'
+      ctx.strokeStyle = up ? T.up : T.down; ctx.fillStyle = up ? T.up : T.down
       ctx.beginPath(); ctx.moveTo(x + strip / 2 + 0.5, Y(c.h)); ctx.lineTo(x + strip / 2 + 0.5, Y(c.l)); ctx.stroke()
       const yo = Y(c.o), yc = Y(c.c)
       ctx.fillRect(x, Math.min(yo, yc), strip, Math.max(1, Math.abs(yc - yo)))
@@ -139,44 +140,44 @@ const FootprintCanvas = forwardRef<FpHandle, { store: FpStore; compactUi?: boole
         const hh = Math.max(1, y1 - y0 - (rowH > 4 ? 1 : 0))
         const d = c.b[k] - c.s[k]
         const al = 0.08 + Math.min(1, Math.abs(d) / maxD) * 0.55
-        ctx.fillStyle = d >= 0 ? `rgba(46,189,133,${al})` : `rgba(239,84,102,${al})`
+        ctx.fillStyle = d >= 0 ? alpha(T.up, al) : alpha(T.down, al)
         ctx.fillRect(cx, y0, cwid, hh)
         // profilo del volume (barra sottile)
         if (full) {
-          ctx.fillStyle = 'rgba(232,236,244,0.10)'
+          ctx.fillStyle = alpha(T.fg, 0.10)
           ctx.fillRect(cx, y1 - 2.5, ((c.b[k] + c.s[k]) / maxV) * cwid, 2)
         }
-        if (c.poc === p) { ctx.strokeStyle = '#E8B04B'; ctx.lineWidth = 1.25; ctx.strokeRect(cx + 0.5, y0 + 0.5, cwid - 1, hh - 1) }
+        if (c.poc === p) { ctx.strokeStyle = T.accent; ctx.lineWidth = 1.25; ctx.strokeRect(cx + 0.5, y0 + 0.5, cwid - 1, hh - 1) }
         if (full) {
           const tight = cwid < 100
           const fs = rowH >= 15 ? 11 : 10
           const ym = y0 + hh / 2
           const im = c.imb[k]
           ctx.font = `${im & 2 ? 600 : 400} ${fs}px ${FONT}`
-          ctx.fillStyle = im & 2 ? '#FF7A88' : '#B3BCD0'; ctx.textAlign = 'right'
+          ctx.fillStyle = im & 2 ? T.downHi : T.fg2; ctx.textAlign = 'right'
           ctx.fillText(qf(c.s[k], tight), cx + cwid / 2 - 6, ym)
-          ctx.fillStyle = '#566079'; ctx.textAlign = 'center'; ctx.font = `400 ${fs}px ${FONT}`
+          ctx.fillStyle = T.fgOff; ctx.textAlign = 'center'; ctx.font = `400 ${fs}px ${FONT}`
           ctx.fillText('×', cx + cwid / 2, ym)
           ctx.font = `${im & 1 ? 600 : 400} ${fs}px ${FONT}`
-          ctx.fillStyle = im & 1 ? '#4BE0A6' : '#B3BCD0'; ctx.textAlign = 'left'
+          ctx.fillStyle = im & 1 ? T.upHi : T.fg2; ctx.textAlign = 'left'
           ctx.fillText(qf(c.b[k], tight), cx + cwid / 2 + 6, ym)
         } else if (c.imb[k]) {
-          ctx.fillStyle = c.imb[k] & 1 ? '#4BE0A6' : '#FF7A88'
+          ctx.fillStyle = c.imb[k] & 1 ? T.upHi : T.downHi
           ctx.fillRect(c.imb[k] & 1 ? cx + cwid - 2 : cx, y0, 2, hh)
         }
       }
       for (const z of c.stacked) {
-        ctx.fillStyle = z.side === 'buy' ? '#4BE0A6' : '#FF7A88'
+        ctx.fillStyle = z.side === 'buy' ? T.upHi : T.downHi
         const y0 = Y(z.to), y1 = Y(z.from)
         ctx.fillRect(z.side === 'buy' ? cx + cwid + 1 : cx - 3, y0, 2, y1 - y0)
       }
-      if (!c.ok) { ctx.fillStyle = '#E8B04B'; ctx.beginPath(); ctx.arc(x + v.cw / 2, 7, 2.5, 0, Math.PI * 2); ctx.fill() }
+      if (!c.ok) { ctx.fillStyle = T.warn; ctx.beginPath(); ctx.arc(x + v.cw / 2, 7, 2.5, 0, Math.PI * 2); ctx.fill() }
     }
     ctx.restore()
     // riepilogo per candela + CVD
     const sy = ph + AXIS_B
-    ctx.fillStyle = '#0B1020'; ctx.fillRect(0, ph, pw, AXIS_B + SUMMARY + CVD_H)
-    ctx.strokeStyle = 'rgba(148,163,210,0.12)'
+    ctx.fillStyle = T.bg; ctx.fillRect(0, ph, pw, AXIS_B + SUMMARY + CVD_H)
+    ctx.strokeStyle = alpha(T.fg3, 0.12)
     ctx.beginPath(); ctx.moveTo(0, ph + 0.5); ctx.lineTo(w, ph + 0.5); ctx.moveTo(0, sy + SUMMARY + 0.5); ctx.lineTo(w, sy + SUMMARY + 0.5); ctx.stroke()
     ctx.font = `400 11px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     const every = Math.max(1, Math.ceil(70 / v.cw))
@@ -192,45 +193,45 @@ const FootprintCanvas = forwardRef<FpHandle, { store: FpStore; compactUi?: boole
     for (let i = a; i < b; i++) {
       const c = store.candles[i]
       const xm = (i - v.i0 + 0.5) * v.cw
-      if ((i % every) === 0 && xm > 20 && xm < pw - 20) { ctx.fillStyle = '#8892A8'; ctx.fillText(hm(c.t), xm, ph + AXIS_B / 2 + 1) }
+      if ((i % every) === 0 && xm > 20 && xm < pw - 20) { ctx.fillStyle = T.fg3; ctx.fillText(hm(c.t), xm, ph + AXIS_B / 2 + 1) }
       if (v.cw >= 46) {
-        ctx.fillStyle = c.delta >= 0 ? '#2EBD85' : '#EF5466'
+        ctx.fillStyle = c.delta >= 0 ? T.up : T.down
         ctx.font = `600 11px ${FONT}`
         ctx.fillText(`${c.delta >= 0 ? '+' : '−'}${qf(Math.abs(c.delta), v.cw < 100)}`, xm, sy + 11)
-        ctx.fillStyle = '#8892A8'; ctx.font = `400 10px ${FONT}`
+        ctx.fillStyle = T.fg3; ctx.font = `400 10px ${FONT}`
         ctx.fillText(qf(c.buy + c.sell, v.cw < 100), xm, sy + 27)
       } else {
         const hh = Math.min(14, (Math.abs(c.delta) / Math.max(1e-9, ...store.candles.slice(a, b).map((x) => Math.abs(x.delta)))) * 14)
-        ctx.fillStyle = c.delta >= 0 ? '#2EBD85' : '#EF5466'
+        ctx.fillStyle = c.delta >= 0 ? T.up : T.down
         ctx.fillRect(xm - v.cw * 0.3, c.delta >= 0 ? sy + 18 - hh : sy + 18, v.cw * 0.6, hh)
       }
     }
     // CVD
     if (b > a) {
-      if (cmin < 0 && cmax > 0) { ctx.strokeStyle = 'rgba(148,163,210,0.18)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, cy(0)); ctx.lineTo(pw, cy(0)); ctx.stroke(); ctx.setLineDash([]) }
-      ctx.strokeStyle = '#5B8DEF'; ctx.lineWidth = 1.5; ctx.beginPath()
+      if (cmin < 0 && cmax > 0) { ctx.strokeStyle = alpha(T.fg3, 0.18); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, cy(0)); ctx.lineTo(pw, cy(0)); ctx.stroke(); ctx.setLineDash([]) }
+      ctx.strokeStyle = T.fg; ctx.lineWidth = 1.5; ctx.beginPath()
       for (let i = a; i < b; i++) { const xm = (i - v.i0 + 0.5) * v.cw; if (i === a) ctx.moveTo(xm, cy(cvd[i])); else ctx.lineTo(xm, cy(cvd[i])) }
       ctx.stroke()
     }
-    ctx.textAlign = 'left'; ctx.font = `500 10px ${FONT}`; ctx.fillStyle = '#6B7590'
+    ctx.textAlign = 'left'; ctx.font = `500 10px ${FONT}`; ctx.fillStyle = T.fg4
     ctx.fillText('DELTA · VOL', 6, sy + 11 + (v.cw >= 46 ? 0 : 0))
     ctx.fillText(`CVD ${t('dalla prima candela caricata')}`, 6, sy + SUMMARY + 9)
     // asse prezzi
-    ctx.fillStyle = '#060912'; ctx.fillRect(pw, 0, AXIS_R, h)
-    ctx.strokeStyle = 'rgba(148,163,210,0.12)'; ctx.beginPath(); ctx.moveTo(pw + 0.5, 0); ctx.lineTo(pw + 0.5, h); ctx.stroke()
-    ctx.fillStyle = '#8892A8'; ctx.font = `400 11px ${FONT}`; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'
+    ctx.fillStyle = T.bg; ctx.fillRect(pw, 0, AXIS_R, h)
+    ctx.strokeStyle = alpha(T.fg3, 0.12); ctx.beginPath(); ctx.moveTo(pw + 0.5, 0); ctx.lineTo(pw + 0.5, h); ctx.stroke()
+    ctx.fillStyle = T.fg3; ctx.font = `400 11px ${FONT}`; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'
     for (let p = Math.ceil(v.p0 / pstep) * pstep; p <= v.p1; p += pstep) { const y = Y(p); if (y > 6 && y < ph - 6) ctx.fillText(usd(p, 0), pw + 6, y) }
     ctx.fillText(`${cmax >= 0 ? '+' : '−'}${qf(Math.abs(cmax), true)}`, pw + 6, cy(cmax))
     ctx.fillText(`${cmin >= 0 ? '+' : '−'}${qf(Math.abs(cmin), true)}`, pw + 6, cy(cmin))
     const last = store.candles[n - 1]
     if (last) {
       const y = Math.min(ph - 8, Math.max(8, Y(last.c)))
-      ctx.fillStyle = '#E8ECF4'; ctx.fillRect(pw + 1, y - 9, AXIS_R - 2, 18)
-      ctx.fillStyle = '#060912'; ctx.font = `600 11px ${FONT}`; ctx.fillText(usd(last.c, 1), pw + 5, y)
+      ctx.fillStyle = T.fg; ctx.fillRect(pw + 1, y - 9, AXIS_R - 2, 18)
+      ctx.fillStyle = T.bg; ctx.font = `600 11px ${FONT}`; ctx.fillText(usd(last.c, 1), pw + 5, y)
     }
     const hv = hover.current
     if (hv && !drag.current && hv.x < pw && hv.y < ph) {
-      ctx.strokeStyle = 'rgba(232,236,244,0.3)'; ctx.setLineDash([3, 3])
+      ctx.strokeStyle = alpha(T.fg, 0.3); ctx.setLineDash([3, 3])
       ctx.beginPath(); ctx.moveTo(0, Math.round(hv.y) + 0.5); ctx.lineTo(pw, Math.round(hv.y) + 0.5); ctx.stroke(); ctx.setLineDash([])
     }
     renderMs.current = renderMs.current ? renderMs.current * 0.8 + (performance.now() - t0p) * 0.2 : performance.now() - t0p
@@ -255,16 +256,16 @@ const FootprintCanvas = forwardRef<FpHandle, { store: FpStore; compactUi?: boole
     const rows: { k: string; v: string; c?: string }[] = []
     if (k >= 0) {
       rows.push({ k: t('Livello'), v: `${usd(pb, 0)} – ${usd(pb + store.bin, 0)}` })
-      rows.push({ k: t('Acquisti aggressivi'), v: `${c.b[k].toFixed(3)} BTC`, c: c.imb[k] & 1 ? '#4BE0A6' : undefined })
-      rows.push({ k: t('Vendite aggressive'), v: `${c.s[k].toFixed(3)} BTC`, c: c.imb[k] & 2 ? '#FF7A88' : undefined })
+      rows.push({ k: t('Acquisti aggressivi'), v: `${c.b[k].toFixed(3)} BTC`, c: c.imb[k] & 1 ? T.upHi : undefined })
+      rows.push({ k: t('Vendite aggressive'), v: `${c.s[k].toFixed(3)} BTC`, c: c.imb[k] & 2 ? T.downHi : undefined })
       rows.push({ k: t('Delta livello'), v: `${c.b[k] - c.s[k] >= 0 ? '+' : '−'}${Math.abs(c.b[k] - c.s[k]).toFixed(3)}` })
-      if (c.imb[k]) rows.push({ k: t('Imbalance'), v: [c.imb[k] & 1 ? t('acquisto') : '', c.imb[k] & 2 ? t('vendita') : ''].filter(Boolean).join(' · ') + ` ≥ ${store.ratio}:1`, c: '#E8B04B' })
-      if (c.poc === pb) rows.push({ k: 'POC', v: t('Livello con più volume della candela'), c: '#E8B04B' })
+      if (c.imb[k]) rows.push({ k: t('Imbalance'), v: [c.imb[k] & 1 ? t('acquisto') : '', c.imb[k] & 2 ? t('vendita') : ''].filter(Boolean).join(' · ') + ` ≥ ${store.ratio}:1`, c: T.warn })
+      if (c.poc === pb) rows.push({ k: 'POC', v: t('Livello con più volume della candela'), c: T.accent })
     }
     rows.push({ k: t('Candela'), v: `O ${usd(c.o, 1)} · C ${usd(c.c, 1)}` })
-    rows.push({ k: t('Delta candela'), v: `${c.delta >= 0 ? '+' : '−'}${Math.abs(c.delta).toFixed(2)} BTC`, c: c.delta >= 0 ? '#2EBD85' : '#EF5466' })
+    rows.push({ k: t('Delta candela'), v: `${c.delta >= 0 ? '+' : '−'}${Math.abs(c.delta).toFixed(2)} BTC`, c: c.delta >= 0 ? T.up : T.down })
     rows.push({ k: t('Volume'), v: `${(c.buy + c.sell).toFixed(2)} BTC · ${c.n.toLocaleString('en-US')} ${t('trade')}` })
-    if (!c.ok) rows.push({ k: t('Nota'), v: t('Candela parziale (raccolta incompleta)'), c: '#E8B04B' })
+    if (!c.ok) rows.push({ k: t('Nota'), v: t('Candela parziale (raccolta incompleta)'), c: T.warn })
     const d = new Date(c.t * 1000)
     setTip({ x: hv.x, y: hv.y, title: `${d.getDate()}/${pad2(d.getMonth() + 1)} ${hm(c.t)} · ${store.tf}`, rows })
   }
@@ -348,10 +349,10 @@ const FootprintCanvas = forwardRef<FpHandle, { store: FpStore; compactUi?: boole
       {tip && (
         <div className="pop pointer-events-none absolute z-10 w-64 rounded-xl p-2.5 text-xs"
           style={{ left: Math.min(tip.x + 14, (size.current.w || 300) - 270), top: Math.max(4, Math.min(tip.y + 14, (size.current.h || 300) - 200)) }}>
-          <div className="label mb-1.5 text-slate-300">{tip.title}</div>
+          <div className="label mb-1.5 text-fg-2">{tip.title}</div>
           {tip.rows.map((r) => (
             <div key={r.k} className="flex items-baseline justify-between gap-3 py-0.5">
-              <span className="shrink-0 text-slate-400">{r.k}</span>
+              <span className="shrink-0 text-fg-3">{r.k}</span>
               <span className="tnum text-right font-medium text-white" style={r.c ? { color: r.c } : undefined}>{r.v}</span>
             </div>
           ))}

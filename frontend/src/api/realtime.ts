@@ -10,6 +10,7 @@ import { live } from './live'
 /** API path prefix → query-key roots (first element of the queryKey). */
 const PATH_KEYS: [string, string[]][] = [
   ['/overview', ['overview']],
+  ['/scoreboard', ['scoreboard']],
   ['/candles', ['candles']],
   ['/indicators', ['indicators']],
   ['/levels', ['levels']],
@@ -30,28 +31,21 @@ const PATH_KEYS: [string, string[]][] = [
   ['/timepivots', ['timepivots']],
   ['/macro', ['macro']],
   ['/stablecoins', ['stablecoins']],
-  ['/forecast/kronos', ['kronos']],
   ['/forecast', ['forecast']],
   ['/insights', ['insights']],
-  ['/agents/messages', ['agentMessages']],
-  ['/agents', ['agents', 'agentMessages']],
   ['/structure', ['structure']],
   ['/positioning', ['positioning']],
   ['/supply-demand', ['supplyDemand']],
   ['/events', ['events']],
-  ['/astro', ['astro']],
   ['/tracking', ['tracking']],
   ['/alerts/rules', ['alertRules']],
-  ['/journal', ['journal']],
   ['/alerts', ['alerts']],
   ['/status', ['status']],
   ['/vwap', ['vwap']],
-  ['/timing', ['timing']],
-  ['/elliott', ['elliott']],
   ['/superchart', ['superchart']],
   ['/anomalies', ['anomalies']],
   ['/orderbook', ['orderbook']],
-  ['/terminal', ['terminal']],   // stato/segnali del Terminale (agente "flow"); serie e live: 'term-series' + WS dedicato   // solo stato/segnali: heatmap e footprint ('ob-heatmap', 'ob-footprint') si aggiornano dal WS dedicato
+  ['/terminal', ['terminal']],   // solo stato/segnali: serie, heatmap e footprint si aggiornano dal WS dedicato
 ]
 
 /** Query-key roots touched by a list of API path prefixes (unknown paths fall back to their first segment). */

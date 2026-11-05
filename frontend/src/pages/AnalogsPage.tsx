@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ScanSearch, GitCompareArrows, ListChecks, MessageSquareText, Target, Layers, Radio, Spline, SlidersHorizontal, ChevronDown, ChevronUp, Scale, Settings2, Activity, History, Crosshair } from 'lucide-react'
+import { ScanSearch, GitCompareArrows, ListChecks, MessageSquareText, Target, Layers, Radio, Spline, SlidersHorizontal, ChevronDown, ChevronUp, Scale, Activity, History, Crosshair } from 'lucide-react'
 import { useAnalogs, type AnalogCandle, type AnalogMatch, type AnalogTf } from '../api/analogs'
 import { useLive } from '../api/live'
 import Sparkline from '../components/charts/Sparkline'
 import { C } from '../components/charts/theme'
-import { Badge, Card, CardBody, CardHeader, Change, ICON, KpiCell, KpiStrip, Legend, MethodNote, PageTitle, ProgressBar, Q, Segmented, Skeleton, TabBar, Toggle, ToneBadge, clsx } from '../components/ui'
+import { Badge, Card, CardBody, CardHeader, Change, ICON, KpiCell, KpiStrip, Legend, MethodNote, ProgressBar, Q, Segmented, Skeleton, Toggle, ToneBadge, clsx, PageActions, SettingsPanel, SectionHead } from '../components/ui'
 import { date, pct, usd } from '../lib/format'
 import { t, tfLabel } from '../i18n'
 import { usePrice } from '../widgets/hooks'
-import { useTab } from '../lib/useTab'
-import { ImagePatternTab } from '../widgets/imagePattern'
-import { StructureAnalogsTab } from '../widgets/structAnalogs'
 import {
   AnalogCandles, AnalogOverlay, DCell, FeatureCard, LEG_COLOR, LINE_STYLE, LegBars, LegTable, MATCH_GRID, MappingList, balancedCols, PatternBadges, VisualBreakdown, analogStats, buildFuture, pctRangeWithFuture, plabel, whenYear, type ChartLayers,
 } from '../widgets/analogs'
+import { T, alpha } from '../theme/tokens'
 
 const DEFAULT_WINDOW: Record<AnalogTf, number> = { '1h': 72, '4h': 60, '1d': 60, '1w': 26 }
 
@@ -65,42 +63,25 @@ function MatchPicker({ m, selected, onClick }: { m: AnalogMatch; selected: boole
     <button
       onClick={onClick}
       className={clsx('flex h-full flex-col rounded-2xl border bg-surface p-4 text-left transition-colors',
-        selected ? 'border-accent-blue/60' : 'border-line hover:border-white/15')}
+        selected ? 'border-accent/60' : 'border-line hover:border-line-strong')}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="tnum text-xs text-slate-400">#{m.rank}</span>
+          <span className="tnum text-xs text-fg-3">#{m.rank}</span>
           <span className="truncate text-sm text-white">{plabel(m.period.label)}</span>
         </div>
         <Change value={m.outcome.change} digits={1} className="text-sm" />
       </div>
-      <div className="relative mt-2 min-h-10 flex-1"><Sparkline className="absolute inset-0 h-full" data={path} color={selected ? C.blue : '#8B94A7'} height={40} /></div>
-      <div className="mt-2 flex items-center justify-between text-xs"><span className="text-slate-400">{t('Similarità')}</span><span className="tnum text-white">{m.similarity.toFixed(0)}%</span></div>
-      <ProgressBar value={m.similarity} color="#5B8DEF" className="mt-1 h-1" />
-      <div className="mt-1.5 flex justify-between text-2xs text-slate-400"><span>{t('Grafica {n}%', { n: m.visual_similarity.toFixed(0) })}</span><span>{t('Indicatori {n}%', { n: m.feature_similarity.toFixed(0) })}</span></div>
-      <div className="mt-1.5 h-4 truncate text-2xs text-slate-400">{m.patterns.common_name ? t('Entrambi: {x}', { x: m.patterns.common_name.toLowerCase() }) : ''}</div>
+      <div className="relative mt-2 min-h-10 flex-1"><Sparkline className="absolute inset-0 h-full" data={path} color={selected ? C.accent : T.fg3} height={40} /></div>
+      <div className="mt-2 flex items-center justify-between text-xs"><span className="text-fg-3">{t('Similarità')}</span><span className="tnum text-white">{m.similarity.toFixed(0)}%</span></div>
+      <ProgressBar value={m.similarity} color={T.accent} className="mt-1 h-1" />
+      <div className="mt-1.5 flex justify-between text-2xs text-fg-3"><span>{t('Grafica {n}%', { n: m.visual_similarity.toFixed(0) })}</span><span>{t('Indicatori {n}%', { n: m.feature_similarity.toFixed(0) })}</span></div>
+      <div className="mt-1.5 h-4 truncate text-2xs text-fg-3">{m.patterns.common_name ? t('Entrambi: {x}', { x: m.patterns.common_name.toLowerCase() }) : ''}</div>
     </button>
   )
 }
 
-type Tab = 'live' | 'struttura' | 'image'
-const SUBTITLE: Record<Tab, string> = {
-  live: 'Il periodo storico più simile al grafico attuale, e perché.',
-  struttura: 'Il movimento attuale confrontato con quelli passati per sequenza di massimi e minimi, e i prossimi pivot attesi.',
-  image: 'Carica uno screenshot di un grafico: troviamo i periodi di BTC con la stessa figura.',
-}
-export default function AnalogsPage() {
-  const [tab, setTab] = useTab<Tab>(['live', 'struttura', 'image'], 'live')
-  return (
-    <div>
-      <PageTitle title={t('Analoghi')} subtitle={t(SUBTITLE[tab])} />
-      <TabBar value={tab} onChange={setTab} tabs={[{ value: 'live', label: t('Grafico attuale') }, { value: 'struttura', label: t('Analogia di struttura') }, { value: 'image', label: t('Da immagine') }]} />
-      {tab === 'live' ? <LiveAnalogs /> : tab === 'struttura' ? <StructureAnalogsTab /> : <ImagePatternTab />}
-    </div>
-  )
-}
-
-function LiveAnalogs() {
+export default function LiveAnalogs() {
   const [tf, setTf] = useState<AnalogTf>('1d')
   const [win, setWin] = useState(DEFAULT_WINDOW['1d'])
   const [top, setTop] = useState(5)
@@ -120,17 +101,13 @@ function LiveAnalogs() {
 
   return (
     <div>
-      <Card className="mb-3">
-        <CardHeader title={t('Parametri')} icon={<Settings2 />} right={q.isFetching ? <span className="text-xs text-slate-400">{t('Calcolo in corso…')}</span> : null} />
-        <CardBody className="flex flex-wrap items-end gap-x-8 gap-y-4">
-          <div className="flex flex-col gap-2">
-            <span className="label">{t('Timeframe')}</span>
-            <Segmented value={tf} onChange={onTf} size="md" options={(['1h', '4h', '1d', '1w'] as const).map((v) => ({ value: v, label: tfLabel(v) }))} />
-          </div>
+      <PageActions>
+        <Segmented value={tf} onChange={onTf} options={(['1h', '4h', '1d', '1w'] as const).map((v) => ({ value: v, label: tfLabel(v) }))} />
+        <SettingsPanel busy={q.isFetching}>
           <Slider label={t('Finestra attuale (candele)')} value={win} min={20} max={200} step={2} onChange={setWin} />
           <Slider label={t('Numero di analoghi')} value={top} min={1} max={8} onChange={setTop} />
-        </CardBody>
-      </Card>
+        </SettingsPanel>
+      </PageActions>
 
       <Q q={q} loading={<div className="grid gap-5"><Skeleton className="h-44" /><Skeleton className="h-[380px]" /><Skeleton className="h-64" /></div>}
         isEmpty={(d) => !d.matches.length} empty={t('Nessun analogo trovato con questi parametri: prova una finestra più corta.')}>
@@ -165,17 +142,17 @@ function LiveAnalogs() {
                     <div className="mb-1.5 flex flex-wrap items-center gap-2">
                       <Badge>{t('Analogo #{n}', { n: m.rank })}</Badge>
                       <Badge color="slate">{plabel(d.current.label)}</Badge>
-                      {live && <Badge color="up"><Radio size={12} /> {t('Live')}</Badge>}
+                      {live && <Badge color="btc"><Radio size={12} /> {t('Live')}</Badge>}
                     </div>
                     <h2 className="text-lg font-semibold leading-snug tracking-tight text-white">
                       {t('Il grafico attuale ({w} candele {tf}) somiglia a', { w, tf: tfLabel(d.tf) })}{' '}
                       <span className="text-white">{pl.replace(/ \(\w+\)$/, '')}</span>
-                      <span className="text-slate-400"> · {t('somiglianza grafica {n}%', { n: Math.round(m.visual_similarity) })}</span>
+                      <span className="text-fg-3"> · {t('somiglianza grafica {n}%', { n: Math.round(m.visual_similarity) })}</span>
                     </h2>
-                    <p className="mt-1.5 text-sm text-slate-300">{m.patterns.text}</p>
-                    <p className="mt-1 text-sm text-slate-400">
-                      {t('Complessiva')} <b className="text-slate-200">{m.similarity.toFixed(0)}%</b> {t('= 70% grafica + 30% indicatori')}
-                      {' '}(<b className="text-slate-200">{m.feature_similarity.toFixed(0)}%</b> {t('su {n}', { n: nAvail })}) · {date(m.period.start)} → {date(m.period.end)}
+                    <p className="mt-1.5 text-sm text-fg-2">{m.patterns.text}</p>
+                    <p className="mt-1 text-sm text-fg-3">
+                      {t('Complessiva')} <b className="text-fg">{m.similarity.toFixed(0)}%</b> {t('= 70% grafica + 30% indicatori')}
+                      {' '}(<b className="text-fg">{m.feature_similarity.toFixed(0)}%</b> {t('su {n}', { n: nAvail })}) · {date(m.period.start)} → {date(m.period.end)}
                     </p>
                   </div>
                   </div>
@@ -184,7 +161,7 @@ function LiveAnalogs() {
               <KpiStrip cols="grid-cols-2 lg:grid-cols-4">
                 <KpiCell icon={<Target />} label={t('Mediana analoghi ({n})', { n: stats?.n ?? d.matches.length })}
                   value={stats ? pct(stats.median, 1) : '—'}
-                  delta={stats ? <span className="text-slate-200">{usd(stats.price)}</span> : null}
+                  delta={stats ? <span className="text-fg">{usd(stats.price)}</span> : null}
                   foot={stats ? rangeTxt : null}
                   title={t('Esito mediano di tutti gli analoghi applicato al prezzo attuale; range = 25°–75° percentile degli esiti.')} />
                 <KpiCell icon={<Activity />} label={t('Oggi')} value={<Change value={curChg} digits={1} />} foot={t("Dall'inizio finestra")} />
@@ -205,7 +182,7 @@ function LiveAnalogs() {
                       <Segmented value={mode} onChange={setMode} options={[{ value: 'side', label: t('Affiancati') }, { value: 'overlay', label: t('Sovrapposti') }]} />
                       <Toggle on={layers.legs} onClick={() => setLayers({ ...layers, legs: !layers.legs })} color={LEG_COLOR}>{t('Gambe')}</Toggle>
                       <Toggle on={layers.patterns} onClick={() => setLayers({ ...layers, patterns: !layers.patterns })} color={LINE_STYLE.neckline.color}>{t('Figure')}</Toggle>
-                      <Toggle on={layers.points} onClick={() => setLayers({ ...layers, points: !layers.points })} color={C.btc}>{t('Punti')}</Toggle>
+                      <Toggle on={layers.points} onClick={() => setLayers({ ...layers, points: !layers.points })} color={C.accent}>{t('Punti')}</Toggle>
                     </>
                   }
                 />
@@ -214,20 +191,20 @@ function LiveAnalogs() {
                     <div className="grid gap-4 xl:grid-cols-2">
                       <div className="min-w-0">
                         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-sm">
-                          <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-btc" />{t('Oggi')} · {plabel(d.current.label)}</span>
-                          <span className="tnum text-slate-300">{usd(livePrice)}</span>
+                          <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-accent" />{t('Oggi')} · {plabel(d.current.label)}</span>
+                          <span className="tnum text-fg-2">{usd(livePrice)}</span>
                         </div>
                         <PatternBadges patterns={m.patterns.current} />
-                        <AnalogCandles candles={curCandles} future={future} points={m.mapping} side="current" tf={d.tf} yMin={yMin} yMax={yMax} active={hover} accent={C.btc}
+                        <AnalogCandles candles={curCandles} future={future} points={m.mapping} side="current" tf={d.tf} yMin={yMin} yMax={yMax} active={hover} accent={C.accent}
                           height={chartH} legs={m.legs_current} patterns={m.patterns.current} layers={layers} compact={narrow} />
                       </div>
                       <div className="min-w-0">
                         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-sm">
-                          <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-slate-400" />{t('Analogo')} · {pl}</span>
-                          <span className="tnum text-slate-300">{usd(anaWin[anaWin.length - 1]?.close)}</span>
+                          <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-fg-3" />{t('Analogo')} · {pl}</span>
+                          <span className="tnum text-fg-2">{usd(anaWin[anaWin.length - 1]?.close)}</span>
                         </div>
                         <PatternBadges patterns={m.patterns.analog} />
-                        <AnalogCandles candles={anaWin} after={anaAfter} outcome={m.outcome.change} points={m.mapping} side="analog" tf={d.tf} yMin={yMin} yMax={yMax} active={hover} accent={C.blue}
+                        <AnalogCandles candles={anaWin} after={anaAfter} outcome={m.outcome.change} points={m.mapping} side="analog" tf={d.tf} yMin={yMin} yMax={yMax} active={hover} accent={C.accent}
                           height={chartH} legs={m.legs_analog} patterns={m.patterns.analog} layers={layers} compact={narrow} />
                       </div>
                     </div>
@@ -235,11 +212,11 @@ function LiveAnalogs() {
                     <div className="min-w-0">
                       <div className="mb-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                         <span className="font-medium text-white">{t('Oggi (candele piene)')}</span>
-                        <span className="text-slate-400">{t('{x} (in trasparenza)', { x: pl })}</span>
+                        <span className="text-fg-3">{t('{x} (in trasparenza)', { x: pl })}</span>
                       </div>
                       <PatternBadges patterns={m.patterns.current} />
                       <AnalogCandles candles={curCandles} ghost={anaWin} ghostAfter={anaAfter} ghostLabel={pl} points={m.mapping} side="current" tf={d.tf}
-                        yMin={yMin} yMax={yMax} active={hover} accent={C.btc} height={chartH + 60} legs={m.legs_current} patterns={m.patterns.current} layers={layers} compact={narrow} />
+                        yMin={yMin} yMax={yMax} active={hover} accent={C.accent} height={chartH + 60} legs={m.legs_current} patterns={m.patterns.current} layers={layers} compact={narrow} />
                     </div>
                   )}
                   <div className="mt-4">
@@ -255,7 +232,7 @@ function LiveAnalogs() {
                     <Legend items={[
                       ...(mode === 'side' && future ? [
                         { label: t('Mediana analoghi ({n})', { n: future.n }), color: C.primary },
-                        ...(future.p25 ? [{ label: t('Banda P25–P75 analoghi'), color: 'rgba(91,141,239,0.55)' }] : []),
+                        ...(future.p25 ? [{ label: t('Banda P25–P75 analoghi'), color: alpha(T.accent, 0.55) }] : []),
                         ...(future.sel ? [{ label: t('Analogo selezionato · {x}', { x: pl }), color: C.grey, dashed: true }] : []),
                       ] : []),
                       { label: t('Gambe ZigZag (G1, G2…)'), color: LEG_COLOR },
@@ -272,7 +249,7 @@ function LiveAnalogs() {
               <div className="grid gap-3 xl:grid-cols-12">
                 <Card className="xl:col-span-5">
                   <CardHeader title={t('Somiglianza grafica')} icon={<ScanSearch />} subtitle={t('Componenti visive e relativo peso (70% del punteggio)')}
-                    right={<span className="text-xs text-slate-400">{t('Totale')} <b className="tnum text-lg font-semibold text-white">{Math.round(m.visual_similarity)}%</b></span>} />
+                    right={<span className="text-xs text-fg-3">{t('Totale')} <b className="tnum text-lg font-semibold text-white">{Math.round(m.visual_similarity)}%</b></span>} />
                   <CardBody><VisualBreakdown components={m.visual.components} /></CardBody>
                 </Card>
                 <Card className="flex flex-col xl:col-span-7 xl:h-0 xl:min-h-full">
@@ -292,7 +269,7 @@ function LiveAnalogs() {
                 <div className="flex flex-col gap-3 xl:col-span-5">
                   <Card className="flex-1">
                     <CardHeader title={t('Perché si somigliano')} icon={<MessageSquareText />} />
-                    <CardBody className="flex flex-col gap-2.5 text-sm leading-relaxed text-slate-300">
+                    <CardBody className="flex flex-col gap-2.5 text-sm leading-relaxed text-fg-2">
                       {m.narrative_llm ? <p>{m.narrative_llm}</p> : m.narrative.map((s, i) => <p key={i}>{s}</p>)}
                     </CardBody>
                   </Card>
@@ -312,15 +289,15 @@ function LiveAnalogs() {
                 <CardHeader title={t('Sovrapposizione e continuazione')} icon={<Layers />} subtitle={t("Base 100 all'inizio della finestra · tratteggio = l'analogo selezionato riportato sul prezzo attuale · linea chiara = mediana di tutti gli analoghi")} />
                 <CardBody>
                   <AnalogOverlay current={curCandles} match={m} window={w} tf={d.tf} height={360} median={future?.path} />
-                  <div className="mt-2"><Legend items={[{ label: t("Banda = massimi/minimi dell'analogo nella continuazione"), color: 'rgba(148,163,184,0.4)' }]} /></div>
+                  <div className="mt-2"><Legend items={[{ label: t("Banda = massimi/minimi dell'analogo nella continuazione"), color: alpha(T.fg3, 0.4) }]} /></div>
                 </CardBody>
               </Card>
 
               {/* ---------------- altri analoghi + riepilogo */}
               <div className="grid gap-3 xl:grid-cols-12">
                 <div className="flex flex-col xl:col-span-9">
-                  <h2 className="mb-3 text-lg font-semibold leading-7 tracking-tight text-white">{t('Tutti gli analoghi')} <span className="text-xs font-normal text-slate-400">· {t('clicca per confrontare')}</span></h2>
-                  <div className={clsx(MATCH_GRID, 'flex-1')} style={balancedCols(d.matches.length, 3, 5)}>
+                  <SectionHead title={t('Tutti gli analoghi')} subtitle={t('clicca per confrontare')} className="mb-3 !pt-0" />
+                  <div className={clsx(MATCH_GRID, 'flex-1', d.matches.length === 5 && 'grid-5-md')} style={balancedCols(d.matches.length, 3, 5)}>
                     {d.matches.map((mm, i) => <MatchPicker key={mm.rank} m={mm} selected={i === sel} onClick={() => { setSel(i); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />)}
                   </div>
                 </div>
@@ -329,18 +306,18 @@ function LiveAnalogs() {
                   <CardBody className="flex flex-col gap-3">
                     <div className="flex h-8 items-center justify-between">
                       <ToneBadge tone={d.summary.bias} />
-                      <span className="text-sm text-slate-400">{t('Accordo')} <b className="tnum text-lg font-semibold text-white">{d.summary.agreement?.toFixed(0) ?? '—'}%</b></span>
+                      <span className="text-sm text-fg-3">{t('Accordo')} <b className="tnum text-lg font-semibold text-white">{d.summary.agreement?.toFixed(0) ?? '—'}%</b></span>
                     </div>
                     <div className="flex h-2.5 overflow-hidden rounded-full bg-white/[0.06]">
                       <div className="bg-up" style={{ width: `${(d.summary.up / Math.max(1, d.summary.count)) * 100}%` }} />
                       <div className="bg-down" style={{ width: `${(d.summary.down / Math.max(1, d.summary.count)) * 100}%` }} />
                     </div>
-                    <div className="flex justify-between text-xs text-slate-400"><span><b className="text-up">{d.summary.up}</b> {t('saliti')}</span><span><b className="text-down">{d.summary.down}</b> {t('scesi')}</span></div>
+                    <div className="flex justify-between text-xs text-fg-3"><span><b className="text-up">{d.summary.up}</b> {t('saliti')}</span><span><b className="text-down">{d.summary.down}</b> {t('scesi')}</span></div>
                     <div className="dgrid grid-cols-2">
                       <DCell label={t('Esito mediano')} value={<Change value={stats?.median ?? d.summary.median_outcome} digits={1} />} foot={stats && stats.n > 1 ? `P25–P75 ${pct(stats.p25, 1)} / ${pct(stats.p75, 1)}` : undefined} />
                       <DCell label={t('Media pesata')} value={<Change value={d.summary.weighted_outcome} digits={1} />} foot={t('Pesata per similarità')} />
                     </div>
-                    <p className="text-sm text-slate-300">{d.summary.text}</p>
+                    <p className="text-sm text-fg-2">{d.summary.text}</p>
                   </CardBody>
                 </Card>
               </div>
@@ -369,7 +346,7 @@ function LiveAnalogs() {
                 ) : (
                   <CardBody className="flex flex-wrap gap-2">
                     {feats.slice(0, 6).map((f) => (
-                      <span key={f.key} className="inline-flex h-7 items-center gap-1.5 rounded border border-line px-2 text-xs text-slate-300">
+                      <span key={f.key} className="inline-flex h-7 items-center gap-1.5 rounded border border-line px-2 text-xs text-fg-2">
                         {f.label}<b className="tnum font-medium text-white">{f.similarity == null ? t('n/d') : `${Math.round(f.similarity)}%`}</b>
                       </span>
                     ))}

@@ -4,9 +4,6 @@ const en: Record<string, string> = {
   Posizionamento: 'Positioning',
   Holder: 'Holders',
   Sentiment: 'Sentiment',
-  'Open interest, max pain, put/call, skew e volatilità implicita delle opzioni BTC su Deribit.': 'Open interest, max pain, put/call, skew and implied volatility of BTC options on Deribit.',
-  'Costo medio e profitto degli holder recenti (STH) e di lungo periodo (LTH).': 'Cost basis and profit of short-term (STH) and long-term (LTH) holders.',
-  'Indice contrarian di paura ed euforia con backtest dei rendimenti successivi.': 'Contrarian fear and euphoria index with a backtest of forward returns.',
   'Fonti e metodo': 'Sources and method',
 
   // ---------------------------------------------------------------- options

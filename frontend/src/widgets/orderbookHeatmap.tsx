@@ -7,19 +7,20 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import type { ObEvent, ObHeatmap, ObLiveCol } from '../api/orderbook'
 import { decodeU16 } from '../api/orderbook'
-import { MAGMA, FONT, hexA } from '../components/charts/theme'
+import { HEAT, FONT, hexA } from '../components/charts/theme'
 import { t } from '../i18n'
 import { compact, usd } from '../lib/format'
+import { T, alpha } from '../theme/tokens'
 
 type N = number | null
 
-// ------------------------------------------------------------------ colour LUT (magma, percettiva)
+// ------------------------------------------------------------------ colour LUT (nero → arancione → bianco)
 function hexRgb(h: string): [number, number, number] {
   const n = parseInt(h.slice(1), 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 export const LUT: Uint8ClampedArray = (() => {
-  const stops = MAGMA.map(hexRgb)
+  const stops = HEAT.map(hexRgb)
   const out = new Uint8ClampedArray(256 * 3)
   for (let i = 0; i < 256; i++) {
     const x = (i / 255) * (stops.length - 1)
@@ -30,8 +31,8 @@ export const LUT: Uint8ClampedArray = (() => {
   }
   return out
 })()
-const NODATA: [number, number, number] = [9, 13, 24]
-const GAMMA = 0.55
+const NODATA = hexRgb(T.bg)
+const GAMMA = 0.95
 
 // ------------------------------------------------------------------ data store (mutable, column-major)
 export interface HmStore {
@@ -188,10 +189,11 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
       const v = arr[r]
       if (Number.isNaN(v)) { data[o] = NODATA[0]; data[o + 1] = NODATA[1]; data[o + 2] = NODATA[2]; data[o + 3] = 255; continue }
       const x = Math.min(1, Math.max(0, v / clipV))
-      const li = Math.round(Math.pow(x, GAMMA) * 255) * 3
       const price = store.priceLo + (r + 0.5) * store.bucket
+      // fuori dallo snapshot: più scuro lungo la stessa scala, così il colore resta caldo invece di virare al grigio
       const dim = tlo != null && thi != null && (price < tlo || price > thi) ? 0.62 : 1
-      data[o] = LUT[li] * dim; data[o + 1] = LUT[li + 1] * dim; data[o + 2] = LUT[li + 2] * dim; data[o + 3] = 255
+      const li = Math.round(Math.pow(x, GAMMA) * dim * 255) * 3
+      data[o] = LUT[li]; data[o + 1] = LUT[li + 1]; data[o + 2] = LUT[li + 2]; data[o + 3] = 255
     }
   }
   const ensureOff = () => {
@@ -232,7 +234,7 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
     if (!w || !h) return
     const ctx = canvas.getContext('2d')!
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.fillStyle = '#060912'
+    ctx.fillStyle = T.bg
     ctx.fillRect(0, 0, w, h)
     ensureOff()
     const o = off.current!
@@ -271,22 +273,22 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
       ctx.drawImage(o.canvas, cx0, cy0, cx1 - cx0, cy1 - cy0, dx0, dy0, dx1 - dx0, dy1 - dy0)
     }
     // buchi
-    ctx.fillStyle = 'rgba(148,163,210,0.06)'
+    ctx.fillStyle = alpha(T.fg3, 0.06)
     for (const [a, b] of store.gaps) {
       const x0 = X(a), x1 = X(b)
       if (x1 < 0 || x0 > pw || x1 - x0 < 1) continue
       ctx.fillRect(x0, 0, x1 - x0, ph)
       if (x1 - x0 > 70) {
-        ctx.fillStyle = 'rgba(179,188,208,0.55)'; ctx.font = `500 11px ${FONT}`; ctx.textAlign = 'center'
+        ctx.fillStyle = alpha(T.fg2, 0.55); ctx.font = `500 11px ${FONT}`; ctx.textAlign = 'center'
         ctx.fillText(t('Nessun dato'), (x0 + x1) / 2, 18)
-        ctx.fillStyle = 'rgba(148,163,210,0.06)'
+        ctx.fillStyle = alpha(T.fg3, 0.06)
       }
     }
     // inizio raccolta
     if (store.collectionStart && store.collectionStart > v.t0 && store.collectionStart < v.t1) {
       const x = X(store.collectionStart)
-      ctx.strokeStyle = 'rgba(232,176,75,0.7)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ph); ctx.stroke(); ctx.setLineDash([])
-      ctx.fillStyle = '#E8B04B'; ctx.font = `500 11px ${FONT}`; ctx.textAlign = 'left'; ctx.fillText(t('Inizio raccolta'), x + 4, ph - 6)
+      ctx.strokeStyle = alpha(T.warn, 0.7); ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ph); ctx.stroke(); ctx.setLineDash([])
+      ctx.fillStyle = T.warn; ctx.font = `500 11px ${FONT}`; ctx.textAlign = 'left'; ctx.fillText(t('Inizio raccolta'), x + 4, ph - 6)
     }
     const i0 = Math.max(0, Math.floor(sx) - 1)
     const i1 = Math.min(store.cols.length, Math.ceil(sx + sw) + 1)
@@ -306,7 +308,7 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
         const r = Math.max(2.5, Math.sqrt(vv / vmax) * rmax)
         const x = X(store.from + (i + 0.5) * store.dt), y = Y(pr)
         const buyShare = store.vb[i] / vv
-        const col = buyShare >= 0.5 ? '#2EBD85' : '#EF5466'
+        const col = buyShare >= 0.5 ? T.up : T.down
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2)
         ctx.fillStyle = hexA(col, 0.22 + Math.abs(buyShare - 0.5) * 0.5); ctx.fill()
         ctx.lineWidth = 1; ctx.strokeStyle = hexA(col, 0.9); ctx.stroke()
@@ -314,7 +316,7 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
     }
     // linea del prezzo (ultimo trade della colonna; mid se assente)
     if (optsRef.current.priceLine) {
-      ctx.lineWidth = 2.25; ctx.strokeStyle = 'rgba(6,9,18,0.85)'
+      ctx.lineWidth = 3; ctx.strokeStyle = alpha(T.bg, 0.9)
       const path = () => {
         ctx.beginPath()
         let started = false
@@ -326,7 +328,7 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
         }
       }
       path(); ctx.stroke()
-      ctx.lineWidth = 1.25; ctx.strokeStyle = '#E8ECF4'; path(); ctx.stroke()
+      ctx.lineWidth = 1.5; ctx.strokeStyle = T.fg; path(); ctx.stroke()
     }
     // eventi: liquidità ritirata prima del tocco (anello ambra) e muro consumato (punto chiaro)
     if (optsRef.current.events) {
@@ -336,9 +338,9 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
         if (y < -10 || y > ph + 10) continue
         if (e.kind === 'pulled') {
           ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x + 5, y); ctx.lineTo(x, y + 5); ctx.lineTo(x - 5, y); ctx.closePath()
-          ctx.lineWidth = 1.5; ctx.strokeStyle = '#E8B04B'; ctx.stroke()
+          ctx.lineWidth = 1.5; ctx.strokeStyle = T.warn; ctx.stroke()
         } else {
-          ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fillStyle = '#E8ECF4'; ctx.fill()
+          ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fillStyle = T.fg; ctx.fill()
         }
       }
     }
@@ -358,23 +360,23 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
           const y0 = Y(p0 + store.bucket), y1 = Y(p0)
           if (y1 < 0 || y0 > ph) continue
           const bw = (val / mx) * LW
-          ctx.fillStyle = p0 + store.bucket <= mid ? 'rgba(46,189,133,0.55)' : 'rgba(239,84,102,0.55)'
+          ctx.fillStyle = p0 + store.bucket <= mid ? alpha(T.up, 0.55) : alpha(T.down, 0.55)
           ctx.fillRect(pw - bw, y0, bw, Math.max(1, y1 - y0 - 0.5))
         }
       }
     }
     ctx.restore()
     // assi
-    ctx.fillStyle = '#060912'
+    ctx.fillStyle = T.bg
     ctx.fillRect(pw, 0, AXIS_R, h); ctx.fillRect(0, ph, w, AXIS_B)
-    ctx.strokeStyle = 'rgba(148,163,210,0.12)'; ctx.lineWidth = 1
+    ctx.strokeStyle = alpha(T.fg3, 0.12); ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(pw + 0.5, 0); ctx.lineTo(pw + 0.5, ph); ctx.lineTo(0, ph + 0.5); ctx.stroke()
-    ctx.font = `400 11px ${FONT}`; ctx.fillStyle = '#8892A8'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+    ctx.font = `400 11px ${FONT}`; ctx.fillStyle = T.fg3; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
     const pstep = niceStep(((v.p1 - v.p0) / ph) * 38)
     for (let p = Math.ceil(v.p0 / pstep) * pstep; p <= v.p1; p += pstep) {
       const y = Y(p)
       ctx.fillText(usd(p, pstep < 1 ? 2 : 0), pw + 6, y)
-      ctx.fillStyle = 'rgba(148,163,210,0.25)'; ctx.fillRect(pw, Math.round(y), 3, 1); ctx.fillStyle = '#8892A8'
+      ctx.fillStyle = alpha(T.fg3, 0.25); ctx.fillRect(pw, Math.round(y), 3, 1); ctx.fillStyle = T.fg3
     }
     const tstep = TSTEPS.find((s) => (s / (v.t1 - v.t0)) * pw >= 90) ?? 86400
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
@@ -389,19 +391,19 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
     for (let i = store.last.length - 1; i >= Math.max(0, store.last.length - 10); i--) if ((store.last[i] ?? store.mid[i]) != null) { lastP = store.last[i] ?? store.mid[i]; break }
     if (lastP != null) {
       const y = Math.min(ph - 8, Math.max(8, Y(lastP)))
-      ctx.fillStyle = '#E8ECF4'; ctx.fillRect(pw + 1, y - 9, AXIS_R - 2, 18)
-      ctx.fillStyle = '#060912'; ctx.font = `600 11px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+      ctx.fillStyle = T.fg; ctx.fillRect(pw + 1, y - 9, AXIS_R - 2, 18)
+      ctx.fillStyle = T.bg; ctx.font = `600 11px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
       ctx.fillText(usd(lastP, 1), pw + 5, y)
     }
     // crosshair
     const hv = hover.current
     if (hv && !drag.current && hv.x < pw && hv.y < ph) {
-      ctx.strokeStyle = 'rgba(232,236,244,0.35)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1
+      ctx.strokeStyle = alpha(T.fg, 0.35); ctx.setLineDash([3, 3]); ctx.lineWidth = 1
       ctx.beginPath(); ctx.moveTo(Math.round(hv.x) + 0.5, 0); ctx.lineTo(Math.round(hv.x) + 0.5, ph); ctx.moveTo(0, Math.round(hv.y) + 0.5); ctx.lineTo(pw, Math.round(hv.y) + 0.5); ctx.stroke()
       ctx.setLineDash([])
       const p = v.p1 - (hv.y / ph) * (v.p1 - v.p0)
-      ctx.fillStyle = '#161E31'; ctx.fillRect(pw + 1, hv.y - 9, AXIS_R - 2, 18)
-      ctx.fillStyle = '#E8ECF4'; ctx.font = `500 11px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+      ctx.fillStyle = T.raised; ctx.fillRect(pw + 1, hv.y - 9, AXIS_R - 2, 18)
+      ctx.fillStyle = T.fg; ctx.font = `500 11px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
       ctx.fillText(usd(p, 0), pw + 5, hv.y)
     }
     renderMs.current = renderMs.current ? renderMs.current * 0.8 + (performance.now() - t0p) * 0.2 : performance.now() - t0p
@@ -437,16 +439,16 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
     if (Number.isNaN(val)) rows.push({ k: t('Liquidità'), v: t('Nessun dato') })
     else {
       const side = mid == null ? '' : pb + store.bucket <= mid ? t('Bid') : pb >= mid ? t('Ask') : t('Bid/ask')
-      rows.push({ k: t('Liquidità'), v: `${val.toFixed(val < 10 ? 2 : 1)} BTC · ${'$' + compact(val * (mid ?? pb))}`, c: side === t('Bid') ? '#2EBD85' : side === t('Ask') ? '#EF5466' : undefined })
+      rows.push({ k: t('Liquidità'), v: `${val.toFixed(val < 10 ? 2 : 1)} BTC · ${'$' + compact(val * (mid ?? pb))}`, c: side === t('Bid') ? T.up : side === t('Ask') ? T.down : undefined })
       if (side) rows.push({ k: t('Lato'), v: side })
     }
     if (store.last[c] != null) rows.push({ k: t('Ultimo prezzo'), v: usd(store.last[c], 1) })
     const vv = store.vb[c] + store.vs[c]
     if (vv > 0) rows.push({ k: t('Trade aggressivi'), v: `${t('acq.')} ${store.vb[c].toFixed(2)} · ${t('vend.')} ${store.vs[c].toFixed(2)} BTC` })
     const tl = store.tlo[c], th = store.thi[c]
-    if (tl != null && th != null && (pb < tl || pb > th)) rows.push({ k: t('Nota'), v: t('Fuori dallo snapshot: solo diff stream'), c: '#E8B04B' })
+    if (tl != null && th != null && (pb < tl || pb > th)) rows.push({ k: t('Nota'), v: t('Fuori dallo snapshot: solo diff stream'), c: T.warn })
     const ev = store.events.find((e) => e.kind !== 'appeared' && Math.abs(e.t - (store.from + (c + 0.5) * store.dt)) <= Math.max(store.dt, 2) && e.price === pb)
-    if (ev) rows.push({ k: ev.kind === 'pulled' ? t('Liquidità ritirata prima del tocco') : t('Muro consumato'), v: `${ev.qmax.toFixed(1)} → ${ev.q.toFixed(1)} BTC`, c: '#E8B04B' })
+    if (ev) rows.push({ k: ev.kind === 'pulled' ? t('Liquidità ritirata prima del tocco') : t('Muro consumato'), v: `${ev.qmax.toFixed(1)} → ${ev.q.toFixed(1)} BTC`, c: T.warn })
     setTip({ x: hv.x, y: hv.y, title: fullTime(store.from + c * store.dt), html: rows })
   }
 
@@ -539,10 +541,10 @@ const HeatmapCanvas = forwardRef<HeatmapHandle, { store: HmStore; opts: HeatmapO
       {tip && (
         <div className="pop pointer-events-none absolute z-10 w-60 rounded-xl p-2.5 text-xs"
           style={{ left: Math.min(tip.x + 14, (size.current.w || 300) - 250), top: Math.max(4, Math.min(tip.y + 14, (size.current.h || 300) - 150)) }}>
-          <div className="label mb-1.5 text-slate-300">{tip.title}</div>
+          <div className="label mb-1.5 text-fg-2">{tip.title}</div>
           {tip.html.map((r) => (
             <div key={r.k} className="flex items-baseline justify-between gap-3 py-0.5">
-              <span className="text-slate-400">{r.k}</span>
+              <span className="text-fg-3">{r.k}</span>
               <span className="tnum text-right font-medium text-white" style={r.c ? { color: r.c } : undefined}>{r.v}</span>
             </div>
           ))}

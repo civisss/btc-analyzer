@@ -1,13 +1,17 @@
 import {
-  CycleAnalysisCard, ForecastCard, FractalCard, HistoricalCyclesCard, InsightsCard, KeyLevelsCard, KpiRow, LiqHeatmapCard, MainChartCard,
+  CycleAnalysisCard, ForecastCard, FractalCard, HistoricalCyclesCard, KeyLevelsCard, KpiRow, LiqHeatmapCard, MainChartCard,
   MacroContextCard, OnChainCard, UsdtCard,
 } from '../widgets/dashboard'
 import { FlowsCard } from '../widgets/flows'
+import { SynthesisCard } from '../widgets/insights'
+import { ScoreboardCard } from '../widgets/scoreboard'
 
 export default function Dashboard() {
   return (
     <div className="flex flex-col gap-3">
+      <ScoreboardCard />
       <KpiRow />
+      <SynthesisCard />
       <div className="grid gap-3 xl:grid-cols-12">
         <div className="xl:col-span-12 min-[1800px]:col-span-6"><MainChartCard /></div>
         <div className="xl:col-span-6 min-[1800px]:col-span-3"><CycleAnalysisCard /></div>
@@ -23,10 +27,9 @@ export default function Dashboard() {
         <MacroContextCard />
       </div>
       {/* one height per row: list cards spread their rows, the forecast chart fills */}
-      <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid gap-3 lg:grid-cols-3">
         <OnChainCard />
         <FlowsCard />
-        <InsightsCard />
         <ForecastCard />
       </div>
     </div>

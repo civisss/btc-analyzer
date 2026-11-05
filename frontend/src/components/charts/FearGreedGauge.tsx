@@ -1,14 +1,15 @@
 /** Semi-circular Fear & Greed gauge (0..100): thin gradient arc (red → grey → green), value marker with a soft halo. */
 import { useId } from 'react'
 import { t } from '../../i18n'
+import { T, alpha } from '../../theme/tokens'
 
 export function fngColor(v: number) {
   // diverging red ↔ grey ↔ green (no rainbow)
-  if (v < 25) return '#EF5466'
-  if (v < 45) return '#C76A78'
-  if (v < 55) return '#8892A8'
-  if (v < 75) return '#4FA987'
-  return '#2EBD85'
+  if (v < 25) return T.down
+  if (v < 45) return alpha(T.down, 0.7)
+  if (v < 55) return T.fg3
+  if (v < 75) return alpha(T.up, 0.7)
+  return T.up
 }
 export function fngLabel(v: number) {
   if (v < 25) return t('Paura estrema')
@@ -33,16 +34,16 @@ export default function FearGreedGauge({ value, size = 120 }: { value: number; s
     <svg viewBox="0 0 120 64" width={size} height={(size * 64) / 120} aria-label={`Fear & Greed ${v}`}>
       <defs>
         <linearGradient id={`fg${id}`} x1="16" y1="0" x2="104" y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#EF5466" />
-          <stop offset="45%" stopColor="#8892A8" />
-          <stop offset="100%" stopColor="#2EBD85" />
+          <stop offset="0%" stopColor={T.down} />
+          <stop offset="45%" stopColor={T.fg3} />
+          <stop offset="100%" stopColor={T.up} />
         </linearGradient>
       </defs>
-      <path d={arc(0, 1)} stroke="rgba(255,255,255,0.07)" strokeWidth="8" fill="none" strokeLinecap="round" />
+      <path d={arc(0, 1)} stroke={alpha(T.fg, 0.07)} strokeWidth="8" fill="none" strokeLinecap="round" />
       <path d={arc(0, 1)} stroke={`url(#fg${id})`} strokeOpacity="0.28" strokeWidth="8" fill="none" strokeLinecap="round" />
       <path d={arc(0, Math.max(0.001, v / 100))} stroke={`url(#fg${id})`} strokeWidth="8" fill="none" strokeLinecap="round" />
       <circle cx={mx} cy={my} r="8" fill={col} opacity="0.25" />
-      <circle cx={mx} cy={my} r="4.5" fill="#E8ECF4" stroke={col} strokeWidth="2" />
+      <circle cx={mx} cy={my} r="4.5" fill={T.fg} stroke={col} strokeWidth="2" />
     </svg>
   )
 }

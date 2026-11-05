@@ -144,7 +144,6 @@ interface UsdtAnalysis {
 
 // ---------------------------------------------------------------- FORECAST + AI (routers: forecast.py, ai.py)
 // GET /api/forecast?horizon=90   (horizon 7..365) — v2 additions documented in "## FORECAST" below
-// GET /api/forecast/oneday       — 1-day out-of-sample forecast vs naive, see "## FORECAST 1 DAY" below
 interface Forecast {
   horizon: number; generated_at: T; last_price: number;
   history: Pt[];                                                     // last ~365 daily closes
@@ -167,38 +166,36 @@ interface Insights {
 // GET /api/status -> { datasets: { name: string; rows: number; last: T | null; age_s: number | null }[]; llm: {available:boolean; model:string|null}; liquidation_stream: boolean }
 ```
 
-## AGENTS (router: agents.py, engine: app/agents/)
-Autonomous backend agents, each owning one domain, running on their own interval, publishing findings
-and talking to each other over an internal message bus.
+## AGENTS (engine: app/agents/engine.py, nessun router)
+Agenti di sfondo: ricalcolano i dati del proprio dominio con la loro cadenza, pubblicano finding per l'Analista e messaggi sul bus interno
+(`kind: "alert"` passa al motore degli avvisi) e a ogni giro riuscito inviano `invalidate` sul WebSocket (mappa `INVALIDATES`, vedi
+"REALTIME INVALIDATION"). I moduli affini stanno in un solo agente (`MultiAgent`, una cadenza per ogni parte; una parte in errore non ferma le altre).
 
-```ts
-type AgentId = "market" | "levels" | "liquidity" | "patterns" | "correlation" | "cycles" | "onchain" | "derivatives" | "forecast" | "flows" | "analogs" | "timepivots" | "analyst";
-interface Agent {
-  id: AgentId; name: string; role: string;            // Italian
-  icon: string;                                       // lucide-react icon name, e.g. "Flame"
-  color: string;                                      // hex accent
-  status: "idle" | "running" | "error"; error: string | null;
-  interval_s: number; runs: number; last_run: T | null; next_run: T | null; last_duration_ms: number | null;
-  findings: { title: string; text: string; tone: "bullish" | "bearish" | "neutral"; confidence: number; time: T }[]; // latest first, max 6
-  subscribes: string[]; publishes: string[];          // topics
-  stats: { messages_sent: number; messages_received: number };
-}
-interface AgentMessage {
-  id: number; time: T; from: AgentId; to: AgentId | "*"; // "*" = broadcast
-  topic: string;            // e.g. "liquidity.cluster", "levels.confluence", "pattern.retest", "request.levels"
-  kind: "finding" | "request" | "reply" | "alert";
-  text: string;             // Italian, human readable
-  tone: "bullish" | "bearish" | "neutral";
-  data?: Record<string, unknown>;
-}
-// GET  /api/agents -> { agents: Agent[]; edges: { from: AgentId; to: AgentId; topics: string[]; count: number; last: T | null }[]; started_at: T }
-//      edges = static subscription graph merged with observed traffic (count/last from real messages)
-// GET  /api/agents/messages?limit=100&agent=liquidity -> AgentMessage[] (newest first)
-// POST /api/agents/{id}/run -> { ok: true }   (triggers an immediate run)
-// WS /api/ws additionally pushes:
-//   {"type":"agent_message", ...AgentMessage}
-//   {"type":"agent_status", "id": AgentId, "status": "...", "last_run": T|null, "next_run": T|null, "last_duration_ms": n|null}
-```
+| Agente | Moduli | Cadenza |
+|---|---|---|
+| analyst | consenso pesato con il track record (registrato in tracking) | 120 s |
+| market | prezzo, range 24h | 5 s |
+| levels | pivot, swing, zone, confluenze su richiesta | 30 s |
+| vwap | VWAP ancorati, cross e tocchi | ogni minuto chiuso |
+| liquidity | cluster e magneti di liquidazione | 30 s |
+| analogs | analoghi grafici e di struttura, frattali, analoghi USDT.D | 120 / 60 / 300 s |
+| usdt | USDT dominance, stablecoin | 60 / 600 s |
+| cycles | fase di ciclo, orologio, miner, ciclo della leva | 300 s |
+| onchain | MVRV, prezzo realizzato, hashrate | 300 s |
+| derivatives | funding, OI, long/short, leva aggregata, basis, CME COT | 20 / 300 / 900 / 3600 s |
+| flows | flussi spot/perp | 30 s |
+| supply_demand | riserve exchange, ETF, attenzione | 1800 s |
+| timepivots | pivot temporali | 600 s |
+| macro | contesto macro, rotazione, eventi | 300 / 600 s |
+| structure | range, pivot di apertura, scenari | 60 / 60 / 120 s |
+| positioning | opzioni, sentiment, holder | 120 / 300 / 1800 s |
+| anomalies | anomalie del Superchart | 1800 s |
+| orderflow | book Binance, trade multi-exchange | 30 / 60 s |
+| forecast | previsione a 12 mesi | 600 s |
+| verifier | track record e pesi di affidabilità | 1800 s |
+| alerts | storico notifiche, regole personali | 30 / 60 s |
+
+`GET /api/status` espone `agents: { total, errors: [{ id, name, error }] }` per l'indicatore di stato della barra laterale.
 
 ## ANALOGS (router: analogs.py, engine: app/analysis/analogs.py + analogs_visual.py)
 Explainable historical analogs, primarily VISUAL: "the chart forming now looks like these candles of 2023, because x matches x".
@@ -700,7 +697,7 @@ interface Stablecoins {
 }
 ```
 Frontend: `src/api/usdtAnalogs.ts` (types + `useUsdtAnalogs`, `useStablecoins`), `src/widgets/usdtAnalogs.tsx`; the USDT page has tabs
-"Panoramica | Analoghi USDT | Stablecoin" (`/usdt?tab=analogs|stables`).
+"Panoramica | Analoghi USDT | Stablecoin" (`/analoghi?metodo=usdt`, `/flussi?tab=stablecoin`).
 
 ## MACRO (router: macro.py, engine: app/analysis/macro.py)
 Macro & Rotazione: liquidity (stablecoin supply; FRED net liquidity/M2 when `FRED_API_KEY` is set), dollar & rates regimes,
@@ -971,7 +968,7 @@ interface EventsResponse {
   quality: { cpi_rule_accuracy: { n: number; exact: number; within_1: number; within_3: number }; notes: string[] }
   method: string
 }
-// Frontend: src/api/events.ts (types + useEvents), src/widgets/events.tsx, src/pages/EventsPage.tsx (default export). Route /eventi (lead).
+// Frontend: src/api/events.ts (types + useEvents), src/widgets/events.tsx, src/pages/EventsPage.tsx (default export). Route /macro?tab=eventi (lead).
 ```
 
 ## FORECAST (router: forecast.py, engines: app/analysis/forecast.py + forecast_features.py + forecast_models.py + forecast_cycle.py)
@@ -996,7 +993,7 @@ Pipeline (all point-in-time, no lookahead):
   predictions cached in `backend/data/forecast_oos.pkl` (incremental; full recompute every 30 days or on VERSION change).
   Per horizon: convex weights minimising past pinball loss (4-y window, re-fitted monthly, L2 shrink to equal) → quantile averaging →
   split-conformal relative CQR on the last 3 y of realized OOS forecasts for the 90% and 50% bands (factor c ∈ [−0.45, 1]).
-  Live ledger (/affidabilita): live `forecast_7d/30d` snapshots store each member's quantiles in `meta.members`; once resolved, member
+  Live ledger (/previsioni?tab=affidabilita): live `forecast_7d/30d` snapshots store each member's quantiles in `meta.members`; once resolved, member
   pinball on live rows tilts the 7/30 d weights: w ∝ w·exp(−(L/L_best − 1)/0.1 · n/(n+50)).
 - Training runs in a background thread (first full run ≈ 3–4 min, daily incremental ≈ 20–30 s), retrains when a new UTC day of data is
   available (checked every 10 min and on requests), persists the model to `backend/data/forecast_model.pkl` (restart = instant) and
@@ -1080,63 +1077,6 @@ ranges, change %, P(up), weights, backtest hit/MASE/coverage); evaluation tables
 drivers bar chart (`drivers["30"].top`, with `lgb_weight`); regime badge; training status / `model_trained_at`. Always show the caveat
 that 180/365-day results rest on ~3 past cycles with overlapping windows.
 
-## FORECAST 1 DAY (router: forecast.py, engine: app/analysis/forecast_oneday.py, tests: backend/tests/test_forecast_oneday.py)
-Honest one-step-ahead forecast ("real vs predicted" chart) evaluated against the naive "tomorrow = today".
-- Inputs: the forecast v2 feature store (88 PIT features), CLOSED daily candles only (today's partial row dropped). Targets: A = log(close[t+1]/close[t]);
-  B = log(mid[t+1]/close[t]), mid = (H+L)/2 Binance 1d (B trained from 2017-08-18). Price forecast = today's price × exp(predicted return).
-- Model: LightGBM quantile (q05..q95, vol-normalised target, v2 tuned params), expanding-window walk-forward, MONTHLY refit (rows with target realised
-  by the 1st of the month), out-of-sample origins from 2019-01-01. Tomorrow's forecast uses the current month's model (same as the backtest).
-- Bands: split-conformal relative CQR on the last 1095 realised OOS errors; P(up) Platt-calibrated on past forecasts only (1460-day window).
-- Baselines: naive (close_t), historical mean drift (expanding); for the mid target also naive mid_t (MASE scale) and naive close_t (stricter benchmark).
-- CryptoPredictions replica (demo, reimplemented): 4 input days (their window_size 5: last day = target) × [open, high, low, close, volume, RSI14(SMA),
-  MACD12/26 on mid, mid], first 100 rows dropped, target = next-day mid as a LEVEL, sklearn RandomForest 1000 trees (random_state 42), train/valid
-  dates from their config (train 2018-10-20→2021-11-10, valid 2021-11-10→2023-01-16); after valid the frozen model continues (shows the level cap).
-- Metrics (errors in log ≈ %): MAE (USD), MAPE, MASE = mean|e| / mean|e_naive| on the same days, direction (|pred change| > 0.01%, binomial p vs 50%
-  and vs "always up"), corr of returns and of prices, coverage 50/90, Diebold-Mariano (abs loss, HLN, two-sided) vs naive, Brier skill of P(up).
-  Verdict codes: edge (MASE<0.97 & DM p<0.05) · small_edge (MASE<1 & p<0.05) · no_edge · worse (p<0.05) · worse_ns · baseline. Mid model verdict uses
-  the naive close benchmark (`mase_vs_close`, `dm_p_vs_close`).
-- Leakage check (every run + tests): structural (each model's last training target ≤ forecast origin), point-in-time feature rebuild with every source
-  truncated at the forecast day (`forecast_features.truncated_build`, thread-local) must equal the full-history row; replica train/valid no overlap.
-- Cache: incremental raw OOS `forecast_oneday_oos.parquet`, series `forecast_oneday_series.parquet`, meta `forecast_oneday.json` (atomic writes via
-  store). Recomputed when a new UTC day is closed (20 min after 00:00 UTC), checked every 10 min and on requests; first run ≈ 1 min, then seconds.
-  503 only before the first result. Payload ≈ 300 KB. Forecast agent adds a sober finding (tone neutral) with tomorrow's value and the verdict.
-
-```ts
-type VerdictCode = 'edge' | 'small_edge' | 'no_edge' | 'worse' | 'worse_ns' | 'baseline' | 'n_a'
-interface OneDayMetrics {
-  n: number; mae?: number; mape?: number; rmse_pct?: number; mase?: N; bias_pct?: number; corr_price?: N; corr_ret?: N
-  n_dir?: number; hit_rate?: N; always_up?: N; p_dir?: N; p_dir_vs_up?: N; share_up_calls?: N; dm_stat?: N; dm_p?: N
-  mase_vs_close?: N; dm_stat_vs_close?: N; dm_p_vs_close?: N          // mid target only
-  coverage_50?: number; coverage_90?: number; width_50?: number; width_90?: number; brier?: number; brier_skill?: N   // model rows
-  verdict: { code: VerdictCode; mase?: N; dm_p?: N; benchmark?: 'naive' | 'naive_close'; direction_significant?: boolean; direction_beats_always_up?: boolean }
-}
-// GET /api/forecast/oneday
-interface ForecastOneDay {
-  version: 1; generated_at: T; data_day: string                       // last closed UTC day used
-  tomorrow: { origin: T; target: T; closes_at: T; ref_price: number; median: number; p05: number; p25: number; p75: number; p95: number
-              change_pct: number; up_prob: number /* calibrated % */; up_prob_raw: number; mid: { median: number; p05: number; p95: number }
-              drift_price: number; naive_price: number; live_price: N; live_change_pct: N; live_in_band: '50' | '90' | 'out' | null }
-  series: { t: T[] /* target day */; close: N[]; ref: N[] /* close at origin = naive */; model: N[]; p05: N[]; p25: N[]; p75: N[]; p95: N[]
-            up: N[]; drift: N[]; mid: N[]; ref_mid: N[]; model_mid: N[]; replica: N[]; replica_valid: boolean[]; live: boolean[] }   // columnar, USD
-  evaluation: Record<'d90' | 'y1' | 'all' | 'repo', { from: T; to: T
-    close: Record<'model' | 'naive' | 'drift', OneDayMetrics>; mid: Record<'model' | 'naive' | 'naive_close' | 'replica', OneDayMetrics> }>
-  periods: { repo: { from: T; to: T } }
-  replica: { url: string; window_size: number; train_start: string; train_end: string; valid_start: string; valid_end: string; features: string[]
-             n_estimators: number; train_rows: number; train_from: T; train_to: T; valid_from: T; valid_to: T; valid_rows: number
-             train_max_price: number; no_overlap: boolean }
-  leakage: { structural_violations: number; rows: number; min_gap_days: number; max_gap_days: number; replica_no_overlap: boolean; passed: boolean
-             point_in_time: { passed: boolean | null; dates: { date: T; compared: number; mismatch: string[]; nan_mismatch: string[]; max_rel_diff: number; close_equal: boolean }[] } }
-  live_from: T | null                                                  // first forecast recorded in real time (earlier = backtest)
-  n_refits: number
-  settings: { oos_start: T; dir_eps_pct: number; conformal_window: number; platt_window: number; n_features: number; refit: 'monthly'; window: 'expanding'
-              train_start_close: string; train_start_mid: T }
-  training: { status: 'ready' | 'training' | 'error'; progress: string | null; error: string | null; trained_at: T | null; data_day: string | null
-              seconds: Record<string, number>; started_at: T | null }
-}
-// Frontend: src/api/forecastOneDay.ts (useForecastOneDay, key ['forecast','oneday']), src/widgets/forecastOneDay.tsx,
-// src/pages/ForecastOneDayTab.tsx — tab /previsioni?tab=oneday (default tab "percorso" = forecast v2).
-```
-
 ## TRACKING (module: app/tracking.py, router: tracking.py)
 Persistent prediction ledger `backend/data/tracking_ledger.parquet` (one row per prediction). `record_snapshot()` (idempotent: id =
 `source:mode:bucket`, bucket 1 d or 4 h; time pivots keyed by window id), `resolve()` (price at `due_at` = close of the last CLOSED Binance 1h
@@ -1185,7 +1125,7 @@ interface Tracking {
   backfill: { status: 'idle'|'running'|'done'|'error'; done: string[]; started_at: T|null; finished_at: T|null; error: string|null; progress: string|null }
   method: string
 }
-// Frontend: src/api/tracking.ts (types + useTracking), src/widgets/tracking.tsx, src/pages/TrackRecordPage.tsx (default export). Route /affidabilita (lead).
+// Frontend: src/api/tracking.ts (types + useTracking), src/widgets/tracking.tsx, src/pages/TrackRecordPage.tsx (default export). Route /previsioni?tab=affidabilita (lead).
 ```
 
 ## ALERTS (module: app/alerts.py, router: alerts.py)
@@ -1213,7 +1153,7 @@ interface Alert {
   category: AlertCategory; category_label: string    // Italian label
   title: string                                      // ≤ 60 chars, Italian
   text: string                                       // 1–2 lines, Italian
-  link: string                                       // frontend route, e.g. "/liquidazioni", "/cicli?tab=clock", "/eventi"
+  link: string                                       // frontend route, e.g. "/posizionamento?tab=liquidazioni", "/cicli?tab=clock", "/macro?tab=eventi"
   data: Record<string, unknown>                      // rule-specific numbers (price, level, usd, change…)
   rule: string; key?: string
   silent: boolean                                    // true = history only (budget exceeded); never broadcast
@@ -1235,7 +1175,7 @@ interface AlertsResponse {
 // Frontend: invalidate react-query queries whose request path starts with any key.
 // Language: any /api request with ?lang=en (or header X-Lang: en) returns generated texts translated to English
 // (numbers preserved exactly; untranslated sentences stay Italian until the background translator caches them — refetch later).
-// WS: connect with ?lang=en or send {"lang":"en"|"it"} to receive agent_message / toast texts translated.
+// WS: connect with ?lang=en or send {"lang":"en"|"it"} to receive toast texts translated.
 ```
 
 ## STRUCTURE (router: structure.py, engines: app/analysis/structure.py + scenarios.py)
@@ -1588,7 +1528,7 @@ the responses contain only codes + numbers (labels are translated in the fronten
 // PUT    /api/alerts/rules/{id}     body Partial<RuleInput> -> AlertRule (type/params change or re-enable resets the condition state)
 // DELETE /api/alerts/rules/{id}                     -> { ok: true }
 // POST   /api/alerts/rules/{id}/test                -> RulePreview      (evaluates now, no side effects)
-// GET    /api/alerts?category=custom,journal&limit=100   (history filtered by category, comma-separated)
+// GET    /api/alerts?category=custom&limit=100   (history filtered by category, comma-separated)
 type RuleType = 'price_cross'|'pct_move'|'zone'|'level_distance'|'indicator'|'cycle_zone'|'timepivot'|'candle_close'|'liq_burst'
 type MetricKey = 'rsi_1h'|'rsi_4h'|'rsi_1d'|'funding'|'oi_change_1h'|'oi_change_4h'|'oi_change_24h'|'fng'|'cycle_score'|'usdt_d'|'usdt_d_change_7d'
 type MetricUnit = 'idx'|'pct8h'|'pct'|'pt'
@@ -1637,174 +1577,27 @@ interface RuleMetrics {
   liq_15m: number | null; moves: Record<'60'|'240'|'1440', number | null>
   closes: Record<'1d'|'1w', { time: T | null; close: number | null }>
 }
-// AlertCategory gains 'custom' | 'journal' (both can be muted in the bell settings).
+// AlertCategory gains 'custom' (can be muted in the bell settings).
 // Frontend: src/api/alertRules.ts, src/widgets/alertRules.tsx (editor + openRuleEditor() quick-create), src/pages/AlertsPage.tsx (/avvisi).
 // Quick-create: bell button on each row of the /grafici key-levels table and the "Avviso" chart tool (price under the cursor).
 ```
 
-## JOURNAL (module: app/journal.py, router: journal.py)
-Notes and chart annotations persisted in `backend/data/journal_notes.json` / `journal_annotations.json` (same `USER_DATA_DIR` override).
-Every new note stores a compact CONTEXT SNAPSHOT from the existing builders (codes + numbers only; a failing module is listed in `missing`;
-if the forecast model is still training, its medians are added by a background thread as soon as it is ready, with `forecast.delayed_s`).
-Review: a note with `direction` + `horizon` is reviewed automatically after `created_at + horizon` days (checked by the alerts engine every
-20 s, throttled to 60 s, and on GET of notes/reviews): end price = close of the Binance 1h candle containing the due time (live price if that
-candle is still open), max up/down from k_1h highs/lows, outcome up/down/flat with a neutral band (7 d ±2%, 30 d ±4%, 90 d ±8%),
-`hit` = view matches outcome (neutral ↔ flat), forecast check against the snapshot's median/band for the same horizon, and `context_now` =
-a new snapshot at review time. Each review pushes exactly one alert: category `"journal"`, rule `"journal_review"`, link `/diario?note=<id>`,
-then broadcasts `invalidate ["/journal"]`. `direction`/`horizon` are editable only during the first 15 minutes (honest hit rate).
+## ANNOTATIONS (module: app/annotations.py, router: annotations.py)
+Annotazioni del grafico di `/grafici`, persistite in `journal_annotations.json` nella cartella dati utente (`USER_DATA_DIR` per un'istanza di test): il nome del file resta quello storico, così quelle già salvate si leggono senza migrazione. Testo scritto dall'utente: mai tradotto.
 
 ```ts
-// GET    /api/journal/notes?tag=&outcome=hit|miss|pending|none&q=   -> NotesResponse (newest first)
-// GET    /api/journal/snapshot                                      -> Snapshot (preview of what a new note would store)
-// POST   /api/journal/notes        body NoteInput                   -> Note (400 {detail} on validation errors)
-// GET    /api/journal/notes/{id}                                    -> Note
-// PUT    /api/journal/notes/{id}   body Partial<NoteInput>          -> Note
-// DELETE /api/journal/notes/{id}                                    -> { ok: true }
-// GET    /api/journal/reviews                                       -> ReviewsResponse
-// GET    /api/journal/annotations?symbol=BTCUSDT&tf=4h              -> { items: Annotation[] }   (also returns tf=null items)
-// POST   /api/journal/annotations  body AnnotationInput             -> Annotation
-// PUT    /api/journal/annotations/{id} body Partial<AnnotationInput> -> Annotation
-// DELETE /api/journal/annotations/{id}                              -> { ok: true }
-type ViewDir = 'up'|'down'|'neutral'; type Horizon = 7|30|90
-interface Snapshot {
-  time: T; price: number | null
-  cycle: { phase: 'accumulation'|'bull'|'distribution'|'bear'|null; phase_confidence: number|null; days_since_halving: number|null
-           score: number|null; zone: CycleZone|null; score_change_30d: number|null } | null
-  levels: { tag: string /* R3..S3 */; price: number; kind: 'support'|'resistance'; source: string }[] | null
-  structure: { state: string|null /* structure range state code */; range_high: number|null; range_low: number|null; range_mid: number|null } | null
-  analogs: { bias: string|null; median_outcome: number|null; up: number|null; down: number|null; count: number|null; horizon: number|null } | null
-  fractals: { bias: string|null; up_prob: number|null; tf: string|null; horizon: number|null } | null
-  forecast: { targets: { days: number; low: number; high: number; median: number; up_prob: number }[]
-              median_7d: number|null; median_30d: number|null; median_90d: number|null; delayed_s?: number } | null
-  derivatives: { funding: number|null /* % per 8h */; oi_usd: number|null; oi_change_24h: number|null } | null
-  sentiment: { value: number; time: T } | null                       // Fear & Greed
-  usdt: { usdt_d: number|null; change_7d: number|null /* pt */ } | null
-  timepivots: { id: string; start: T; end: T; confluence: number|null; expected: string|null; probability: number|null; active: boolean }[] | null
-  missing: string[]
-}
-interface Review {
-  due_at: T; reviewed_at: T; price_start: number; price_end: number; change_pct: number
-  max_up_pct: number|null; max_down_pct: number|null; band_pct: number
-  outcome: 'up'|'down'|'flat'; view: ViewDir; hit: boolean
-  forecast_check: { median: number; low: number|null; high: number|null; up_prob: number|null; inside: boolean; median_error_pct: number } | null
-  context_now?: Snapshot | null; notified?: T
-}
-interface NoteInput {
-  title: string                 // ≤ 120 (user text)
-  body: string                  // markdown-light, ≤ 20000 (user text)
-  tags: string[]                // ≤ 12, lower-case
-  direction: ViewDir | null; horizon: Horizon | null   // both or neither
-}
-interface Note extends NoteInput {
-  id: string; created_at: T; updated_at: T; price: number|null; snapshot: Snapshot; review: Review|null
-  due_at: T|null; outcome: 'hit'|'miss'|'pending'|null; view_editable: boolean
-}
-interface NotesResponse { items: Note[]; tags: { tag: string; count: number }[]; total: number }
-interface ReviewsResponse {
-  items: { note_id: string; title: string; tags: string[]; direction: ViewDir; horizon: Horizon; created_at: T; review: Review /* without context_now */ }[]
-  upcoming: { note_id: string; title: string; direction: ViewDir; horizon: Horizon; created_at: T; due_at: T; price: number|null; overdue: boolean }[]
-  stats: { total: number; hits: number; hit_rate: number|null; pending: number
-           by_horizon: { horizon: Horizon; total: number; hits: number; hit_rate: number|null }[]
-           by_direction: { direction: ViewDir; total: number; hits: number; hit_rate: number|null; avg_change: number|null }[]
-           series: { time: T; value: number /* cumulative hit rate % */; hit: boolean }[] }
-  bands: Record<'7'|'30'|'90', number>
-}
 interface AnnotationInput {
   kind: 'hline'|'trendline'|'vline'|'text'; symbol?: string /* default BTCUSDT */; tf: Tf|null /* null = every timeframe */
   points: { time: T|null; price: number|null }[]   // hline [{price}] · vline [{time}] · text [{time,price}] · trendline 2×{time,price}
   text: string /* ≤ 280, required for 'text' */; color: 'slate'|'blue'|'violet'|'teal'|'amber'|'btc'; extend?: boolean /* trendline ray */
 }
 interface Annotation extends AnnotationInput { id: string; symbol: string; created_at: T; updated_at: T }
-// Frontend: src/api/journal.ts, src/widgets/journal.tsx, src/pages/JournalPage.tsx (/diario, ?tab=revisioni, ?note=<id>),
-// src/widgets/annotations.tsx + new optional ProChart props `annotations`, `onPick`, `pickDraft`, `onAnnotationClick` (backward compatible).
-// Realtime keys: "/alerts/rules" → ['alertRules'], "/journal" → ['journal'].
+// GET    /api/annotations?symbol=BTCUSDT&tf=4h              -> { items: Annotation[] }   (also returns tf=null items)
+// POST   /api/annotations  body AnnotationInput             -> Annotation
+// PUT    /api/annotations/{id} body Partial<AnnotationInput> -> Annotation
+// DELETE /api/annotations/{id}                              -> { ok: true }
+// Frontend: src/api/annotations.ts, src/widgets/annotations.tsx, ProChart props `annotations`, `onPick`, `pickDraft`, `onAnnotationClick`.
 ```
-
-## ASTRO (router: astro.py, engines: app/analysis/astro.py + astro_calendar.py, agent: astro)
-Studio "Astronomia e numeri": calendari astronomici (astronomy-engine, verificati contro USNO / NASA GSFC / JPL Horizons /
-SILSO in `app/analysis/astro_verification.json`, rigenerabile con lo script di verifica) e 17 ipotesi testate sullo storico di BTC.
-Dataset registrato: `astro_gfz` (GFZ Potsdam, giornaliero dal 2009: time, kp_max, kp_sum, ap, sn, f107, definitive; TTL 6 h).
-Parte pesante in cache per giorno (6 h); fase lunare, Mercurio, Kp NOAA (cache 15 min) e prossimi eventi ricalcolati a ogni richiesta.
-I testi sono composti dal frontend (chiavi + numeri): l'API non contiene frasi da tradurre, salvo `verification.checks[].source/note`.
-Campione dei test: rendimenti log giornalieri dal 2012-01-01 a ieri. p = placebo a traslazione circolare (≥ 30 g), p_bh = Benjamini-Hochberg.
-Verdetto: n < 12 → anecdotal · p_bh < 0.05 e stable → strong · p < 0.05 o p_bh < 0.05 → weak · altrimenti none.
-
-```ts
-// GET /api/astro?horizon=90   (14..365)
-type HypId = 'moon_full' | 'moon_new' | 'moon_halves' | 'supermoon' | 'lunar_eclipse_total' | 'lunar_eclipse_all' | 'solar_eclipse'
-  | 'mercury_retro' | 'seasons' | 'friday13' | 'geomag_storm' | 'solar_cycle' | 'round_major' | 'round_minor' | 'gann_sq9' | 'fib_price' | 'fib_time';
-type Verdict = 'none' | 'weak' | 'strong' | 'anecdotal';
-type HypUnit = '%' | 'pp/g' | 'pp' | 'r';      // % = rendimento cumulato della finestra · pp/g = punti % al giorno · pp = punti di frequenza · r = correlazione
-type EclipseKind = 'penumbral' | 'partial' | 'annular' | 'total' | 'hybrid';
-type AstroEventKey = 'full' | 'new' | 'supermoon' | 'lunar_eclipse_total' | 'lunar_eclipse' | 'solar_eclipse' | 'mercury_retro_start'
-  | 'mercury_retro_end' | 'mar_equinox' | 'jun_solstice' | 'sep_equinox' | 'dec_solstice' | 'friday13' | 'geomag_storm';
-type N = number | null;
-interface SubEffect { effect: N; n: number }
-interface Hypothesis {
-  id: HypId; group: 'luna' | 'eclissi' | 'pianeti' | 'sole' | 'numeri';
-  metric: 'window_ret' | 'daily_diff' | 'corr' | 'reject_rate' | 'hit_rate'; unit: HypUnit;
-  window: [number, number] | null;   // [a, b] giorni rispetto all'evento
-  n: number; n_events?: number;      // n = eventi / giorni nel periodo / tocchi / mesi; n_events = episodi indipendenti (test a periodi)
-  observed: N; baseline: N; effect: N; ci: [N, N];   // effect = observed − baseline (corr: r); ci = IC 95% bootstrap
-  p: N; p_bh: N; naive_p?: N;                        // naive_p solo solar_cycle (t-test classico)
-  null: { q05: N; q95: N };                          // banda 90% dell'effetto sotto placebo
-  vol_ratio?: N; vol_p?: N; up_rate?: N; up_base?: N; dd?: N; dd_base?: N; median?: N;
-  halves: SubEffect[]; cycles: (SubEffect & { label: string })[];   // label = anno di inizio del ciclo dell'halving ("2012"…)
-  stable: boolean; verdict: Verdict;
-  values?: { time: T; ret: N }[];                    // studi di evento: rendimento della finestra per evento
-  control_hist?: { x: N; n: number }[]; touch_days?: number;   // livelli: tasso nelle griglie di controllo, centrato sulla media
-  ratios_hist?: { x: N; n: number }[]; levels?: number[]; tolerance?: N;   // Fibonacci
-  solar_cycles_in_sample?: N;
-}
-interface EventRow { time: T; ret7: N; ret30: N }   // ret7 = log % da d−4 a d+3 · ret30 = log % dei 30 giorni successivi
-interface AstroUpcoming {
-  id: string; key: AstroEventKey; time: T; hyp: HypId | null;
-  n: N; observed: N; baseline: N; effect: N; up_rate: N; up_base: N; unit: HypUnit | null;
-  p: N; p_bh: N; verdict: Verdict | null; window: [number, number] | null;
-  kind?: EclipseKind; distance_km?: N; kp?: N;
-}
-interface AstroResponse {
-  generated_at: T; today: T; price: number; horizon: number;
-  sample: { start: T; end: T; days: number; cycles: { label: string; start: T; end: T }[] };
-  hypotheses: Hypothesis[];
-  moon: {
-    now: { time: T; illum: number /*0..1*/; phase_angle: number; elongation: number /*0..360*/; age_days: number; distance_km: number; waxing: boolean;
-           phase: 'new' | 'waxing_crescent' | 'first_quarter' | 'waxing_gibbous' | 'full' | 'waning_gibbous' | 'last_quarter' | 'waning_crescent' };
-    prev_new: T | null;
-    next: { key: 'new' | 'first_quarter' | 'full' | 'last_quarter'; time: T; supermoon: boolean; distance_km: N }[];   // prossime 8 fasi
-    profile: { day: number; deg: number; mean: N; lo: N; hi: N; placebo_lo: N; placebo_hi: N; n: number }[];      // 30 classi di 12°
-    paths: Record<'full' | 'new', { day: number; mean: N; placebo_lo: N; placebo_hi: N; placebo_mid: N }[]>;      // −7..+7, %
-    events: { time: T; key: 'full' | 'new'; supermoon: boolean }[];
-  };
-  eclipses: { lunar: (EventRow & { kind: EclipseKind; obscuration: N; total_min: N })[];
-              solar: (EventRow & { kind: EclipseKind; obscuration: N; lat: N; lon: N })[] };   // 2010 → anno prossimo
-  supermoons: (EventRow & { distance_km: N })[];
-  mercury: { periods: { start: T; end: T; ret: N; days: N }[];
-             now: { retro: boolean; start: T | null; end: T | null; next_start: T | null; next_end: T | null } };
-  seasons: (EventRow & { key: 'mar_equinox' | 'jun_solstice' | 'sep_equinox' | 'dec_solstice' })[];
-  solar: { monthly: { time: T; ssn: N; smooth: N; close: N; ret12: N }[]; predicted: { time: T; ssn: N; lo: N; hi: N }[];
-           solar_extrema?: { kind: 'min' | 'max'; time: T; ssn: N }[]; btc_peaks?: { time: T; price: N }[] };   // picco = max close entro 600 g dall'halving
-  geomag: { now: { time: T; kp: N } | null; recent: { time: T; kp: N }[]; forecast: { time: T; kp: N }[];
-            storms: { time: T; kp: N; ap: N; ret6: N }[]; storms_year: { year: number; days_g1: number; days_g3: number }[]; threshold: number };
-  numbers: {
-    milestones: { powers: { level: number; time: T | null; days_from_prev: number | null }[];
-                  repdigits: { level: number; time: T | null }[];
-                  palindromes: { time: T; price: N; ret30: N; future: boolean }[] };
-    bitcoin: { max_supply: number; halving_interval: number; block_target_s: number; retarget_blocks: number; sats_per_btc: number;
-               genesis: T; pizza_day: T; pizza_btc: number; halvings: { n: number; time: T; block: number; subsidy_after: number }[];
-               next_halving_block: number; next_halving_eta: T; height: N; blocks_left: N; sats_per_usd: N; pizza_usd: N;
-               issued?: number; issued_pct?: number; subsidy?: number; epoch?: number };
-  };
-  upcoming: AstroUpcoming[];          // prossimi `horizon` giorni, ordinati per tempo
-  candles: Candle[];                  // ultime 1100 candele giornaliere Binance
-  verification: { generated_at: T; range: [number, number]; checks: { id: string; source: string; url: string; range: string; n: number;
-    mean_abs_min?: number; median_abs_min?: number; max_abs_min?: number; missing?: number; extra?: number; type_match?: number; n_ref?: number;
-    mean_abs_km?: number; max_abs_km?: number; classification_flips?: number; mean_abs_ssn?: number; max_abs_ssn?: number; note?: string }[] } | null;
-  constants: { supermoon_km: number; synodic_days: number; alpha: number; min_n: number; min_shift: number; n_boot: number; n_ctrl: number };
-}
-```
-Agente `astro` (MoonStar, 30 min): pubblica `astro.summary` (quante ipotesi sono significative) e `astro.soon` (eventi entro 3 giorni con
-il verdetto storico, senza toni predittivi); invalida `/astro` → query react-query `['astro', horizon]`.
 
 ## DERIVATIVES PRO (router: derivatives.py, engines: app/analysis/basis.py + cme.py + aggregate.py, liquidations.py; collectors: app/live.py + app/liq_collectors.py)
 
@@ -1900,7 +1693,7 @@ returns `exchange`/`symbol` columns (old rows → binance/BTCUSDT) and de-duplic
 New persistent datasets (store.register): `basis_coinm_1d`, `basis_usdm_1d`, `basis_deribit_snap`, `cot_cme`, `lev_bybit_1d`, `lev_okx_1d`,
 `lev_binance_1d`, `lev_snap` (5 min), `oi15_bybit`, `oi15_okx`, `lev_cg`. `BTC_DATA_DIR` env overrides the data folder (isolated test instances).
 Frontend: `src/api/derivPro.ts` (hooks `useBasis`/`useCme`/`useAggregate`), `src/widgets/derivPro.tsx` (`BasisTab`, `CmeTab`, `LeverageTab`,
-`ExchangeBadge`), Derivati tabs `?tab=basis|cme|leverage`. Realtime keys: "/derivatives/basis" → ['deriv-basis'], "/derivatives/cme" → ['deriv-cme'],
+`ExchangeBadge`), Posizionamento, scheda Derivati: `?view=basis|cme|leva`. Realtime keys: "/derivatives/basis" → ['deriv-basis'], "/derivatives/cme" → ['deriv-cme'],
 "/derivatives/aggregate" → ['deriv-agg'] (also refreshed by "/derivatives").
 
 ## VWAP (router: vwap.py, engine: app/analysis/vwap.py, agent: vwap)
@@ -1950,7 +1743,7 @@ interface VwapPanel {
 ```
 
 ### VWAP — grafico unico e volume profile per sessione
-Pagina `/vwap` a schede: `?tab=` assente = "Grafico unico" (default), `?tab=panels` = griglia 2×2.
+Scheda `/grafici?tab=vwap`: `?view=` assente = "Grafico unico" (default), `?view=panels` = griglia 2×2.
 Volume profile: il volume di ogni candela 1m è distribuito uniformemente tra low e high (calcolo esatto con somme cumulative);
 bin = valore tondo più vicino a prezzo·0,06% (settimana, $50 a 83k) o prezzo·0,12% (mese, $100). POC = bin a volume massimo
 (prezzo = centro del bin). Value area 70%: dal POC si aggiunge ogni volta il bin adiacente con più volume (a parità, quello sopra).
@@ -1977,103 +1770,6 @@ interface VwapOverview {
   profile: { mode: VwapProfileMode; va_pct: 70; sessions: VwapProfileSession[] }
 }
 ```
-
-## TIMING (router: timing.py, engines: app/analysis/timing_gann.py + timing_wyckoff.py + timing_rhythms.py, agent: timing, tests: backend/tests/test_timing.py)
-Sezione "Timing Gann · Wyckoff" (`/timing`, schede `?tab=` assente = scenari · `gann` · `wyckoff` · `ritmi`). Replica gli strumenti
-dei "timing tops & bottoms" (conteggi di Gann, fasi di Wyckoff, ritmi di calendario) con il track record contro il caso.
-I testi sono composti dal frontend (chiavi + numeri): l'API non contiene frasi da tradurre.
-- Gann: ancore = pivot maggiori dello zigzag 4×ATR(14) giornaliero con indice di conferma; proiezione valida solo se la finestra
-  inizia dopo la conferma. Bersaglio = pivot a N giorni (frattale, N 10|20), colpo = bersaglio entro ±W (1|2|3). Placebo a traslazione
-  circolare (≥30 g, esaustivo) + placebo dei conteggi (k·U(0.8,1.2), 400 estrazioni). BH tra i tipi (`p_bh`) e su tutte le 6 definizioni
-  (`p_bh_all`, 84 test). Verdetto: n<30 anecdotal · strong = p_bh<0.05, p_counts<0.05, stabile nelle due metà e p_bh_all<0.05 · weak = p<0.05.
-  Cache: backtest delle 6 definizioni per giorno (5–30 s a freddo, pre-calcolato dall'agente), risposta 2 min.
-- Wyckoff: macchina a stati causale su candele chiuse (Binance k_1d/k_4h; il backtest 1D aggiunge il segmento `daily` 2012 → 16 ago 2017).
-  Rendimenti a 5/10/20 g dalla candela di conferma (`confirmed`) contro tutte le candele; p da 2000 estrazioni, IC bootstrap, BH su eventi × orizzonti.
-- Ritmi: `thirds` = mese 1–10/11–20/21–fine, definizione `close` o `extremes` (soglia θ 2|3|5%); caso = stesso schema su tutte le finestre
-  10+10+10 g che iniziano in un giorno qualsiasi; p binomiale e Šidák su 104 combinazioni. Caselle: Welch + BH + test di famiglia (max |t|, 500 permutazioni).
-- Avvisi personali: livelli `wy_1d_high`, `wy_1d_low`, `wy_4h_high`, `wy_4h_low` (range di Wyckoff attivi).
-
-```ts
-type N = number | null
-type Verdict = 'none' | 'weak' | 'strong' | 'anecdotal'
-type GannTypeId = 'c30'|'c45'|'c60'|'c90'|'c120'|'c144'|'c180'|'c270'|'c360'|'c_mult'|'sq9'|'yeardiv'|'anniv'|'seasonal'
-interface GannTypeRow { id: GannTypeId; group?: 'giorni'|'quadrato'|'anno'; days?: number[]; n: number; hits?: number
-  hit_rate?: N; base_rate?: N; lift?: N; null_q05?: N; null_q95?: N; ctrl_rate?: N          // percentuali
-  p_shift?: N; p_counts?: N; p_bh?: N; p_bh_all?: N; halves?: { n: number; rate: N; base: N; lift: N }[]; stable?: boolean; verdict: Verdict }
-interface ScoreBin { min: number; max: number | null; n: number; hit_rate?: N; base_rate?: N; lift?: N; null_q95?: N; p?: N; p_bh?: N; verdict?: Verdict | null }
-interface GannSource { type: GannTypeId; days: number | null; exact: T; anchor: T | null; anchor_kind: 'high'|'low'|null; anchor_price: N; verdict: Verdict | null; lift: N }
-interface GannDate { time: T; start: T; end: T; days_away: number; score: number; types: GannTypeId[]; sources: GannSource[]
-  hist_hit_rate: N; hist_base_rate: N; hist_lift: N; hist_n: number | null; hist_verdict: Verdict | null }
-
-// GET /api/timing/gann?horizon=90&pivot=10&win=2      (horizon 14..365; (pivot, win) in {10,20}×{1,2,3})
-interface GannResponse {
-  generated_at: T; today: T; price: number; horizon: number
-  params: { pivot_n: number; win: number; anchor_mult: number; min_shift: number; n_ctrl: number; cluster_tol: number; min_n: number; alpha: number; defs: [number, number][]; tests_all: number }
-  sample: { start: T; end: T; days: number; anchors: number; targets: number; base_rate: N }
-  types: GannTypeRow[]; score_bins: ScoreBin[]                      // score = tipi di conteggio distinti entro ±1 g; bin 0–1, 2, 3, 4, ≥5
-  upcoming: GannDate[]                                              // massimi locali del punteggio (finestra ±W), ordinati per data
-  score_future: { time: T; score: number; types: GannTypeId[] }[]   // ogni giorno da oggi a oggi + horizon
-  anchors: { time: T; confirmed: T; kind: 'high'|'low'; price: number }[]   // ultimi ~1500 giorni
-  targets_recent: { time: T; kind: 'high'|'low'; price: number }[]; open_extreme: { time: T; kind: 'high'|'low'; price: number } | null
-  recent: { time: T; type: GannTypeId; hit: boolean; score: number | null }[]
-  sq9: { anchor: { price: number; kind: 'high'|'low' }; levels: { deg: number; turns: number; price: number; dist: number }[]; step_usd: number } | null
-  fan: { anchor: { time: T; price: number; kind: 'high'|'low' }; prev: { time: T; price: number; kind: 'high'|'low' }; leg_days: number; slope_1x1: number
-         days_since: number; direction: 'up'|'down'; lines: { key: '1x2'|'1x1'|'2x1'; factor: number; slope: number; price: N; dist: N }[] } | null   // scala arbitraria, non testato
-  counts: Record<GannTypeId, number[]>; seasonal_dates: [number, number][]; candles: Candle[]   // ultime 400 candele 1D
-}
-
-type WyKey = 'PS'|'SC'|'AR_A'|'ST_A'|'SPRING'|'TEST'|'SOS'|'LPS'|'BRK_DN'|'PSY'|'BC'|'AR_D'|'ST_D'|'UT'|'UTAD'|'SOW'|'LPSY'|'BRK_UP'
-type WyPhase = 'A'|'B'|'C'|'D'|'E'
-interface WyEvent { key: WyKey; time: T; confirmed: T; price: number; rv: N /* volume relativo */; phase: WyPhase; bu?: boolean; pen?: N /* in ATR */; low_vol?: boolean }
-interface WyRange { side: 'acc'|'dist'; status: 'active'|'up'|'down'|'failed'|'expired'; phase: WyPhase; high: number; low: number
-  start: T; confirmed: T; end: T | null; bars: number; width_pct: N; after_20: N; events: WyEvent[] }
-interface WyHorizon { days: number; n: number; base_mean: N; base_up: N; mean?: N; median?: N; excess?: N; ci?: [N, N]; hit?: N; base_hit?: N
-  p?: N; p_bh?: N; stable?: boolean; agrees?: boolean; halves?: { n: number; excess: N }[]; verdict: Verdict }
-// GET /api/timing/wyckoff?tf=1d|4h
-interface WyckoffResponse { tf: '1d'|'4h'; bars: number; since: T; last_closed: T; generated_at: T; price: number
-  active: WyRange | null; last_range: WyRange | null; ranges: WyRange[] /* visibili nel grafico */; timeline: WyRange[] /* ultimi 60, dal più recente */
-  outcomes: Record<string, number>   // acc_up, acc_failed, acc_expired, dist_down, dist_failed, dist_expired
-  backtest: { rows: { key: WyKey; side: 'acc'|'dist'; direction: 'up'|'down'; n: number; horizons: WyHorizon[] }[]
-              base: Record<string, { mean: N; up: N }>; segments: { since: T; until: T; bars: number }[]; bars: number; tests: number; split: T }
-  chart_from: T
-  params: { lb: number; trend: number; trend_pct: number; ps_lb: number; ar_max: number; max_bars: number; min_age: number; min_w: number; bpd: number; vol_n: number
-            horizons: number[]; n_perm: number; n_boot: number; min_n: number; alpha: number }
-  candles: Candle[] }   // ultime 500 (1D) / 700 (4H) candele, l'ultima in formazione
-
-// GET /api/timing/rhythms?kind=thirds|weekday|monthweek|monthday|hour&how=close|extremes&pattern=%2B-%2B&theta=2|3|5&start=2017|2013&recent=YYYY-MM-DD
-//   pattern: 3 caratteri in {+, -, .} (. = qualsiasi; "..." non ammesso)
-interface ThirdsFam { pattern: string; n: number; k: number; rate: N; null: N; lift: N; p: N; p_bh?: N }
-interface ThirdsResponse { kind: 'thirds'; pattern: string; def: 'close'|'extremes'; theta: number; cuts: [number, number]
-  full: ThirdsFam & { naive: N /* prodotto delle marginali, solo close */; coin: N }
-  recent: { from: T; n: number; k: number; rate: N; p: N; months: { month: T; match: boolean }[] }
-  family: ThirdsFam[] /* 8 schemi pieni */; combos: number /* 104 */; p_sidak: N; verdict: Verdict; stable: boolean
-  by_year: { year: number; n: number; k: number; rate: N }[]
-  seg_means: { seg: number; n: number; mean: N; median: N; up: N; others_mean: N; p: N }[]
-  months: { month: T; open: N; segs: ({ ret: N; high: N; low: N; close: N } | null)[]; match: boolean | null; partial: (boolean | null)[] | null }[]   // dal più recente
-  null_windows: number; generated_at: T; start: T; start_key: '2017'|'2013'; thetas: number[]; patterns: string[] }
-interface BucketResponse { kind: 'weekday'|'monthweek'|'monthday'|'hour'; labels: number[]   // weekday 0=lun · monthweek 0..4 · monthday 1..31 · hour 0..23 UTC
-  rows: { bucket: number; n: number; mean: N; median: N; up: N; diff: N; t: N; p: N; p_bh: N; stable: boolean; share_same_sign: N; verdict: Verdict
-          recent: { n: number; mean: N; up: N; diff: N; p: N; p_bh: N }; years: { year: number; diff: N; n: number }[] }[]   // % log per giorno/ora
-  family: { max_t: N; p: N; n_perm: number; tests: number }; heat: { year: number; values: N[] }[]; n: number; since: T | null
-  recent: { from: T; n: number }; generated_at: T; start: T; start_key: '2017'|'2013'; combos: number }
-
-// GET /api/timing   (panoramica + scenari, cache 60 s)
-interface LevelGroup { price: number; low: number; high: number; sources: string[] /* wy_1d_high, st_1d_low, vwap_m, vwap_pw … */; dist: number }
-interface WyStat { key: WyKey; days: number; n: number | null; mean: N; excess: N; hit: N; base_hit: N; p: N; p_bh: N; verdict: Verdict | null; direction: 'up'|'down'; agrees: boolean | null }
-interface TimingOverview { generated_at: T; today: T; price: number
-  gann: { next: GannDate | null /* punteggio massimo ≥2 entro 30 g */; upcoming: GannDate[]; verdicts: Partial<Record<Verdict, number>>
-          score_bins: ScoreBin[]; best_bin: ScoreBin | null; params: GannResponse['params']; sample: GannResponse['sample']
-          types: Pick<GannTypeRow, 'id'|'n'|'hit_rate'|'base_rate'|'lift'|'p_shift'|'p_bh'|'p_bh_all'|'verdict'>[] }
-  wyckoff: Record<'1d'|'4h', { tf: '1d'|'4h'; active: (Pick<WyRange, 'side'|'phase'|'high'|'low'|'start'|'confirmed'|'bars'|'width_pct'> & { last_event: WyEvent | null }) | null
-                               last_key_event: WyEvent | null; stat: WyStat | null; last_closed: Pick<WyRange, 'side'|'status'|'phase'|'high'|'low'|'start'|'end'> | null; key_stats: WyStat[] }>
-  rhythm: { close: Pick<ThirdsResponse, 'full'|'recent'|'verdict'|'p_sidak'|'combos'> & { current: ThirdsResponse['months'][number] }
-            extremes: Pick<ThirdsResponse, 'full'|'recent'|'verdict'|'p_sidak'|'theta'> & { current: ThirdsResponse['months'][number] } }   // "+-+" dal 2017, recente da 2026-08-01
-  levels: LevelGroup[]   // livelli esistenti raggruppati entro 0.6%
-  scenarios: { pivot: LevelGroup; hold: { level: LevelGroup; next: LevelGroup[]; invalid: LevelGroup }; lose: { level: LevelGroup; next: LevelGroup[]; invalid: LevelGroup }
-               resistance: LevelGroup | null } | null }
-```
-Agente `timing` (Hourglass, 10 min): `timing.key_date` (data chiave entro 3 g con l'hit rate storico del suo punteggio), `timing.wyckoff.1d|4h`
-(cambio di fase o nuovo evento, con la statistica dell'evento), `timing.rhythm` (solo caselle con verdetto strong); invalida `/timing` → query `['timing', …]`.
 
 ## SUPERCHART (router: superchart.py, engines: app/analysis/superchart.py + anomalies.py, layouts: app/superchart_layouts.py, agent: anomalies, tests: backend/tests/test_superchart.py)
 
@@ -2145,7 +1841,7 @@ del primo giorno in cui il dato è pubblicato; base = tutti i giorni misurabili 
 Agente `anomalies` (Radar, 30 min): `anomalies.<tipo>` per ogni anomalia nuova con il backtest a 7 g del suo tipo (al primo giro solo quelle pubblicate da < 2 g);
 invalida `/anomalies` e `/superchart/series` → query `['anomalies', …]`, `['superchart', …]`. Tono sempre neutro (descrittivo).
 
-## ORDER BOOK (router: orderbook.py, collector: app/ob_collector.py, logica: app/analysis/orderbook_core.py, agent: orderbook, tests: backend/tests/test_orderbook.py)
+## ORDER BOOK (router: orderbook.py, collector: app/ob_collector.py, logica: app/analysis/orderbook_core.py, agent: orderflow, tests: backend/tests/test_orderbook.py)
 
 Collector in-process (thread `orderbook` con event loop proprio, avviato da `live.start()`), mercati da env `ORDERBOOK_MARKETS` (default `futures,spot`):
 `futures` = Binance USDⓈ-M BTCUSDT (`wss://fstream.binance.com/public/ws/btcusdt@depth@100ms`, `/market/ws/btcusdt@aggTrade`, snapshot `fapi/v1/depth` limit 1000),
@@ -2207,88 +1903,6 @@ fp?:{t, tf, bin, o,h,l,c, buy, sell, delta, poc, n, ok, p[], lbuy[], lsell[], im
 Agente `orderbook` (Grid3x3, 30 s, solo perp): `orderbook.walls` (muri più vicini cambiati), `orderbook.pulled` (ritiro ≥ 2× soglia), `orderbook.imbalance`
 (squilibrio persistente), `orderbook.cvd` (divergenza); invalida `/orderbook/status`, `/orderbook/signals` → query `['orderbook', …]`
 (heatmap `['ob-heatmap', …]` e footprint `['ob-footprint', …]` si aggiornano solo dal WS + ricarica ogni 5/2 min). Tono sempre neutro.
-
-## ELLIOTT (router: elliott.py, engine: app/analysis/elliott.py, agent: elliott, tests: backend/tests/test_elliott.py)
-Pagina `/elliott` (schede `?tab=` conteggio | alternativi | regole | backtest). Conteggio automatico delle onde di Elliott su BTC 4h/1d/1w.
-Risposte con sole chiavi e numeri: i testi (nomi dei pattern, regole, linee guida, notazione per grado) li compone il frontend.
-- Swing: `structure.zigzag_confirmed` su ATR(14) causale (`structure_analogs.causal_atr`), tre soglie per timeframe = tre gradi
-  (4h intermediate 6× · minor 4× · minute 2.5×; 1d primary 5× · intermediate 3× · minor 2×; 1w cycle 4× · primary 2.5× · intermediate 1.5×;
-  predefiniti 4h minor, 1d intermediate, 1w primary). Sotto-onde = ZigZag 0.45× la soglia vincolato alla gamba. Il conteggio usa solo
-  candele chiuse (si ricalcola alla chiusura: cache sull'ultima candela chiusa attesa, TTL 60 s); serie BTC `analogs.load(tf)` dal 2011.
-- Candidati che finiscono sull'ultimo pivot confermato m: impulse (k=1..5), diagonal (k=3..5, contraente/espansiva, iniziale/finale),
-  zigzag e flat (k=1..3; flat regular/expanded/running), triangle (k=2..5, contracting/barrier/expanding), double_zigzag e double_three
-  (k=3..7). k = onde completate; l'onda k+1 è "in corso" (dal pivot m all'estremo raggiunto). Lunghezze in log-prezzo (variazione %).
-- REGOLE (scartano): w2_start, w3_beyond_w1, w4_overlap, w3_shortest; diagonali: diag_w4_w3start, diag_contract|diag_expand (3<1, 4<2, 5<3
-  o il contrario); zigzag: zz_b_start, zz_b_lt_flat (B<90% A), zz_c_beyond_a; flat: flat_b_90 (B≥90% A), B≤138.2% A, variante
-  regular (B 90–105%, C ≥ fine A −5% di A) | expanded (B>105%, C oltre A) | running (B>100%, C non oltre A); triangolo: tri_position
-  (gamba precedente > A: solo 4/B/X), tri_c/tri_d/tri_e (contraente: C, D, E entro le fine di A, B, C; espansivo al contrario), B ≤ 150% A;
-  doppi: W/Y zigzag o flat validi, dz_x_start, double_zigzag con Y oltre W, double_three con al più uno zigzag. Le regole valgono anche
-  sull'onda in corso (es. onda 4 in corso già sotto la fine dell'onda 1 → scartato).
-- LINEE GUIDA (punteggio = 100·Σ peso·g / Σ peso sulle applicabili, `weights` nella risposta): w2_fib, w3_fib, w4_fib, w5_fib, alternation,
-  extension, channel_w4, channel_w5, time, substructure, volume, divergence, start_extreme, coverage, coherence (grado superiore),
-  truncation, overlap, diag_ratios, b_fib, c_fib, depth, tri_legs, barrier, x_fib, y_eq_w, flat_b. g ∈ [0,1] (gaussiana sui rapporti
-  tipici: ritracciamenti ±0.07, estensioni ±0.12 in log-rapporto, tempi ±0.30).
-- Invalidazione: livello di prezzo oltre il quale QUESTA etichettatura è falsa (`*_rule`: regola o `labeling` = l'onda precedente si
-  estende). Obiettivi: zona = rapporti di Fibonacci tipici, centro = media dei principali; `reached` = estremo in corso già oltre la zona.
-  Proiezione: [onda in corso, onda successiva] con tempo indicativo (mediana delle gambe dello stesso tipo, ×0.618–1.618).
-- Backtest walk-forward (cache memoria + `data/elliott_bt.json` via store.write_text, chiave = n. pivot confermati): a ogni conferma ci[m]
-  si contano le onde coi soli dati noti (test: identico sulla serie troncata). Direzione = segno del percorso proiettato a h = durata
-  mediana degli swing; baseline `base_alt` (alternanza con ampiezza/durata mediane) e `base_random` (candidato valido a caso, 400
-  estrazioni → p_*_random); p_*_alt = test del segno (McNemar esatto). `target_first` = zona toccata prima dell'invalidazione (finestra
-  fino a ci[m+2]). «Giusto a posteriori» = candidato con P[m+1] nella zona, nessuna invalidazione prima di i[m+1], errore minimo.
-  `calibration.ranks[r].p_best` = frequenza rango r giusto (Wilson 95%) → `count.prob` se n ≥ 30, altrimenti null (si mostra solo
-  `score`). verdict (valore predittivo) e rank_verdict (ordinamento vs caso): n<30 anecdotal; strong p<0.05 e stabile nelle due metà;
-  weak p<0.10; none. Ranker ML (regressione logistica, addestrata solo su istanti con esito noto ci[m+1] ≤ T, ogni 20 istanti, ≥ 80 di
-  training) adottato solo se batte le regole fuori campione (p<0.10 ed errore mediano non peggiore): `ranker` = "rule" | "ml".
-- Agente `elliott` (300 s): finding "Elliott 1D/4H/1W"; topic `elliott.count.{tf}` (al cambio di conteggio/onda), `elliott.invalidated.{tf}`
-  (prezzo live oltre l'invalidazione); tono sempre neutro. Invalida "/elliott". Avvisi personali: livelli `ew_1d_inv`, `ew_1d_target`,
-  `ew_4h_inv`, `ew_4h_target` (invalidazione più vicina e centro obiettivo del preferito).
-
-```ts
-// GET /api/elliott?tf=1d&degree=intermediate   (tf 4h|1d|1w; degree tra quelli del tf) → 400 su parametri non validi
-type EwDegree = 'supercycle'|'cycle'|'primary'|'intermediate'|'minor'|'minute'|'minuette'|'subminuette'
-type EwWave = string   // '1'..'5' | 'A'..'E' | 'W' | 'X' | 'Y' | 'a' | 'b' | 'c' (sotto-onde dei doppi) | 'next' | 'next2' | 'thrust'
-interface EwCount {
-  rank: number; id: string; pattern: 'impulse'|'diagonal'|'zigzag'|'flat'|'triangle'|'double_zigzag'|'double_three'; variant: string | null
-  direction: 'up'|'down'; state: 'complete'|'progress'; k: number; legs: number; degree: EwDegree
-  wave: EwWave /* onda in corso */; next_wave: EwWave; next_higher: boolean /* pattern completo: l'onda in corso è di grado superiore */
-  cur_dir: 'up'|'down'; score: number /* 0..100 */; ml_p: number | null
-  prob: { p: number; lo: number; hi: number; n: number; p_conf: number; ranker: 'rule'|'ml' } | null
-  points: { pos: number; time: T; price: number; label: EwWave | null; sub: boolean; kind: 'high'|'low' }[]   // pos 0 = inizio
-  waves: { label: EwWave; n_sub: number; change: number /* % */; bars: number; from: T; to: T }[]
-  pending: { time: T; price: number; label: EwWave; change: number; bars: number }
-  invalidation: { below: number | null; above: number | null; below_rule: string | null; above_rule: string | null }
-  projection: { wave: EwWave; time: T; t_lo: T; t_hi: T; price: number; lo: number; hi: number; reached: boolean
-                levels: { key: string; ratio: number | null; price: number }[] }[]          // [onda in corso, onda successiva]
-  channel: { time: T; price: number }[][] | null                                            // 2 rette (impulso: canale; diagonale: 1-3 e 2-4)
-  rules: { key: string; value: number | null; limit: number | null }[]
-  guidelines: { key: string; score: number; weight: number; value: number | (number | null)[] | null; ideal: number[] | null }[]
-}
-interface Elliott {
-  tf: '4h'|'1d'|'1w'; degree: EwDegree; degrees: { key: EwDegree; mult: number }[]; mult: number; generated_at: T; scale: 'log'
-  last: { time: T; price: number; forming: boolean; closed_time: T }; candles: { time: T; open: number; high: number; low: number; close: number }[]
-  counts: EwCount[] /* preferito + ≤ 4 alternativi */; n_valid: number; higher: EwCount | null /* preferito del grado superiore */
-  swings: { time: T; price: number; kind: 'high'|'low' }[]; weights: Record<string, number>; ranker: 'rule'|'ml'
-  backtest: EwBacktest /* senza examples */
-}
-interface EwBacktest {
-  n: number; from: T; to: T; ms: number; ranker: 'rule'|'ml'; verdict: 'none'|'weak'|'strong'|'anecdotal'; rank_verdict: 'none'|'weak'|'strong'|'anecdotal'
-  model: { hit: number; hit_ci: [number, number] | null; err_med: number; cov: number; target_first: number; invalid_first: number; best: number }   // %
-  base_alt: { hit: number; err_med: number }; base_random: { hit: number; err_med: number; target_first: number; best: number; hit_q95: number }
-  mase: N; mase_random: N; p_hit_random: number; p_hit_alt: N; p_err_random: number; p_err_alt: N; p_target_random: number; p_best_random: number
-  candidates_med: number; horizon_med: number /* candele */
-  calibration: { ranks: { rank: number; p_best: number; lo: number; hi: number; n: number; p_conf: number; n_conf: number }[]; none: number }
-  rank_halves: number[]; ml: { n_oos: number; rule_best: number; ml_best: number; rule_err_med: number; ml_err_med: number; p: N; adopted: boolean; from: T } | null
-  halves: { from: T; to: T; n: number; hit: number; base_hit: number; mase: N }[]; by_pattern: { pattern: string; n: number; hit: number; err_med: number }[]
-  examples?: { time: T; pattern: string; variant: string | null; wave: EwWave; k: number; dir: number; target: number; lo: number; hi: number
-               inv_below: N; inv_above: N; outcome: 'target'|'invalid'|'none'|'reached'; inside: boolean; actual: number; actual_time: T
-               hit: boolean; best: boolean; err: number; n_cand: number }[]                  // ultimi 40 istanti
-}
-// GET /api/elliott/backtest?mode=default|all → { generated_at: T; items: ({ tf; degree; mult } & EwBacktest)[] }   (cache 300 s)
-// GET /api/elliott/at?tf=1d&degree=intermediate&t=<unix> → conteggio storico con i soli dati fino a t
-//   { tf; degree; t: T; candles; after /* candele successive, per il confronto */; counts: EwCount[]; n_valid: number; higher: EwCount | null; ranker }
-```
-
 
 ## TERMINAL (router: terminal.py, collector: app/terminal_collector.py, logica: app/analysis/terminal_core.py, layout: app/terminal_layouts.py, agent: flow, tests: backend/tests/test_terminal.py)
 
@@ -2352,98 +1966,47 @@ quota acquisti ≥ 58% o ≤ 42% con ≥ 73% dei minuti concordi), `flow.large` 
 `flow.context` (risposta a `orderbook.cvd`: contesto multi-exchange, nessun doppione con l'agente orderbook); invalida `/terminal/status`, `/terminal/signals`
 → query `['terminal', …]` (serie `['term-series', tf]` e live dal WS). Tono sempre neutro.
 
-## KRONOS (router: kronos.py, engine: app/analysis/kronos_forecast.py, modello: app/vendor/kronos (MIT), agent: kronos, tests: backend/tests/test_kronos.py)
-Scheda `/previsioni?tab=kronos`. Kronos (Shi et al., arXiv:2508.02739, AAAI 2026; github.com/shiyu-coder/Kronos) è un foundation model
-autoregressivo per candele OHLCV. Integrazione onesta: nessuna regola di entrata/uscita, nessun segnale; ogni affermazione di
-accuratezza viene dal backtest fuori campione. Risposte con sole chiavi e numeri: i testi li compone il frontend.
-- Modello live Kronos-small (24.7M, contesto 512) + Kronos-Tokenizer-base, revisioni HF fissate (`MODELS`/`TOKENIZERS`). Pesi scaricati al
-  primo uso (thread in background, mai all'import) in `DATA_DIR/models/kronos/<repo>` (volume Docker); `KRONOS_OFFLINE=1` = nessun download.
-  torch importato pigramente: senza torch l'app parte e la scheda risponde `state: "torch_missing"`. `cuda` se disponibile, altrimenti `cpu`.
-- Input: ultime ≤ 512 candele CHIUSE BTCUSDT (`k_1h`/`k_4h`/`k_1d`: open, high, low, close, volume; amount = volume × media OHLC come
-  KronosPredictor), normalizzazione per finestra, clip ±5, feature temporali (minute, hour, weekday, day, month) dell'apertura UTC.
-  Campionamento T = 1.0, top_p = 0.9, top_k = 0; ogni percorso è una riga del batch (upstream media i campioni: qui restano separati).
-  Inferenza = `auto_regressive_inference` upstream con le teste calcolate solo sull'ultima posizione (equivalente, verificato nei test).
-- Regime (a fine orizzonte): `trend_up`/`trend_down` se quota di percorsi dalla stessa parte ≥ 65% (AGREE_MIN) E |mediana del log-rendimento|
-  ≥ 0.30 × dev. std. dei percorsi (SNR_MIN); altrimenti `choppy`. `er` = efficienza direzionale media dei percorsi (|netto| / Σ|passi|).
-- Registro live: a ogni nuova candela chiusa 1h/4h/1d (loop ogni 60 s, `KRONOS_LIVE=off` per disattivarlo) si calcola la previsione standard
-  (h 24, 100 percorsi) e la si salva in `data/kronos_live.parquet` solo se emessa entro un periodo dalla chiusura (mai ricostruita dopo);
-  la verifica legge le chiusure reali alla scadenza.
-- Backtest (pesante, in locale con GPU: `python -m app.analysis.kronos_forecast backtest`, poi `... timings` → `data/kronos_bt.parquet` +
-  `kronos_bt.json`; nell'immagine Docker copiato anche in `backend/seed/`, vince il più recente). Origini = candele che chiudono alle 00:00 UTC
-  (stesso target del modello a 1 giorno); periodo `post` (dal 2024-07-01: dopo la fine dei dati di pre-addestramento dichiarata nel paper,
-  giugno 2024) ogni giorno, periodo `pre` (2019-02 → 2024-06, possibile contaminazione) ogni 4 giorni; 32 percorsi, 24 passi. Punto Kronos =
-  media dei percorsi (come KronosPredictor); `kronos_median` = mediana. Baseline: `naive` (prezzo all'origine), `drift` (media espandente dei
-  log-rendimenti × passo), `rw_vol` (passeggiata aleatoria gaussiana, σ dei log-rendimenti delle 512 candele della finestra × √passo: bande
-  e CRPS di riferimento), `oneday` (nostro LightGBM a 1 giorno, solo al passo "1 giorno avanti": 1d passo 1, 4h passo 6, 1h passo 24).
-  Metriche come FORECAST 1 DAY; DM con varianza HAC (Newey-West, lag = passo − 1); p-value della direzione su origini non sovrapposte.
+
+## SCOREBOARD (router: scoreboard.py, engines: app/analysis/scoreboard.py + liq_leverage.py + flows30.py + moves.py, agents: analyst, liquidity, flows, orderflow, tests: backend/tests/test_scoreboard.py)
+
+Testi: `tpl` è un modello italiano con `{segnaposto}`, `vars` contiene numeri già formattati. Il frontend chiama `t(tpl, vars)` (EN in `src/i18n/en/scoreboard.ts`) senza `lang`: nessun numero passa dall'LLM. Query react-query: `['scoreboard']`, `['liquidations','leverage']`, `['flows','30d']`, `['flows','moves']`, `['flows','moves',id]`.
 
 ```ts
-type KronosTf = '1h' | '4h' | '1d'
-type KVerdict = { code: 'edge'|'small_edge'|'no_edge'|'worse'|'worse_ns'|'baseline'|'n_a'; mase?: number|null; dm_p?: number|null;
-  direction_significant?: boolean; direction_beats_always_up?: boolean }
-interface KRegime { code: 'trend_up'|'trend_down'|'choppy'; up_share: number; agree: number; snr: number; median_ret_pct: number;
-  sd_ret_pct: number; er?: number; agree_min?: number; snr_min?: number }
-// GET /api/forecast/kronos?tf=1h&h=24&samples=100     (h ∈ 6|12|24|48, samples ∈ 20|50|100; altri valori → predefiniti)
-interface KronosForecast {
-  tf: KronosTf; h: number; samples: number
-  params: { T: number; top_p: number; top_k: number; lookback: number; model: string; clip: number }
-  candles: Candle[]                       // ultime 120 chiuse + quella in corso
-  live_price: number | null
-  ready: boolean                          // false: in coda/calcolo (poll), vedi state
-  state?: 'loading' | 'computing' | 'error' | 'torch_missing'; error?: string; eta_s?: number | null
-  stale?: boolean                         // true: previsione della candela precedente mentre si calcola la nuova
-  origin?: T; origin_close?: T; ref_price?: number; lookback?: number
-  steps?: T[]                             // apertura delle H candele previste (passo 1 = candela in corso)
-  median?: number[]; p05?: number[]; p25?: number[]; p75?: number[]; p95?: number[]; mean?: number[]
-  paths?: number[][]                      // 8 percorsi campione (chiusure)
-  end?: { median: number; mean: number; p05: number; p25: number; p75: number; p95: number; change_pct: number; mean_change_pct: number;
-          up_prob: number; width50_pct: number; width90_pct: number }
-  regime?: KRegime; computed_at?: T; seconds?: number; device?: 'cpu' | 'cuda'
-  worker?: { busy: boolean; job: { tf: string; h: number; samples: number } | null; started_at: T | null; queue: number }
-}
-// GET /api/forecast/kronos/backtest
-interface KMetrics { n: number; mae?: number; mape?: number; mase?: number|null; bias_pct?: number; corr_ret?: number|null
-  n_dir?: number; hit_rate?: number; always_up?: number; share_up_calls?: number; n_dir_indep?: number; hit_rate_indep?: number|null
-  p_dir?: number|null; p_dir_vs_up?: number|null; dm_stat?: number|null; dm_p?: number|null
-  coverage_50?: number; coverage_90?: number; width_50?: number; width_90?: number; brier?: number; brier_half?: number; brier_skill?: number|null
-  crps?: number; crps_ref?: number; crps_skill?: number|null      // CRPS in log-rendimento; skill vs rw_vol (%)
-  kronos_mase_same?: number|null; dm_vs_kronos?: number|null; dm_p_vs_kronos?: number|null   // solo riga oneday
-  verdict?: KVerdict }
-type KRowKey = 'kronos' | 'kronos_median' | 'naive' | 'drift' | 'rw_vol' | 'oneday'
-interface KRegimeEval { n: number; n_trend?: number; n_choppy?: number; share_trend?: number
-  trend?: { abs_ret_pct: number|null; er: number|null }; choppy?: { abs_ret_pct: number|null; er: number|null }
-  p_absret?: number; p_er?: number; hit_trend?: number; n_trend_indep?: number; p_hit_trend?: number|null; hit_trend_all?: number
-  spearman_disp_absret?: number|null; p_spearman?: number|null
-  verdict?: 'useful' | 'magnitude_only' | 'direction_only' | 'not_useful' | 'too_few' }
-interface KronosBacktest {
-  available: boolean
-  meta?: { version: number; created_at: T; samples: number; H: number; lookback: number; T: number; top_p: number; pretrain_end: T
-           pre_every_days: number; post_every_days: number; device: string; gpu: string|null; torch: string; models: string[]
-           seconds: Record<string, number>; origins: Record<string, { pre?: number; post?: number }>; complete: boolean
-           timings?: { tf: string; h: number; samples: number; cpu?: { seconds: number; threads: number }; cuda?: { seconds: number; name: string } } }
-  evaluation?: Record<string /*model*/, Record<KronosTf, Partial<Record<'pre'|'post', Record<string /*step*/, { from: T; to: T; rows: Partial<Record<KRowKey, KMetrics>> }>>>>>
-  curves?: Record<string, Record<KronosTf, Partial<Record<'pre'|'post', { step: number; mase: number|null; coverage_50?: number; coverage_90?: number; hit_rate?: number; dm_p?: number|null }[]>>>>
-  regime?: Record<string, Record<KronosTf, Partial<Record<'pre'|'post', KRegimeEval>>>>
-  series?: Record<string, Record<KronosTf, { t: T[]; ref: number[]; actual: number[]; mean: number[]; p05: number[]; p95: number[] }>>  // post, 1 giorno avanti
-  headline?: Record<string, Record<KronosTf, { day: KVerdict; end: KVerdict; day_mase: number|null; end_mase: number|null; day_hit: number|null
-    day_always_up: number|null; cov90_day: number|null; crps_skill_day: number|null; regime: KRegimeEval['verdict'] }>>
-  overall?: 'edge' | 'mixed' | 'no_edge' | 'worse'
-  key_steps?: Record<KronosTf, number[]>; day_step?: Record<KronosTf, number>; pretrain_end?: T
-  settings?: { agree_min: number; snr_min: number; dir_eps_pct: number }
-}
-// GET /api/forecast/kronos/track   — registro live, separato dal backtest
-interface KronosTrack { n_forecasts: number; from: T | null
-  tf: Partial<Record<KronosTf, { n_forecasts: number; last_origin?: T; steps?: Record<string, KMetrics & { pending: number }>
-    recent?: { origin: T; regime: string; ref: number; end_q50: number; end_actual: number|null; day_q50: number|null; day_actual: number|null }[] }>> }
-// GET /api/forecast/kronos/status
-interface KronosStatus { torch: boolean; torch_version: string|null; cuda: boolean|null; device: 'cpu'|'cuda'|null; gpu_name: string|null
-  threads: number|null; loaded: boolean; load_seconds: number|null; error: string|null; live_model: string
-  models: Record<string, { repo: string; rev: string; tokenizer: string; ctx: number; params_m: number }>
-  weights: Record<string /*repo*/, { state: 'absent'|'downloading'|'ready'|'error'; bytes: number; total: number|null; error: string|null; path: string|null }>
-  weights_dir: string; worker: KronosForecast['worker']; recent: { tf: string; h: number; samples: number; seconds: number; device: string; at: T }[]
-  live_enabled: boolean; pretrain_end: T; backtest_timings: KronosBacktest['meta']['timings'] | null; backtest_device: string | null
-  sources: { repo: string; paper: string; hf: string; license: string }
-  defaults: { h: number; samples: number; T: number; top_p: number; lookback: number; h_options: number[]; sample_options: number[] } }
+// GET /api/scoreboard (cache 60 s)
+type Cat = 'macro'|'politica'|'struttura'|'flussi'|'posizionamento'|'altro'
+type Point = { id: string; cat: Cat; side: 'bull'|'bear'; conf: 1|2|3; tpl: string; vars: Record<string,string>; source: string; time: T|null }
+type Rule = { id: string; cat: Cat; label: string; thr: string; source: string; hist: boolean }   // label e thr: chiavi di t()
+type Inactive = { id: string; cat: Cat; label: string; reason?: 'fred'|'data'|'coverage' }
+type Scoreboard = { time: T; bull: number; bear: number; by_cat: Record<Cat,{bull:number;bear:number}>; cats: Cat[]; points: Point[]
+  quiet: Inactive[]          // valutate, dato entro le soglie
+  unavailable: Inactive[]    // non valutate, con il motivo
+  polymarket: {question:string;p:number;volume:number;slug:string;point:boolean}[]; rules: Rule[]; data_from: T|null; data_to: T|null; errors: Record<string,string> }
+
+// GET /api/scoreboard/backtest (cache 6 h): saldo = (bull − bear) / regole valutabili, solo regole con hist=true e dati con ritardo di pubblicazione
+type Backtest = { status: 'ok'|'insufficient'|'unavailable'; from?: T; to?: T; days?: number; rules: string[]; rules_live_only?: string[]; rules_min?: number; rules_max?: number
+  current?: number; any_significant?: boolean
+  horizons: { horizon: 7|30; days: number; independent: number; ic: number; ic_lo: number; ic_hi: number; significant: boolean; base_mean: number; base_up_pct: number
+    groups: {group:'low'|'mid'|'high'; days:number; balance_min:number; balance_max:number; mean:number; median:number; up_pct:number}[] }[] }
+
+// GET /api/liquidations/leverage (cache 30 s). Vettori di 3: [5–25×, 50×, 100×]
+type LevWindow = { window:'1d'|'7d'; time:T; price:number; step:number; from:number; to:number; bands:{p:number;long:number[];short:number[]}[]
+  short_above:number; long_below:number; total:number; outside:number   // somma barre + outside = total
+  by_group:{long:number[];short:number[]}; clusters:{long:Cluster[];short:Cluster[]}; near:{span:number;long:number;short:number} }
+type Cluster = { lo:number; hi:number; usd:number }
+type LevMap = { windows:{'1d':LevWindow;'7d':LevWindow}; validation: /* liquidations.validate() */ object|null
+  side_check:{hours:number;days:number;model_long:number|null;model_short:number|null;real_long:number|null;real_short:number|null}|null
+  coverage:object|null; groups:{id:string;leverage:number[]}[]; weights:{lev:number;pct:number}[]; mmr_pct:number }
+
+// GET /api/flows/30d (cache 60 s): 30 giorni UTC chiusi, oggi escluso. Vettori allineati a `days`
+type Flows30 = { days:T[]; from:T; to:T; today_excluded:T; candles:{open:N[];high:N[];low:N[];close:N[]}; etf:N[]; usdt:N[]; usdc:N[]; exchange:N[]
+  cvd_perp:N[]; cvd_spot:N[]; oi_usd:N[]; oi_btc:N[]; liq_long:N[]; liq_short:N[]; summary: object; missing:{etf:number;exchange:number;oi:number} }   // N = number|null
+
+// GET /api/flows/moves (cache 60 s), GET /api/flows/moves/{id} (aggiunge `series`, 404 se non più in lista)
+type Move = { id:T; from:T; to:T; dir:1|-1; p0:number; p1:number; ret_pct:number; z:number; minutes:number; tags:string[]
+  stats:{spot_usd:N;perp_usd:N;oi_btc:N;oi_pct:N;liq_long:number;liq_short:number;liq_status:'full'|'partial'|'none';liq_cov:number;cvd_scope:'binance'|'multi';oi_res:30|300|900|0;high:N;low:N
+    after:{ret_pct:number;hours:number;oi_btc:N}|null}|null }
+type Moves = { events:Move[]; time:T; scanned_from:T|null; scanned_to:T|null; rule:{k:number;min_pct:number;base_bars:number;ret_bars:number;bar_min:number;oi_move_pct:number;spot_share:number} }
+// tags: short_squeeze new_longs long_flush new_shorts spot_buying spot_selling perp_led spot_against liq_shorts liq_longs no_reading
 ```
-Agente `kronos` (Sparkles, 120 s): per 1h/4h/1d finding + `kronos.forecast.<tf>` alla nuova candela chiusa (mediana, banda 90%, P(rialzo),
-regime, verdetto del backtest post-addestramento a 1 giorno). Tono sempre neutro. Invalida `/forecast/kronos` → query `['kronos', …]`.
+
+Dataset aggiunti: `fred_bamlh0a0hym2`, `fred_sofr`, `fred_iorb`, `fred_wresbal`, `fred_rrpontsyd`, `fred_wtregen`, `fred_dfii10`, `fred_dgs10`, `fred_effr` (solo con `FRED_API_KEY`), `sb_nq`, `sb_brent`, `sb_strc`, `usdc_supply`. Agenti: `analyst` (finding del tabellone, tono neutro, non pesa nel consenso), `liquidity` (mappa 7 giorni), `flows` (riepilogo 30 giorni), `orderflow` parte `moves` (topic `flow.move`, avviso informativo una volta per movimento finito da meno di 2 ore). `analyst` invalida anche `/scoreboard`.

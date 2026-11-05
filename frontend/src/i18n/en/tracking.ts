@@ -40,8 +40,8 @@ const en: Record<string, string> = {
     'Forecasts are grouped in 10-point probability bins; dot size is proportional to the number of cases. Above the diagonal the source is too pessimistic, below it too optimistic.',
   'Tutte le fonti': 'All sources',
   'ECE {v} pt · n={n}': 'ECE {v} pt · n={n}',
-  'Un pannello per fonte (blu) con tutte le fonti in grigio. Le previsioni sono raggruppate in fasce di 10 punti di probabilità; la dimensione del punto è proporzionale al numero di casi. Sopra la diagonale la fonte è troppo pessimista, sotto troppo ottimista.':
-    'One panel per source (blue) with all sources in grey. Forecasts are grouped in 10-point probability bins; dot size is proportional to the number of cases. Above the diagonal the source is too pessimistic, below it too optimistic.',
+  'Un pannello per fonte (arancione) con tutte le fonti in grigio. Le previsioni sono raggruppate in fasce di 10 punti di probabilità; la dimensione del punto è proporzionale al numero di casi. Sopra la diagonale la fonte è troppo pessimista, sotto troppo ottimista.':
+    'One panel per source (orange) with all sources in grey. Forecasts are grouped in 10-point probability bins; dot size is proportional to the number of cases. Above the diagonal the source is too pessimistic, below it too optimistic.',
   'Nessuna probabilità verificata per questa fonte': 'No resolved probabilities for this source',
   'Probabilità media': 'Mean probability',
   'Rialzi osservati': 'Observed rises',

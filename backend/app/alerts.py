@@ -318,7 +318,7 @@ def rule_sweep(p: float) -> Cand:
         title = f"Sweep {t['short']} a {_usd(L)}"
         text = (f"Il prezzo è {'sceso sotto' if below else 'salito sopra'} il {t['label']} a {_usd(L)}"
                 + (f" e ora è di nuovo {'sopra' if below else 'sotto'} ({_usd(p)}): possibile sweep con rientro." if reclaimed else f" (ora {_usd(p)})."))
-        out.append((f"sweep:{k}", 6 * 3600, _alert("warning", "liquidity", title, text, "/liquidazioni",
+        out.append((f"sweep:{k}", 6 * 3600, _alert("warning", "liquidity", title, text, "/posizionamento?tab=liquidazioni",
                                                    {"price": p, "level": L, "usd": t["usd"], "reclaimed": reclaimed}, "liquidity_sweep")))
     return out
 
@@ -338,7 +338,7 @@ def rule_liq_burst(p: float) -> Cand:
         title = f"Liquidazioni {side} {_usdc(tot)} in 5 min"
         text = (f"Ondata di liquidazioni {'long (posizioni rialziste chiuse forzatamente)' if side == 'long' else 'short (posizioni ribassiste chiuse forzatamente)'}: "
                 f"{_usdc(tot)} negli ultimi 5 minuti, prezzo {_usd(p)}.")
-        out.append((f"liqburst:{side}", 30 * 60, _alert(sev, "liquidity", title, text, "/liquidazioni", {"usd": tot, "side": side, "price": p}, "liq_burst")))
+        out.append((f"liqburst:{side}", 30 * 60, _alert(sev, "liquidity", title, text, "/posizionamento?tab=liquidazioni", {"usd": tot, "side": side, "price": p}, "liq_burst")))
     return out
 
 
@@ -360,7 +360,7 @@ def rule_derivatives(p: float) -> Cand:
             title = f"Funding {'elevato' if zone == 'high' else 'negativo'}: {fr:+.3f}% / 8h"
             text = ("Leva long affollata: i long pagano un funding alto, rischio di flush al ribasso." if zone == "high"
                     else "I short pagano i long: posizionamento ribassista affollato, possibile short squeeze.")
-            out.append((f"funding:{zone}", 12 * 3600, _alert("warning", "derivatives", title, text, "/derivati", {"funding": fr}, "funding")))
+            out.append((f"funding:{zone}", 12 * 3600, _alert("warning", "derivatives", title, text, "/posizionamento", {"funding": fr}, "funding")))
     try:
         oi = store.get("oi_15m")
         if len(oi) >= 5 and (pd.Timestamp.now(tz="UTC") - oi["time"].iloc[-1]).total_seconds() < 3600:
@@ -371,7 +371,7 @@ def rule_derivatives(p: float) -> Cand:
                 title = f"Open interest {ch:+.1f}% in 1 ora"
                 text = (f"OI a {_usdc(b)}: {'nuova leva in ingresso' if up else 'deleveraging rapido (chiusura di posizioni)'} "
                         f"con prezzo a {_usd(p)}.")
-                out.append((f"oi:{'up' if up else 'down'}", 3 * 3600, _alert("warning", "derivatives", title, text, "/derivati", {"oi_usd": b, "change": ch}, "oi_spike")))
+                out.append((f"oi:{'up' if up else 'down'}", 3 * 3600, _alert("warning", "derivatives", title, text, "/posizionamento", {"oi_usd": b, "change": ch}, "oi_spike")))
     except Exception as e:  # noqa: BLE001
         log.debug("oi: %s", e)
     return out
@@ -452,7 +452,7 @@ def rule_timepivots(p: float) -> Cand:
         title = f"Finestra pivot {it['label']} da {when}"
         prob = f", probabilità storica {it['probability']:.0f}%" if it.get("probability") else ""
         text = f"Atteso {exp} (confluenza {conf:.0f}/100{prob}). {it.get('summary') or ''}".strip()
-        out.append((f"pivot:{it['id']}:{when}", 3 * 86400, _alert(sev, "time", title, text[:220], "/pivot-temporali",
+        out.append((f"pivot:{it['id']}:{when}", 3 * 86400, _alert(sev, "time", title, text[:220], "/analoghi?tab=pivot",
                                                                  {"id": it["id"], "start": it["start"], "end": it["end"], "confluence": conf}, "timepivot_window")))
     return out
 
@@ -497,13 +497,13 @@ def rule_stables(p: float) -> Cand:
         day = util.data_it(dn[-1]["time"])
         out.append((f"stable_day:{dn[-1]['time']}", 2 * 86400, _alert("info", "stablecoins", f"Stablecoin: {'mint' if v > 0 else 'burn'} di {_usdc(abs(v))} in un giorno",
                                                                      f"Variazione netta della supply di stablecoin il {day}: {_usdc(v)} ({'nuova liquidità in ingresso' if v > 0 else 'liquidità in uscita'}).",
-                                                                     "/usdt?tab=stables", {"value": v, "time": dn[-1]["time"]}, "stable_day")))
+                                                                     "/flussi?tab=stablecoin", {"value": v, "time": dn[-1]["time"]}, "stable_day")))
     n7 = (s.get("current") or {}).get("net_7d")
     if n7 is not None and abs(n7) >= TH["stable_week"]:
         wk = int(time.time() // (7 * 86400))
         out.append((f"stable_week:{wk}:{'up' if n7 > 0 else 'down'}", 7 * 86400, _alert("warning", "stablecoins", f"Stablecoin {_usdc(n7)} in 7 giorni",
                                                                                         f"Movimento netto forte della supply di stablecoin nell'ultima settimana ({_usdc(n7)}): {'espansione' if n7 > 0 else 'contrazione'} della liquidità crypto.",
-                                                                                        "/usdt?tab=stables", {"net_7d": n7}, "stable_week")))
+                                                                                        "/flussi?tab=stablecoin", {"net_7d": n7}, "stable_week")))
     return out
 
 
@@ -535,11 +535,11 @@ def rule_events(p: float) -> Cand:
         exp = f" Movimento atteso ±{u['expected_abs_1d']:.1f}%." if u.get("expected_abs_1d") else ""
         est = " (data stimata)" if u.get("quality") == "stimata" else ""
         out.append((f"event:{u['id']}", 2 * 86400, _alert(sev, "events", f"Tra {hrs} h: {u['title']}"[:60],
-                                                         f"{u['title']}{est} — {u['hour']}.{exp}", "/eventi", {"id": u["id"], "time": u["time"]}, "event_24h")))
+                                                         f"{u['title']}{est} — {u['hour']}.{exp}", "/macro?tab=eventi", {"id": u["id"], "time": u["time"]}, "event_24h")))
     return out
 
 
-TOPIC_IT = {"market.alert": "estremo delle 24h", "levels.touch": "livello toccato", "levels.confluence": "confluenza di livelli",
+TOPIC_IT = {"flow.move": "movimento forte", "market.alert": "estremo delle 24h", "levels.touch": "livello toccato", "levels.confluence": "confluenza di livelli",
             "flows.spike": "picco di flussi aggressivi", "flows.divergence": "divergenza spot/perp", "flows.leverage": "leva in aumento",
             "derivatives.signal": "segnale sui derivati", "analogs.pattern": "figura grafica", "liquidity.cluster": "cluster di liquidazioni",
             "liquidity.sweep": "sweep di liquidità", "pattern.retest": "retest probabile", "macro.riskoff": "contesto risk-off"}
@@ -598,12 +598,12 @@ def rule_agents(p: float) -> Cand:
         _fired[k] = now
     if len(keep) == 1:
         (frm, topic), m = keep[0]
-        return [(f"agentmsg:{m['id']}", 0, _alert("info", "agents", f"{names.get(frm, frm)}: {_topic_it(topic)}", m["text"][:220], "/agenti",
+        return [(f"agentmsg:{m['id']}", 0, _alert("info", "agents", f"{names.get(frm, frm)}: {_topic_it(topic)}", m["text"][:220], "/avvisi",
                                                   {"from": frm, "topic": topic, "tone": m.get("tone"), "message_id": m["id"], "cooldown_keys": ckeys}, "agent_alert"))]
     items = [{"from": f, "agent": names.get(f, f), "topic": t, "text": m["text"], "tone": m.get("tone"), "message_id": m["id"]} for (f, t), m in keep]
     who = ", ".join(sorted({i["agent"] for i in items}))
     return [(f"agentagg:{int(now)}", 0, _alert("info", "agents", f"{len(items)} avvisi dagli agenti", f"{who}: {items[0]['text'][:140]}",
-                                               "/agenti", {"items": items, "cooldown_keys": ckeys}, "agent_alert"))]
+                                               "/avvisi", {"items": items, "cooldown_keys": ckeys}, "agent_alert"))]
 
 
 def _invalidate(keys: list[str]) -> None:
@@ -618,8 +618,8 @@ def _invalidate(keys: list[str]) -> None:
 
 
 def rule_custom(p: float) -> Cand:
-    """Avvisi personalizzati dell'utente (app/alert_rules.py, pagina /avvisi) + revisioni automatiche delle note del diario (app/journal.py)."""
-    from . import alert_rules, journal
+    """Avvisi personalizzati dell'utente (app/alert_rules.py, pagina /avvisi)."""
+    from . import alert_rules
     out: Cand = []
     for key, cd, sev, title, text, link, data in alert_rules.evaluate(p):
         a = _alert(sev, "custom", title, text, link, data, "custom_rule")
@@ -627,17 +627,6 @@ def rule_custom(p: float) -> Cand:
         out.append((key, cd, a))
     if out:
         _invalidate(["/alerts/rules"])
-    try:
-        rv = journal.review_alerts()
-    except Exception as e:  # noqa: BLE001
-        log.info("revisioni diario: %s", e)
-        rv = []
-    for key, title, text, link, data in rv:
-        a = _alert("info", "journal", title, text, link, data, "journal_review")
-        a["category_label"] = "Diario"
-        out.append((key, 0, a))
-    if rv:
-        _invalidate(["/journal"])
     return out
 
 
@@ -673,7 +662,6 @@ RULE_INFO = [
     {"rule": "stablecoins", "category": "stablecoins", "severity": "info / warning", "threshold": "mint/burn netto ≥ $1B in un giorno; ≥ $3B in 7 giorni", "cooldown": "1 per giorno / settimana"},
     {"rule": "agent_alert", "category": "agents", "severity": "info", "threshold": "messaggi kind=alert degli agenti non già coperti dalle regole; aggregati per giro", "cooldown": "3 h per agente+topic"},
     {"rule": "custom_rule", "category": "custom", "severity": "scelta dall'utente", "threshold": "regole personalizzate (/avvisi): prezzo, variazione %, zone, livelli, indicatori, Cycle Score, pivot temporali, chiusure, liquidazioni", "cooldown": "scelto per regola"},
-    {"rule": "journal_review", "category": "journal", "severity": "info", "threshold": "nota del diario con vista e orizzonte scaduto: revisione automatica", "cooldown": "1 per nota"},
 ]
 
 

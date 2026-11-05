@@ -11,6 +11,7 @@ import {
 } from '../components/charts/theme'
 import { t } from '../i18n'
 import { DASH, compact, date, monthYear, usdCompact } from '../lib/format'
+import { T, alpha } from '../theme/tokens'
 
 type Num = number | null | undefined
 export const fin = (v: Num): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -52,7 +53,7 @@ export const sfx = (v: Num, d = 2) => (fin(v) ? sign(v) + Math.abs(v).toFixed(d)
 export const mult = (v: Num, d = 2) => (fin(v) ? `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)}×` : DASH)
 
 type TipP = { seriesName: string; value: unknown; color: string; axisValue?: number; data?: unknown }
-const tipHead = (s: string) => `<div style="color:${C.muted};font-size:11px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.06)">${s}</div>`
+const tipHead = (s: string) => `<div style="color:${C.muted};font-size:11px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid ${alpha(T.fg, 0.06)}">${s}</div>`
 const tipRow = (color: string, name: string, val: string) =>
   `<div style="display:flex;justify-content:space-between;gap:18px;align-items:center;line-height:20px"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${color};margin-right:6px"></span>${name}</span><b style="font-variant-numeric:tabular-nums">${val}</b></div>`
 const vline = (ms: number, label: string, color = hexA(C.grey, 0.6)) => ({
@@ -84,8 +85,8 @@ export function ReservesChart({ reserve, price, mode, logPrice, height = 380 }: 
         valueAxis({ type: logPrice ? 'log' : 'value', position: 'right', splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: usdAxis } }),
       ],
       series: [
-        lineSeries(name, toXY(reserve), C.blue, { lineStyle: { width: 1.8, color: C.blue }, areaStyle: { color: areaGradient(C.blue, 0.2) } }),
-        lineSeries(t('Prezzo BTC'), toXY(price), C.btc, { yAxisIndex: 1, lineStyle: { width: 1.2, color: C.btc } }),
+        lineSeries(name, toXY(reserve), C.accent, { lineStyle: { width: 1.8, color: C.accent }, areaStyle: { color: areaGradient(C.accent, 0.2) } }),
+        lineSeries(t('Prezzo BTC'), toXY(price), C.price, { yAxisIndex: 1, lineStyle: { width: 1.2, color: C.price } }),
       ],
     }
   }, [reserve, price, mode, logPrice])
@@ -116,8 +117,8 @@ export function NetflowBars({ data, height = 300, zoom = false, unitLabel, anoma
 }
 
 // ------------------------------------------------------------------ flussi ETF giornalieri per emittente + cumulato
-export const ISSUER_COLORS: Record<string, string> = { IBIT: C.blue, FBTC: C.purple, GBTC: C.teal, ARKB: '#94A0BC', BITB: '#626D88' }
-const OTHERS = '#3B4560'
+export const ISSUER_COLORS: Record<string, string> = { IBIT: C.accent, FBTC: C.steel, GBTC: C.sand, ARKB: T.fg3, BITB: T.fg4 }
+const OTHERS = T.fgOff
 export function EtfFlowsChart({ d, start, unit, height = 400, anomalies }: { d: EtfData['daily']; start: number; unit: 'usd' | 'btc'; height?: number | string; anomalies?: AnomalyMark[] }) {
   const option = useMemo(() => {
     const i0 = Math.max(0, d.dates.findIndex((x) => x >= start))
@@ -146,7 +147,7 @@ export function EtfFlowsChart({ d, start, unit, height = 400, anomalies }: { d: 
           const m = Number((ps[0]?.value as number[])[0])
           const j = ms.indexOf(m)
           const tot = j >= 0 ? (unit === 'usd' ? d.total[j + i0] : d.btc[j + i0]) : null
-          return tipHead(`${dateFmt(m)} · ${t('Totale')} <b style="color:#E8ECF4">${fin(tot) ? fmt(tot) : DASH}</b>`) +
+          return tipHead(`${dateFmt(m)} · ${t('Totale')} <b style="color:${T.fg}">${fin(tot) ? fmt(tot) : DASH}</b>`) +
             ps.filter((p) => fin((p.value as number[])[1]) && ((p.value as number[])[1] !== 0 || p.seriesName === lblCum))
               .map((p) => tipRow(p.color, p.seriesName, p.seriesName === lblCum ? fmtCum((p.value as number[])[1]) : fmt((p.value as number[])[1]))).join('')
             + anomalyTipRow(anomalies, m)
@@ -183,13 +184,13 @@ export function RatioChart({ data, height = 300 }: { data: Pt[]; height?: number
       grid: { left: 8, right: 8, top: 16, bottom: 36, containLabel: true },
       tooltip: {
         ...tooltipBase, trigger: 'axis',
-        formatter: (ps: TipP[]) => tipHead(dateFmt(Number((ps[0]?.value as number[])[0]))) + tipRow(C.blue, t('ETF ÷ emissione (30 giorni)'), mult((ps[0].value as number[])[1])),
+        formatter: (ps: TipP[]) => tipHead(dateFmt(Number((ps[0]?.value as number[])[0]))) + tipRow(C.accent, t('ETF ÷ emissione (30 giorni)'), mult((ps[0].value as number[])[1])),
       },
       dataZoom: [dataZoomInside, dataZoomSlider],
       xAxis: timeAxis(),
       yAxis: valueAxis({ position: 'right', axisLabel: { ...axisLabel, formatter: (v: number) => `${v.toFixed(0).replace('-', '−')}×` } }),
-      series: [lineSeries(t('ETF ÷ emissione (30 giorni)'), toXY(data), C.blue, {
-        lineStyle: { width: 1.8, color: C.blue }, areaStyle: { color: areaGradient(C.blue, 0.16), origin: 0 },
+      series: [lineSeries(t('ETF ÷ emissione (30 giorni)'), toXY(data), C.accent, {
+        lineStyle: { width: 1.8, color: C.accent }, areaStyle: { color: areaGradient(C.accent, 0.16), origin: 0 },
         markLine: { symbol: 'none', silent: true, data: [
           { yAxis: 1, lineStyle: { color: hexA(C.grey, 0.7), type: 'dashed' }, label: { formatter: t("1× = tutta l'emissione"), color: C.text, fontSize: 10, position: 'insideEndTop' } },
           { yAxis: 0, lineStyle: { color: hexA(C.grey, 0.4), type: 'solid' }, label: { show: false } },
@@ -221,8 +222,8 @@ export function MonthlyAbsorptionChart({ rows, height = 300 }: { rows: Absorptio
       xAxis: { type: 'category', data: cat, axisLine: { lineStyle: { color: C.axis } }, axisTick: { show: false }, axisLabel: { ...axisLabel, hideOverlap: true } },
       yAxis: valueAxis({ position: 'right', scale: false, axisLabel: { ...axisLabel, formatter: axisNum } }),
       series: [
-        { name: e, type: 'bar', data: rows.map((r) => r.etf_btc), barMaxWidth: 14, itemStyle: { color: (p: { value: number }) => (p.value >= 0 ? C.blue : hexA(C.down, 0.85)) }, emphasis: { disabled: true } },
-        { name: i, type: 'bar', data: rows.map((r) => r.issued_btc), barMaxWidth: 14, itemStyle: { color: '#626D88' }, emphasis: { disabled: true } },
+        { name: e, type: 'bar', data: rows.map((r) => r.etf_btc), barMaxWidth: 14, itemStyle: { color: (p: { value: number }) => (p.value >= 0 ? C.accent : hexA(C.down, 0.85)) }, emphasis: { disabled: true } },
+        { name: i, type: 'bar', data: rows.map((r) => r.issued_btc), barMaxWidth: 14, itemStyle: { color: T.fg4 }, emphasis: { disabled: true } },
       ],
     }
   }, [rows])
@@ -252,9 +253,9 @@ export function AttentionChart({ views, it, price, showIt, height = 380 }: { vie
         valueAxis({ type: 'log', position: 'right', splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: usdAxis } }),
       ],
       series: [
-        lineSeries(en, toXY(views), C.blue, { lineStyle: { width: 1.8, color: C.blue }, areaStyle: { color: areaGradient(C.blue, 0.18) } }),
-        ...(showIt ? [lineSeries(itn, toXY(it), C.purple, { lineStyle: { width: 1.3, color: C.purple } })] : []),
-        lineSeries(t('Prezzo BTC'), toXY(price), C.btc, { yAxisIndex: 1, lineStyle: { width: 1.2, color: C.btc } }),
+        lineSeries(en, toXY(views), C.accent, { lineStyle: { width: 1.8, color: C.accent }, areaStyle: { color: areaGradient(C.accent, 0.18) } }),
+        ...(showIt ? [lineSeries(itn, toXY(it), C.steel, { lineStyle: { width: 1.3, color: C.steel } })] : []),
+        lineSeries(t('Prezzo BTC'), toXY(price), C.price, { yAxisIndex: 1, lineStyle: { width: 1.2, color: C.price } }),
       ],
     }
   }, [views, it, price, showIt])

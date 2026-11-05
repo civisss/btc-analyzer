@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Crosshair, Gauge, History, Hourglass, ListChecks, Ruler, Scale, ShieldCheck, Target, Weight } from 'lucide-react'
 import { useTracking, type TrackMode, type Tracking } from '../api/tracking'
-import { Badge, Card, CardBody, CardHeader, KpiCell, KpiStrip, MethodNote, PageTitle, Q, Segmented, Skeleton, clsx } from '../components/ui'
+import { Badge, Card, CardBody, CardHeader, KpiCell, KpiStrip, MethodNote, Q, Segmented, Skeleton, clsx, PageActions } from '../components/ui'
 import { PredictionList, ReliabilityMulti, SourceTable, WeightsList } from '../widgets/tracking'
 import { pct } from '../lib/format'
 import { t, tr } from '../i18n'
@@ -21,8 +21,8 @@ function Kpis({ d }: { d: Tracking }) {
       <KpiCell icon={<Target />} label={t('Direzione corretta')} value={pctU(o.hit_rate)}
         foot={t('{n} previsioni direzionali · 50% = moneta', { n: o.n_dir.toLocaleString('en-US') })} />
       <KpiCell icon={<Gauge />} label="Brier score" value={fin(o.brier) ? o.brier.toFixed(3) : '—'}
-        delta={fin(o.brier_skill) ? <span className={o.brier_skill >= 0 ? 'text-up' : 'text-down'}>{pct(o.brier_skill, 0)} <span className="text-slate-400">{t('vs frequenza di base')}</span></span> : undefined} />
-      <KpiCell icon={<Scale />} label={t('Calibrazione (ECE)')} value={fin(o.ece) ? <>{o.ece.toFixed(1)}<span className="ml-1 text-sm font-normal text-slate-400">pt</span></> : '—'}
+        delta={fin(o.brier_skill) ? <span className={o.brier_skill >= 0 ? 'text-accent' : 'text-warn'}>{pct(o.brier_skill, 0)} <span className="text-fg-3">{t('vs frequenza di base')}</span></span> : undefined} />
+      <KpiCell icon={<Scale />} label={t('Calibrazione (ECE)')} value={fin(o.ece) ? <>{o.ece.toFixed(1)}<span className="ml-1 text-sm font-normal text-fg-3">pt</span></> : '—'}
         foot={t('Scarto medio probabilità ↔ esiti')} />
       <KpiCell icon={<Ruler />} label={t('Errore della mediana')} value={pctU(o.mae_pct)} foot={t('MAE % sul prezzo a scadenza')} />
       <KpiCell icon={<ShieldCheck />} label={t('Copertura bande')} value={pctU(o.coverage, 0)} foot={t('Esiti dentro la banda prevista')} />
@@ -61,7 +61,7 @@ function Body({ d, updatedAt }: { d: Tracking; updatedAt: number }) {
       </div>
       <Card>
         <CardHeader icon={<Scale />} title={t('Calibrazione delle probabilità')} subtitle={t('Probabilità di rialzo dichiarata vs rialzi osservati · diagonale = perfetto')}
-          info={t('Un pannello per fonte (blu) con tutte le fonti in grigio. Le previsioni sono raggruppate in fasce di 10 punti di probabilità; la dimensione del punto è proporzionale al numero di casi. Sopra la diagonale la fonte è troppo pessimista, sotto troppo ottimista.')} />
+          info={t('Un pannello per fonte (arancione) con tutte le fonti in grigio. Le previsioni sono raggruppate in fasce di 10 punti di probabilità; la dimensione del punto è proporzionale al numero di casi. Sopra la diagonale la fonte è troppo pessimista, sotto troppo ottimista.')} />
         <CardBody className="flex flex-col">
           <ReliabilityMulti wide items={multiples} overall={d.reliability.overall} selected={sel} onSelect={(k) => setSel(sel === k ? 'all' : k)} />
         </CardBody>
@@ -87,8 +87,7 @@ export default function TrackRecordPage() {
   const q = useTracking(mode)
   return (
     <div>
-      <PageTitle title={t('Affidabilità')} subtitle={t('Quanto hanno avuto ragione agenti e modelli: ogni previsione è registrata e verificata sul prezzo reale alla scadenza.')}
-        right={<Segmented size="md" options={[{ value: 'all', label: tr('Tutto', 'All') }, { value: 'live', label: 'Live' }, { value: 'backtest', label: 'Backtest' }]} value={mode} onChange={setMode} />} />
+      <PageActions><Segmented size="md" options={[{ value: 'all', label: tr('Tutto', 'All') }, { value: 'live', label: 'Live' }, { value: 'backtest', label: 'Backtest' }]} value={mode} onChange={setMode} /></PageActions>
       <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[360px]" /><Skeleton className="h-[360px]" /></div>}>
         {(d) => <Body d={d} updatedAt={q.dataUpdatedAt} />}
       </Q>

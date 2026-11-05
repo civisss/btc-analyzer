@@ -3,10 +3,7 @@ const en: Record<string, string> = {
   // shared / page
   Analoghi: 'Analogs',
   Frattali: 'Fractals',
-  'Il periodo storico più simile al grafico attuale, e perché.': 'The historical period most similar to the current chart, and why.',
-  'Pattern storici simili alla struttura attuale e cosa successe dopo.': 'Historical patterns similar to the current structure and what happened next.',
   Parametri: 'Parameters',
-  'Calcolo in corso…': 'Computing…',
   Timeframe: 'Timeframe',
   'Finestra attuale (candele)': 'Current window (candles)',
   'Finestra (candele)': 'Window (candles)',
@@ -139,8 +136,8 @@ const en: Record<string, string> = {
   Correlazione: 'Correlation',
   'Attuale vs analoghi': 'Current vs analogs',
   'Percorsi riscalati al prezzo attuale': 'Paths rescaled to the current price',
-  'Ogni analogo è riscalato al prezzo attuale. La banda azzurra copre i percentili 10–90 degli esiti; la linea tratteggiata è la mediana (P50). Passa sopra un analogo per evidenziarlo.':
-    'Each analog is rescaled to the current price. The blue band covers the 10th–90th percentiles of outcomes; the dashed line is the median (P50). Hover an analog to highlight it.',
+  'Ogni analogo è riscalato al prezzo attuale. La banda arancione copre i percentili 10–90 degli esiti; la linea tratteggiata è la mediana (P50). Passa sopra un analogo per evidenziarlo.':
+    'Each analog is rescaled to the current price. The orange band covers the 10th–90th percentiles of outcomes; the dashed line is the median (P50). Hover an analog to highlight it.',
   Proiezione: 'Projection',
   'Orizzonte {n} candele': 'Horizon {n} candles',
   'Prob. rialzo': 'Up prob.',

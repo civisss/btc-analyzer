@@ -2,13 +2,14 @@ import { useMemo, type ReactNode } from 'react'
 import type { Pt } from '../api/types'
 import type { LagAnalysis, Macro, RegimeStat } from '../api/macro'
 import EChart from '../components/charts/EChart'
-import { C, DIVERGING, FONT, areaGradient, axisLabel, dataZoomInside, dataZoomSlider, dateFmt, hexA, legendBase, lineSeries, timeAxis, toXY, tooltipBase, usdAxisFmt, valueAxis } from '../components/charts/theme'
+import { C, FONT, areaGradient, axisLabel, dataZoomInside, dataZoomSlider, dateFmt, hexA, legendBase, lineSeries, timeAxis, toXY, tooltipBase, usdAxisFmt, valueAxis } from '../components/charts/theme'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Gauge } from 'lucide-react'
 import { useMacro } from '../api/macro'
-import { Badge, Card, CardBody, CardHeader, ICON, Q, Skeleton, ToneBadge, clsx } from '../components/ui'
+import { Badge, Card, CardBody, CardHeader, ICON, Q, Skeleton, ToneBadge, clsx, SectionHead } from '../components/ui'
 import { dayUnit, pct, usdCompact } from '../lib/format'
 import { cap, t, tr } from '../i18n'
+import { CORR, T, alpha } from '../theme/tokens'
 
 // ------------------------------------------------------------------ helpers
 type Num = number | null | undefined
@@ -33,12 +34,7 @@ function cycleMarkLine(marks: Macro['rotation']['cycle_marks']) {
 }
 
 export function SectionTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
-  return (
-    <div className="mt-3 border-b border-line pb-2 pt-2">
-      <h2 className="text-lg font-semibold text-white">{children}</h2>
-      {sub && <p className="text-xs text-slate-400">{sub}</p>}
-    </div>
-  )
+  return <SectionHead title={children} subtitle={sub} />
 }
 
 // ------------------------------------------------------------------ liquidity
@@ -69,9 +65,9 @@ export function LiquidityOverlayChart({ lag, btcPrice, mode, height = 340 }: { l
         valueAxis({ position: 'right', splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: fR }, ...(shift ? {} : { type: 'log' }) }),
       ],
       series: [
-        lineSeries(btcName, toXY(shift ? lag.btc_change : btcLevel), C.btc, { yAxisIndex: 1 }),
-        lineSeries(liqName, toXY(shift ? lag.liq_change_shifted : lag.liq_level), C.blue, {
-          yAxisIndex: 0, areaStyle: shift ? undefined : { color: areaGradient(C.blue, 0.12) },
+        lineSeries(btcName, toXY(shift ? lag.btc_change : btcLevel), C.price, { yAxisIndex: 1 }),
+        lineSeries(liqName, toXY(shift ? lag.liq_change_shifted : lag.liq_level), C.accent, {
+          yAxisIndex: 0, areaStyle: shift ? undefined : { color: areaGradient(C.accent, 0.12) },
           markLine: shift ? { symbol: 'none', silent: true, lineStyle: { color: hexA(C.primary, 0.35), type: 'dashed' }, label: { color: C.muted, formatter: t('Oggi'), fontSize: 10, position: 'insideEndTop' }, data: [{ xAxis: now }] } : undefined,
         }),
       ],
@@ -90,7 +86,7 @@ export function LagBarsChart({ lag, height = 260 }: { lag: LagAnalysis; height?:
       type: 'bar', barMaxWidth: 16,
       data: lag.lags.map((l) => ({
         value: l.corr,
-        itemStyle: { color: l.lag === lag.best_lag ? C.blue : hexA(C.grey, 0.45), borderRadius: (l.corr ?? 0) < 0 ? [0, 0, 2, 2] : [2, 2, 0, 0] },
+        itemStyle: { color: l.lag === lag.best_lag ? C.accent : hexA(C.grey, 0.45), borderRadius: (l.corr ?? 0) < 0 ? [0, 0, 2, 2] : [2, 2, 0, 0] },
       })),
     }],
   }), [lag])
@@ -118,8 +114,8 @@ export function DxyBtcChart({ d, inverted, height = 380 }: { d: Macro['dollar_ra
       valueAxis({ position: 'left', inverse: inverted, splitLine: { show: false }, axisLabel: { ...axisLabel, formatter: (v: number) => v.toFixed(0) } }),
     ],
     series: [
-      lineSeries('BTC (USD)', toXY(d.btc_series), C.btc, { yAxisIndex: 0 }),
-      lineSeries(dxyName, toXY(d.series), C.blue, { yAxisIndex: 1, areaStyle: undefined }),
+      lineSeries('BTC (USD)', toXY(d.btc_series), C.price, { yAxisIndex: 0 }),
+      lineSeries(dxyName, toXY(d.series), C.accent, { yAxisIndex: 1, areaStyle: undefined }),
       lineSeries(maName, toXY(d.ma200_series), C.muted, { yAxisIndex: 1, lineStyle: { width: 1.25, color: C.muted, type: 'dashed' } }),
     ],
   }
@@ -129,7 +125,7 @@ export function DxyBtcChart({ d, inverted, height = 380 }: { d: Macro['dollar_ra
 
 export function RegimeTable({ stats, current, fwd }: { stats: RegimeStat[]; current: string; fwd: number }) {
   return (
-    <div className="-mx-4 overflow-x-auto">
+    <div className="no-scrollbar -mx-4 overflow-x-auto sm:-mx-5">
       <table className="tbl min-w-[420px]">
         <thead>
           <tr>
@@ -143,11 +139,11 @@ export function RegimeTable({ stats, current, fwd }: { stats: RegimeStat[]; curr
         <tbody>
           {stats.map((s) => (
             <tr key={s.regime}>
-              <td className="pl-4 text-slate-200">{cap(s.label)}{s.regime === current && <Badge color="blue" className="ml-2">{t('Ora')}</Badge>}</td>
-              <td className="text-right text-slate-300">{fin(s.share) ? `${s.share.toFixed(0)}%` : '—'}</td>
-              <td className={clsx('text-right font-medium', !fin(s.fwd_median) ? 'text-slate-400' : s.fwd_median >= 0 ? 'text-up' : 'text-down')}>{pct(s.fwd_median, 1)}</td>
-              <td className="text-right text-slate-300">{fin(s.win_rate) ? `${s.win_rate.toFixed(0)}%` : '—'}</td>
-              <td className={clsx('pr-4 text-right', !fin(s.ann_return) ? 'text-slate-400' : s.ann_return >= 0 ? 'text-up' : 'text-down')}>{pct(s.ann_return, 0)}</td>
+              <td className="pl-4 text-fg">{cap(s.label)}{s.regime === current && <Badge color="blue" className="ml-2">{t('Ora')}</Badge>}</td>
+              <td className="text-right text-fg-2">{fin(s.share) ? `${s.share.toFixed(0)}%` : '—'}</td>
+              <td className={clsx('text-right font-medium', !fin(s.fwd_median) ? 'text-fg-3' : s.fwd_median >= 0 ? 'text-up' : 'text-down')}>{pct(s.fwd_median, 1)}</td>
+              <td className="text-right text-fg-2">{fin(s.win_rate) ? `${s.win_rate.toFixed(0)}%` : '—'}</td>
+              <td className={clsx('pr-4 text-right', !fin(s.ann_return) ? 'text-fg-3' : s.ann_return >= 0 ? 'text-up' : 'text-down')}>{pct(s.ann_return, 0)}</td>
             </tr>
           ))}
         </tbody>
@@ -168,7 +164,7 @@ export function CorrHeatmap({ assets, values, height = 360 }: { assets: { key: s
       tooltip: { ...tooltipBase, formatter: (p: { value: [number, number, number | null] }) => `${labels[p.value[0]]} · ${labels[labels.length - 1 - p.value[1]]}<br/><b>ρ ${fin(p.value[2]) ? p.value[2].toFixed(2) : '—'}</b>` },
       xAxis: { type: 'category', data: labels, axisLabel: { ...axisLabel, interval: 0, rotate: 0, fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false }, splitArea: { show: false } },
       yAxis: { type: 'category', data: [...labels].reverse(), axisLabel: { ...axisLabel, fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
-      visualMap: { show: false, min: -1, max: 1, inRange: { color: DIVERGING } },
+      visualMap: { show: false, min: -1, max: 1, inRange: { color: [...CORR] } },
       series: [{
         type: 'heatmap', data,
         label: { show: true, color: C.primary, fontSize: 10, fontFamily: FONT, formatter: (p: { value: [number, number, number | null] }) => (fin(p.value[2]) ? p.value[2].toFixed(2) : '—') },
@@ -235,7 +231,7 @@ export function AltseasonGauge({ value, size = 220 }: { value: number; size?: nu
     <svg viewBox="0 0 120 64" width={size} height={(size * 64) / 120} aria-label={`${t('Indice altseason')} ${v.toFixed(0)}`}>
       {segs.map(([a, b]) => {
         const active = v / 100 >= a && v / 100 <= b
-        return <path key={a} d={arc(a + 0.008, b - 0.008)} stroke={active ? C.blue : hexA(C.grey, 0.22)} strokeWidth="7" fill="none" />
+        return <path key={a} d={arc(a + 0.008, b - 0.008)} stroke={active ? C.accent : hexA(C.grey, 0.22)} strokeWidth="7" fill="none" />
       })}
       <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={C.primary} strokeWidth="2" strokeLinecap="round" />
       <circle cx={cx} cy={cy} r="3.5" fill={C.primary} />
@@ -252,7 +248,7 @@ export function RiskMeter({ value }: { value: number }) {
         <div className="absolute inset-y-0 left-1/2 w-px bg-white/20" />
         <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-bg bg-white" style={{ left: `${v}%` }} />
       </div>
-      <div className="mt-1.5 flex justify-between text-2xs text-slate-400"><span>Risk-off</span><span>{t('Neutrale')}</span><span>Risk-on</span></div>
+      <div className="mt-1.5 flex justify-between text-2xs text-fg-3"><span>Risk-off</span><span>{t('Neutrale')}</span><span>Risk-on</span></div>
     </div>
   )
 }
@@ -260,13 +256,13 @@ export function RiskMeter({ value }: { value: number }) {
 /** Text tag for a score component: categorical, so neutral colours (no green/red). */
 export function ScoreTag({ score, className }: { score: number; className?: string }) {
   const label = score > 20 ? tr('A favore', 'Supportive') : score < -20 ? tr('Contro', 'Headwind') : t('Neutrale')
-  return <span className={clsx('shrink-0 rounded px-1.5 py-px text-2xs font-medium', score > 20 ? 'bg-white/[0.08] text-slate-100' : 'bg-white/[0.04] text-slate-400', className)}>{label}</span>
+  return <span className={clsx('shrink-0 rounded px-1.5 py-px text-2xs font-medium', score > 20 ? 'bg-white/[0.08] text-fg' : 'bg-white/[0.04] text-fg-3', className)}>{label}</span>
 }
 
 /** Diverging -100..100 bar for a score component (neutral fill; the direction is told by ScoreTag). */
 export function ScoreBar({ score }: { score: number }) {
   const s = Math.max(-100, Math.min(100, score))
-  const color = Math.abs(s) > 20 ? 'rgba(203,213,225,0.75)' : hexA(C.grey, 0.6)
+  const color = Math.abs(s) > 20 ? alpha(T.fg2, 0.75) : hexA(C.grey, 0.6)
   return (
     <div className="relative h-1.5 w-full rounded-full bg-white/[0.06]">
       <div className="absolute top-0 h-full w-px bg-white/25" style={{ left: '50%' }} />
@@ -290,22 +286,22 @@ export function MacroMiniCard() {
             return (
               <>
                 <div className="flex h-10 items-center justify-between gap-3">
-                  <div className="tnum text-3xl font-semibold leading-8 text-white">{s.score.toFixed(0)}<span className="ml-1 text-sm font-normal text-slate-400">/ 100</span></div>
+                  <div className="tnum text-3xl font-semibold leading-8 text-white">{s.score.toFixed(0)}<span className="ml-1 text-sm font-normal text-fg-3">/ 100</span></div>
                   <ToneBadge tone={s.tone} label={s.label} />
                 </div>
                 <RiskMeter value={s.score} />
-                <div className="flex flex-col divide-y divide-white/[0.05]">
+                <div className="flex flex-col divide-y divide-line-subtle">
                   {s.components.map((c) => (
                     <div key={c.key} className="flex flex-col gap-1.5 py-2" title={c.text}>
                       <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate font-medium text-slate-200">{c.label}</span>
-                        <span className="flex shrink-0 items-center gap-2"><span className="tnum text-slate-400">{c.value}</span><ScoreTag score={c.score} /></span>
+                        <span className="truncate font-medium text-fg">{c.label}</span>
+                        <span className="flex shrink-0 items-center gap-2"><span className="tnum text-fg-3">{c.value}</span><ScoreTag score={c.score} /></span>
                       </div>
                       <ScoreBar score={c.score} />
                     </div>
                   ))}
                 </div>
-                {s.bullets[0] && <p className="mt-auto text-sm leading-snug text-slate-300">{s.bullets[0]}</p>}
+                {s.bullets[0] && <p className="mt-auto text-sm leading-snug text-fg-2">{s.bullets[0]}</p>}
               </>
             )
           }}

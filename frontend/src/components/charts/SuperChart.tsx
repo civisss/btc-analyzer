@@ -11,13 +11,14 @@ import {
 } from 'lightweight-charts'
 import { C, FONT, usdAxis } from './theme'
 import { cap, months } from '../../i18n'
+import { T, alpha } from '../../theme/tokens'
 
 const TZ = -new Date().getTimezoneOffset() * 60
 const lt = (t: number) => (t + TZ) as UTCTimestamp
 const SCALE_W = 74
 /** events that make a chart the sync source (wheel/touch can arrive without a prior pointer move) */
 const ACT_EVENTS = ['pointerenter', 'pointermove', 'pointerdown', 'wheel', 'touchstart'] as const
-const AMBER = '#E8B04B'
+const ANOMALY = T.warn
 
 export type EngineSeries = {
   key: string; type: 'line' | 'hist'; color: string; values: (number | null)[]
@@ -64,8 +65,8 @@ function baseOptions(el: HTMLElement, fmt: (p: number) => string) {
     timeScale: { borderColor: C.axis, rightOffset: 6, timeVisible: true, secondsVisible: false, tickMarkFormatter: tickFmt, visible: false },
     crosshair: {
       mode: CrosshairMode.Normal,
-      vertLine: { color: 'rgba(160,175,225,0.35)', labelBackgroundColor: '#1E2840', style: LineStyle.Dashed },
-      horzLine: { color: 'rgba(160,175,225,0.35)', labelBackgroundColor: '#1E2840', style: LineStyle.Dashed },
+      vertLine: { color: alpha(T.fg3, 0.35), labelBackgroundColor: T.overlay, style: LineStyle.Dashed },
+      horzLine: { color: alpha(T.fg3, 0.35), labelBackgroundColor: T.overlay, style: LineStyle.Dashed },
     },
     localization: { locale: 'en-US', timeFormatter: timeFmt, priceFormatter: fmt },
     handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
@@ -98,7 +99,7 @@ function pointAt(s: EngineSeries, t: number[], i: number) {
 }
 function markersFor(p: EnginePane, t: number[], end: number): SeriesMarker<Time>[] {
   return p.markers.filter((m) => m.i <= end).map((m) => ({
-    time: lt(t[m.i]), position: m.z >= 0 ? 'aboveBar' : 'belowBar', color: AMBER, shape: 'circle', size: 0.7,
+    time: lt(t[m.i]), position: m.z >= 0 ? 'aboveBar' : 'belowBar', color: ANOMALY, shape: 'circle', size: 0.7,
   }))
 }
 
@@ -145,7 +146,7 @@ export default function SuperChart({
     const chart = createChart(el, baseOptions(el, usdAxis))
     const candle = chart.addCandlestickSeries({
       upColor: C.up, downColor: C.down, borderUpColor: C.up, borderDownColor: C.down, wickUpColor: C.up, wickDownColor: C.down,
-      priceFormat: { type: 'price', precision: 0, minMove: 1 }, lastValueVisible: true, priceLineVisible: true, priceLineColor: C.btc, priceLineStyle: LineStyle.Dotted,
+      priceFormat: { type: 'price', precision: 0, minMove: 1 }, lastValueVisible: true, priceLineVisible: true, priceLineColor: C.price, priceLineStyle: LineStyle.Dotted,
     })
     mainRef.current = { chart, candle }
     const ro = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth, height: el.clientHeight }))
@@ -340,7 +341,7 @@ export default function SuperChart({
           first.setMarkers(markersFor(p, t, e))
           const lk = (p.levels ?? []).join(',')
           if (rt.levelsKey !== lk) {
-            p.levels?.forEach((lv) => first.createPriceLine({ price: lv, color: 'rgba(148,163,184,0.45)', lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false, title: '' }))
+            p.levels?.forEach((lv) => first.createPriceLine({ price: lv, color: alpha(T.fg3, 0.45), lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false, title: '' }))
             rt.levelsKey = lk
           }
         }

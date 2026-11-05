@@ -3,9 +3,6 @@ const en: Record<string, string> = {
   // ---------------------------------------------------------------- page / tabs
   'Basis e curva': 'Basis & curve',
   'Leva aggregata': 'Aggregated leverage',
-  'Basis annualizzato dei futures a scadenza: curva Deribit e Binance, storico trimestrale dal 2020.': 'Annualized basis of dated futures: Deribit and Binance curve, quarterly history since 2020.',
-  'Posizionamento istituzionale sui futures Bitcoin CME (CFTC Commitments of Traders) dal 2018.': 'Institutional positioning on CME Bitcoin futures (CFTC Commitments of Traders) since 2018.',
-  'Open interest e funding aggregati di Binance, Bybit e OKX, con storico e verifica incrociata.': 'Aggregated open interest and funding across Binance, Bybit and OKX, with history and cross-checks.',
   Lettura: 'Reading',
   // ---------------------------------------------------------------- basis
   Mista: 'Mixed',
@@ -152,14 +149,12 @@ const en: Record<string, string> = {
     'Contracts included: Binance BTCUSDT, BTCUSDC and BTCUSD_PERP (COIN-M); Bybit BTCUSDT, BTCPERP (USDC) and BTCUSD (inverse); OKX BTC-USDT-SWAP and BTC-USD-SWAP. Excluded: {x}.',
   'Funding ponderato = Σ funding × OI in USD ÷ Σ OI in USD, con ogni tasso riportato a 8 ore. Storico giornaliero OKX: snapshot delle 16:00 UTC assegnato al giorno UTC successivo (scarto di 8 ore).':
     'Weighted funding = Σ funding × USD OI ÷ Σ USD OI, with every rate normalized to 8 hours. OKX daily history: the 16:00 UTC snapshot is assigned to the next UTC day (8-hour offset).',
-  "Raccolta in avanti: ogni 5 minuti l'app salva OI e funding dei tre exchange{s}.": 'Forward collection: every 5 minutes the app stores OI and funding of the three exchanges{s}.',
   ' (dal {d})': ' (since {d})',
   // ---------------------------------------------------------------- liquidations
   'Liquidazioni reali da Binance, Bybit e OKX (perpetui BTC). In raccolta: {l}.': 'Real liquidations from Binance, Bybit and OKX (BTC perpetuals). Collecting: {l}.',
   'in avvio': 'starting',
   'I totali coprono solo il periodo raccolto.': 'Totals cover the collected period only.',
   'Binance trasmette al massimo una liquidazione al secondo per contratto: nei picchi il dato Binance è sottostimato.': 'Binance streams at most one liquidation per second per contract: during spikes the Binance figure is understated.',
-  "Stima da OI aggregato {x} · {p} dell'OI dei tre exchange · leve 5–100×": 'Estimated from aggregated OI {x} · {p} of the three exchanges’ OI · 5–100× leverage',
   'Livelli stimati (leva 5–100×) con candele sovrapposte': 'Estimated levels (5–100× leverage) with candles overlaid',
   "Stima dei prezzi a cui verrebbero liquidate le posizioni aperte, con leve tipiche tra 5× e 100×, alimentata dall'open interest di Binance, Bybit e OKX (un'allocazione per exchange). Colori più chiari = maggiore concentrazione stimata. È un modello: vedi la validazione con le liquidazioni reali.":
     'Estimated prices at which open positions would be liquidated, with typical 5×–100× leverage, driven by Binance, Bybit and OKX open interest (one allocation per exchange). Lighter colours = higher estimated concentration. It is a model: see the validation against real liquidations.',
@@ -175,7 +170,6 @@ const en: Record<string, string> = {
   Preliminare: 'Preliminary',
   'Dati insufficienti': 'Not enough data',
   'Modello e validazione': 'Model and validation',
-  "Copertura dell'OI e confronto con le liquidazioni reali": 'OI coverage and comparison with real liquidations',
   'Tempo: per ogni ora si confronta il volume che il modello prevede venga liquidato (livelli attraversati dal prezzo) con quello reale (correlazione di rango) e si conta quante ore di picco reale (10% più alto) erano anche nel quartile alto del modello: per caso sarebbe il 25%. Prezzo: quota del volume reale liquidato dentro le zone dense del modello rispetto a quella attesa per caso (lift).':
     'Time: for every hour the volume the model expects to be liquidated (levels crossed by price) is compared with the real one (rank correlation), and we count how many real peak hours (top 10%) were also in the model’s top quartile: chance would give 25%. Price: share of real liquidated volume inside the model’s dense zones vs the share expected by chance (lift).',
   "Prima: solo Binance BTCUSDT = {a} dell'OI dei tre exchange. Ora: {b}. Quota dell'OI perpetuo globale stimata {c} (CoinGecko).":

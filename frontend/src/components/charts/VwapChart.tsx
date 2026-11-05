@@ -9,6 +9,7 @@ import { cap, months } from '../../i18n'
 import { clsx } from '../ui'
 import { C, FONT, hexA } from './theme'
 import { PILL_H, layoutPills, mix, priceTicks, timeTicks, usdP } from './vwapAxis'
+import { T, alpha } from '../../theme/tokens'
 
 /*
  * VWAP panel chart (lightweight-charts): candles of the panel timeframe, current-period VWAP (thick) with ±1σ / ±2σ bands,
@@ -23,8 +24,8 @@ export type VwapHover = {
 type Bar = { time: number; open: number; high: number; low: number; close: number }
 type Pill = { id: string; name: string; value: number; bg: string; fg: string; nameBg: string; nameFg: string; border: string }
 
-const PREV = '#C9D1E3'
-const PREV_DIM = '#8C96AD'
+const PREV = T.fg2
+const PREV_DIM = T.fg3
 const AXIS_W = 78
 const p2 = (n: number) => String(n).padStart(2, '0')
 /** Precise value with cents (header rows): $82,946.35 */
@@ -33,7 +34,7 @@ export const fmt2 = (p: number | null | undefined) => usdP(p, 2)
 const baseOptions = {
   // axis labels are drawn as HTML (vwapAxis.ts): transparent here, crosshair labels keep their own colours
   layout: { background: { color: 'transparent' }, textColor: 'transparent', fontFamily: FONT, fontSize: 11, attributionLogo: false },
-  grid: { vertLines: { color: 'rgba(148,163,210,0.035)' }, horzLines: { color: C.grid } },
+  grid: { vertLines: { color: alpha(T.fg3, 0.035) }, horzLines: { color: C.grid } },
   rightPriceScale: { borderColor: C.axis, scaleMargins: { top: 0.08, bottom: 0.06 }, minimumWidth: AXIS_W },
   timeScale: {
     borderColor: C.axis, rightOffset: 4, timeVisible: true, secondsVisible: false, minBarSpacing: 0.2,
@@ -47,8 +48,8 @@ const baseOptions = {
   },
   crosshair: {
     mode: CrosshairMode.Normal,
-    vertLine: { color: 'rgba(160,175,225,0.35)', labelBackgroundColor: '#1E2840', style: LineStyle.Dashed },
-    horzLine: { color: 'rgba(160,175,225,0.35)', labelBackgroundColor: '#1E2840', style: LineStyle.Dashed },
+    vertLine: { color: alpha(T.fg3, 0.35), labelBackgroundColor: T.overlay, style: LineStyle.Dashed },
+    horzLine: { color: alpha(T.fg3, 0.35), labelBackgroundColor: T.overlay, style: LineStyle.Dashed },
   },
   localization: {
     locale: 'en-US',
@@ -277,10 +278,10 @@ export default function VwapChart({
     const L = panel.levels
     const out: Pill[] = []
     const cur = (id: string, name: string, v: number | null, strong: boolean) => {
-      if (v != null) out.push({ id, name, value: v, bg: strong ? color : mix(color, 0.78), fg: '#0B1020', nameBg: mix(color, 0.16), nameFg: color, border: hexA(color, 0.4) })
+      if (v != null) out.push({ id, name, value: v, bg: strong ? color : mix(color, 0.78), fg: T.bg, nameBg: mix(color, 0.16), nameFg: color, border: hexA(color, 0.4) })
     }
     const prev = (id: string, name: string, v: number | null, strong: boolean) => {
-      if (v != null) out.push({ id, name, value: v, bg: strong ? '#D5DBE8' : '#7E889F', fg: '#0B1020', nameBg: mix('#94A3D2', 0.16), nameFg: strong ? '#E8ECF4' : '#B3BCD0', border: 'rgba(148,163,210,0.3)' })
+      if (v != null) out.push({ id, name, value: v, bg: strong ? T.fg : T.fg3, fg: T.bg, nameBg: mix(T.fg3, 0.16), nameFg: strong ? T.fg : T.fg2, border: alpha(T.fg3, 0.3) })
     }
     const p = `p${tag}`
     if (showPrev) {
@@ -310,7 +311,7 @@ export default function VwapChart({
       const defs = [...pillDefs]
       if (px != null) {
         const up = lastBar.current ? lastBar.current.close >= lastBar.current.open : true
-        defs.push({ id: 'price', name: '', value: px, bg: up ? C.up : C.down, fg: '#0B1020', nameBg: '', nameFg: '', border: 'transparent' })
+        defs.push({ id: 'price', name: '', value: px, bg: up ? C.up : C.down, fg: T.bg, nameBg: '', nameFg: '', border: 'transparent' })
       }
       const items = defs.map((d) => ({ pill: d, y: cs.priceToCoordinate(d.value) ?? -9999 }))
       const lay = layoutPills(items, h).map((i) => ({ ...i, pill: i.off ? { ...i.pill, name: `${i.off < 0 ? '▲' : '▼'} ${i.pill.name}`.trim() } : i.pill }))
@@ -332,12 +333,12 @@ export default function VwapChart({
   return (
     <div className="relative h-full w-full">
       <div ref={elRef} className="absolute inset-0" />
-      <div className="pointer-events-none absolute inset-0 z-[4] overflow-hidden text-[11px] text-[#6E7894]" aria-hidden>
+      <div className="pointer-events-none absolute inset-0 z-[4] overflow-hidden text-[11px] text-fg-4" aria-hidden>
         {ticks.py.map((tk) => (
           <span key={`p${tk.label}`} className="tnum absolute right-0 -translate-y-1/2 pr-2 text-right" style={{ top: tk.y, width: axisW }}>{tk.label}</span>
         ))}
         {ticks.tx.map((tk) => (
-          <span key={`t${tk.x}`} className={clsx('tnum absolute -translate-x-1/2 whitespace-nowrap', tk.major && 'font-medium text-[#B3BCD0]')} style={{ left: tk.x, top: ticks.axisY + 7 }}>{tk.label}</span>
+          <span key={`t${tk.x}`} className={clsx('tnum absolute -translate-x-1/2 whitespace-nowrap', tk.major && 'font-medium text-fg-2')} style={{ left: tk.x, top: ticks.axisY + 7 }}>{tk.label}</span>
         ))}
       </div>
       <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden" aria-hidden>

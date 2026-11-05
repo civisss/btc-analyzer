@@ -1,31 +1,26 @@
 import { cloneElement, isValidElement, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { UseQueryResult } from '@tanstack/react-query'
-import { AlertTriangle, ChevronDown, Info, RefreshCw } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Info, RefreshCw, SlidersHorizontal } from 'lucide-react'
 import clsx from 'clsx'
 import { ApiError } from '../api/client'
 import { pct, pts, TONE_LABEL, updatedAgo } from '../lib/format'
 import { t } from '../i18n'
-import { ACCENT_HEX, GROUP_ACCENT, navFor, type Accent } from '../lib/nav'
+import { ACCENT_HEX, navFor, type Accent } from '../lib/nav'
 import { useLocation } from 'react-router-dom'
-import { hexA } from './charts/theme'
+import { T, alpha } from '../theme/tokens'
 
 export { clsx }
 
 /*
- * Shared UI kit — v3 "ink" system:
- *  deep navy surfaces with top-lit gradient cards, 1px gradient hairline borders, soft shadows · radius 16 card / 10 control / pill
- *  accent hues (btc / blue / violet / teal / amber) only in small tinted icon badges, kickers and sparklines; green/red = up/down only
+ * Shared UI kit, v4 system: near-black surfaces, one hairline, one orange accent (tokens in theme/tokens.ts).
+ *  radius 12 card / 8 control / pill · icons monochrome, orange only for active or key items · green/red = up/down only
  *  type: Geist Variable · 11 label (UPPERCASE) · 12 meta · 13 body · 15 card title · 24 page title · 28 hero KPI · tabular numbers
  */
 
 // ------------------------------------------------------------------ tokens
 /** Standard lucide icon sizes. */
 export const ICON = { nav: 16, header: 16, kpi: 16, chip: 14, inline: 14, state: 16 } as const
-export const COLORS = {
-  text: '#E8ECF4', text2: '#B3BCD0', muted: '#8892A8', disabled: '#566079',
-  up: '#2EBD85', down: '#EF5466', amber: '#E8B04B', blue: '#5B8DEF', btc: '#F7931A',
-  bg: '#060912', surface: '#0E1424', raised: '#161E31', border: 'rgba(148,163,210,0.10)',
-} as const
 export type { Accent }
 export { ACCENT_HEX }
 
@@ -34,18 +29,14 @@ function sized(icon: ReactNode, size: number, strokeWidth = 1.75): ReactNode {
   return icon
 }
 
-/** Rounded icon tile with a muted tint of the accent hue (KPI cards, card headers, page titles, nav). */
+/** Icon tile, monochrome by rule: only `btc` (the key item of a view) adds colour, every other accent reads neutral. */
 export function IconBadge({ icon, accent = 'slate', size = 'md', className }: { icon: ReactNode; accent?: Accent; size?: 'sm' | 'md' | 'lg'; className?: string }) {
-  const hex = ACCENT_HEX[accent]
-  const dim = size === 'sm' ? 'h-6 w-6 rounded-md' : size === 'lg' ? 'h-10 w-10 rounded-xl' : 'h-8 w-8 rounded-[10px]'
+  const hex = accent === 'btc' ? T.accent : null
+  const dim = size === 'sm' ? 'h-6 w-6 rounded-md' : size === 'lg' ? 'h-10 w-10 rounded-xl' : 'h-8 w-8 rounded-lg'
   return (
-    <span className={clsx('relative inline-grid shrink-0 place-items-center', dim, className)}
-      style={{
-        color: hex,
-        background: `linear-gradient(180deg, ${hexA(hex, 0.2)}, ${hexA(hex, 0.08)})`,
-        boxShadow: `inset 0 0 0 1px ${hexA(hex, 0.22)}, inset 0 1px 0 ${hexA('#ffffff', 0.08)}`,
-      }}>
-      {sized(icon, size === 'sm' ? 13 : size === 'lg' ? 19 : 16, 2)}
+    <span className={clsx('relative inline-grid shrink-0 place-items-center', dim, !hex && 'bg-white/[0.045] text-fg-3 ring-1 ring-inset ring-line', className)}
+      style={hex ? { color: hex, background: alpha(hex, 0.12), boxShadow: `inset 0 0 0 1px ${alpha(hex, 0.28)}` } : undefined}>
+      {sized(icon, size === 'sm' ? 13 : size === 'lg' ? 19 : 16, 1.9)}
     </span>
   )
 }
@@ -53,7 +44,7 @@ export function IconBadge({ icon, accent = 'slate', size = 'md', className }: { 
 /** Legacy name: renders the icon as a tinted badge when an accent is given, otherwise as a plain muted icon. */
 export function IconBox({ icon, className, accent }: { icon: ReactNode; color?: string; className?: string; size?: 'sm' | 'md'; accent?: Accent }) {
   if (accent) return <IconBadge icon={icon} accent={accent} size="sm" className={className} />
-  return <span className={clsx('inline-flex shrink-0 items-center text-slate-400', className)}>{sized(icon, ICON.header)}</span>
+  return <span className={clsx('inline-flex shrink-0 items-center text-fg-3', className)}>{sized(icon, ICON.header)}</span>
 }
 
 // ------------------------------------------------------------------ Card
@@ -79,11 +70,11 @@ export function InfoTip({ text, className }: { text: ReactNode; className?: stri
   return (
     <span ref={ref} className={clsx('relative inline-flex', className)}>
       <button type="button" aria-label={t('Informazioni')} onClick={() => setOpen((o) => !o)} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
-        className="-m-1.5 grid h-8 w-8 place-items-center rounded text-slate-500 transition-colors hover:text-white">
+        className="-m-1.5 grid h-8 w-8 place-items-center rounded text-fg-4 transition-colors hover:text-white">
         <Info size={14} strokeWidth={1.75} />
       </button>
       {open && (
-        <span role="tooltip" className="pop pop-in absolute left-0 top-7 z-50 w-72 rounded-xl p-3 text-xs font-normal normal-case leading-relaxed tracking-normal text-slate-300">
+        <span role="tooltip" className="pop pop-in absolute left-0 top-7 z-50 w-72 rounded-xl p-3 text-xs font-normal normal-case leading-relaxed tracking-normal text-fg-2">
           {text}
         </span>
       )}
@@ -105,9 +96,9 @@ export function Updated({ at, className, interval = 60_000 }: { at: number | nul
   const age = Date.now() - at
   const stale = age > 2 * interval
   return (
-    <span className={clsx('tnum inline-flex items-center gap-1 whitespace-nowrap text-2xs font-normal', stale ? 'text-amber-400' : 'text-slate-500', className)}
+    <span className={clsx('tnum inline-flex items-center gap-1 whitespace-nowrap text-2xs font-normal', stale ? 'text-warn' : 'text-fg-4', className)}
       title={new Date(at).toLocaleString()}>
-      <span className={clsx('h-1 w-1 rounded-full', stale ? 'bg-amber-400' : 'bg-slate-500')} />
+      <span className={clsx('h-1 w-1 rounded-full', stale ? 'bg-warn' : 'bg-fg-4')} />
       {age < 5000 ? t('Aggiornato ora') : updatedAgo(at)}
     </span>
   )
@@ -130,20 +121,20 @@ export function CardHeader({
 }) {
   const loc = useLocation()
   const nav = navFor(loc.pathname)
-  const acc: Accent = accent ?? (nav ? GROUP_ACCENT[nav.group] : 'slate')
+  const acc: Accent = accent ?? 'slate'
   const ic = icon ?? (nav ? <nav.icon /> : null)
   return (
     <header className={clsx('mb-3 flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 pt-3.5 sm:px-5', className)}>
       <div className="flex min-w-0 flex-[1_1_240px] items-center gap-3">
         {!noIcon && ic && <IconBadge icon={ic} accent={acc} />}
         <div className="min-w-0">
-          {kicker && <div className="label mb-0.5" style={accent ? { color: ACCENT_HEX[accent] } : undefined}>{kicker}</div>}
+          {kicker && <div className={clsx('label mb-0.5', accent === 'btc' && 'text-accent')}>{kicker}</div>}
           <h2 className="flex min-h-7 items-center gap-1.5 text-title font-semibold tracking-[-0.01em] text-white">
             <span className="min-w-0 max-sm:line-clamp-2 sm:truncate" title={typeof title === 'string' ? title : undefined}>{title}</span>
             {info && <InfoTip text={info} />}
           </h2>
           {(subtitle || updatedAt) ? (
-            <p className="line-clamp-2 text-xs text-slate-400">
+            <p className="line-clamp-2 text-xs text-fg-3">
               {subtitle}
               {updatedAt ? <Updated at={updatedAt} interval={interval} className={clsx('align-middle', subtitle ? 'ml-2' : '')} /> : null}
             </p>
@@ -156,7 +147,7 @@ export function CardHeader({
 }
 
 export function CardBody({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={clsx('min-w-0 flex-1 px-4 pb-4 sm:px-5 sm:pb-5', className)}>{children}</div>
+  return <div className={clsx('card-body min-w-0 flex-1 px-4 pb-4 sm:px-5 sm:pb-5', className)}>{children}</div>
 }
 
 /** Flex-grow area for charts: fills the remaining card height (min `min` px). Render the chart with height="100%". */
@@ -173,20 +164,27 @@ export function SectionLabel({ children, className }: { children: ReactNode; cla
   return <div className={clsx('label mb-2', className)}>{children}</div>
 }
 
-/** Section header for long pages: groups several cards under one heading (short accent bar). */
+/** The one group heading of a long page: short accent bar, 15px title, optional subtitle and actions. */
+export function SectionHead({ title, subtitle, right, className }: { title: ReactNode; subtitle?: ReactNode; right?: ReactNode; className?: string }) {
+  return (
+    <div className={clsx('flex flex-wrap items-end justify-between gap-x-4 gap-y-1 pb-1 pt-3', className)}>
+      <div className="flex min-w-0 items-start gap-2.5">
+        <span className="mt-1 h-4 w-[3px] shrink-0 rounded-full bg-accent" />
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold tracking-[-0.01em] text-white">{title}</h2>
+          {subtitle && <p className="text-xs text-fg-3">{subtitle}</p>}
+        </div>
+      </div>
+      {right && <div className="flex flex-wrap items-center gap-2">{right}</div>}
+    </div>
+  )
+}
+
+/** Section for long pages: groups several cards under one heading. */
 export function Section({ title, subtitle, right, children, className }: { title: ReactNode; subtitle?: ReactNode; right?: ReactNode; children?: ReactNode; className?: string }) {
   return (
     <section className={clsx('flex flex-col gap-3', className)}>
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 pb-1 pt-3">
-        <div className="flex min-w-0 items-start gap-2.5">
-          <span className="mt-1 h-4 w-1 shrink-0 rounded-full bg-gradient-to-b from-btc to-btc/20" />
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold tracking-[-0.01em] text-white">{title}</h2>
-            {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
-          </div>
-        </div>
-        {right && <div className="flex flex-wrap items-center gap-2">{right}</div>}
-      </div>
+      <SectionHead title={title} subtitle={subtitle} right={right} />
       {children}
     </section>
   )
@@ -195,8 +193,8 @@ export function Section({ title, subtitle, right, children, className }: { title
 /** Methodology / reference text: collapsed "Metodo" footer, 12px muted. */
 export function MethodNote({ children, title, className }: { children: ReactNode; title?: string; className?: string }) {
   return (
-    <details className={clsx('card group px-4 py-2.5 text-xs text-slate-400 sm:px-5', className)}>
-      <summary className="flex items-center gap-2 font-medium text-slate-300 hover:text-white">
+    <details className={clsx('card group px-4 py-2.5 text-xs text-fg-3 sm:px-5', className)}>
+      <summary className="flex items-center gap-2 font-medium text-fg-2 hover:text-white">
         <ChevronDown size={14} className="transition-transform group-open:rotate-180" />{title ?? t('Metodo')}
       </summary>
       <div className="mt-2 space-y-2 leading-relaxed">{children}</div>
@@ -235,11 +233,11 @@ export function KpiCell({ label, value, delta, foot, spark, aside, title, classN
         <div className="kpi-value tnum min-w-0 flex-1 truncate text-3xl font-semibold tracking-[-0.02em] text-white [&_*]:!text-white">{value}</div>
         {aside && <div className="grid h-[72px] w-[72px] shrink-0 place-items-center">{aside}</div>}
       </div>
-      <div className="kpi-row tnum mt-1 flex min-w-0 items-baseline gap-1.5 truncate text-xs text-slate-400">
+      <div className="kpi-row tnum mt-1 flex min-w-0 items-baseline gap-1.5 truncate text-xs text-fg-3">
         {hasDelta && <span className="shrink-0">{delta}</span>}
-        {hasDelta && hasFoot && <span className="text-slate-600">·</span>}
-        {hasFoot && <span className="kpi-foot-text min-w-0 truncate text-slate-400" title={typeof foot === 'string' ? foot : undefined}>{foot}</span>}
-        {!hasDelta && !hasFoot && <span className="text-slate-600">—</span>}
+        {hasDelta && hasFoot && <span className="text-fg-off">·</span>}
+        {hasFoot && <span className="kpi-foot-text min-w-0 truncate text-fg-3" title={typeof foot === 'string' ? foot : undefined}>{foot}</span>}
+        {!hasDelta && !hasFoot && <span className="text-fg-off">—</span>}
       </div>
       {spark && <div className="pointer-events-none mt-2 h-9">{spark}</div>}
     </div>
@@ -280,10 +278,10 @@ function errorMessage(err: unknown): string {
 export function ErrorState({ error, onRetry, compact }: { error: unknown; onRetry?: () => void; compact?: boolean }) {
   return (
     <div className={clsx('flex flex-col items-center justify-center gap-2 text-center', compact ? 'py-4' : 'py-10')}>
-      <IconBadge icon={<AlertTriangle />} accent="amber" />
+      <IconBadge icon={<AlertTriangle />} className="!text-warn" />
       <div>
-        <p className="text-sm font-medium text-slate-200">{t('Dati non disponibili')}</p>
-        <p className="mt-0.5 max-w-xs text-xs text-slate-400">{errorMessage(error)}</p>
+        <p className="text-sm font-medium text-fg">{t('Dati non disponibili')}</p>
+        <p className="mt-0.5 max-w-xs text-xs text-fg-3">{errorMessage(error)}</p>
       </div>
       {onRetry && (
         <button onClick={onRetry} className="btn-ghost">
@@ -295,7 +293,7 @@ export function ErrorState({ error, onRetry, compact }: { error: unknown; onRetr
 }
 
 export function EmptyState({ text, compact }: { text?: string; compact?: boolean }) {
-  return <p className={clsx('text-center text-sm text-slate-400', compact ? 'py-4' : 'py-10')}>{text ?? t('Nessun dato disponibile')}</p>
+  return <p className={clsx('text-center text-sm text-fg-3', compact ? 'py-4' : 'py-10')}>{text ?? t('Nessun dato disponibile')}</p>
 }
 
 /** Renders loading / error / empty / data states for a react-query result. */
@@ -320,9 +318,9 @@ export function Q<D>({
 export function Change({ value, className, digits = 2, suffix }: { value: number | null | undefined; className?: string; digits?: number; suffix?: string }) {
   const tone = value == null ? 'flat' : value > 0 ? 'up' : value < 0 ? 'down' : 'flat'
   return (
-    <span className={clsx('tnum font-medium', tone === 'up' && 'text-up', tone === 'down' && 'text-down', tone === 'flat' && 'text-slate-400', className)}>
+    <span className={clsx('tnum font-medium', tone === 'up' && 'text-up', tone === 'down' && 'text-down', tone === 'flat' && 'text-fg-3', className)}>
       {pct(value, digits)}
-      {suffix && <span className="ml-1 font-normal text-slate-500">{suffix}</span>}
+      {suffix && <span className="ml-1 font-normal text-fg-4">{suffix}</span>}
     </span>
   )
 }
@@ -331,15 +329,15 @@ export function Change({ value, className, digits = 2, suffix }: { value: number
 export function PointsChange({ value, className, digits = 2, suffix }: { value: number | null | undefined; className?: string; digits?: number; suffix?: string }) {
   const tone = value == null ? 'flat' : value > 0 ? 'up' : value < 0 ? 'down' : 'flat'
   return (
-    <span className={clsx('tnum font-medium', tone === 'up' && 'text-up', tone === 'down' && 'text-down', tone === 'flat' && 'text-slate-400', className)}>
+    <span className={clsx('tnum font-medium', tone === 'up' && 'text-up', tone === 'down' && 'text-down', tone === 'flat' && 'text-fg-3', className)}>
       {pts(value, digits)}
-      {suffix && <span className="ml-1 font-normal text-slate-500">{suffix}</span>}
+      {suffix && <span className="ml-1 font-normal text-fg-4">{suffix}</span>}
     </span>
   )
 }
 
-const toneText = { bullish: 'text-up bg-up/10 ring-up/20', bearish: 'text-down bg-down/10 ring-down/20', neutral: 'text-slate-300 bg-white/[0.05] ring-white/10' }
-const toneDot = { bullish: 'bg-up', bearish: 'bg-down', neutral: 'bg-slate-400' }
+const toneText = { bullish: 'text-up bg-up/10 ring-up/20', bearish: 'text-down bg-down/10 ring-down/20', neutral: 'text-fg-2 bg-white/[0.05] ring-line' }
+const toneDot = { bullish: 'bg-up', bearish: 'bg-down', neutral: 'bg-fg-3' }
 /** Direction as a soft tinted pill with a 6px dot. */
 export function ToneBadge({ tone, label, className }: { tone: string; label?: string; className?: string }) {
   const tn = (tone in toneText ? tone : 'neutral') as keyof typeof toneText
@@ -352,14 +350,15 @@ export function ToneBadge({ tone, label, className }: { tone: string; label?: st
 }
 
 /** Small tag. Colour only where it carries meaning (up/down) or as a muted accent tint. */
-export function Badge({ children, color = 'slate', className }: { children: ReactNode; color?: 'slate' | 'btc' | 'purple' | 'blue' | 'up' | 'down'; className?: string }) {
+export function Badge({ children, color = 'slate', className }: { children: ReactNode; color?: 'slate' | 'btc' | 'purple' | 'blue' | 'up' | 'down' | 'warn'; className?: string }) {
   const cls = {
-    slate: 'bg-white/[0.05] text-slate-300 ring-white/10',
-    btc: 'bg-btc/10 text-btc ring-btc/20',
-    purple: 'bg-accent-purple/10 text-accent-purple ring-accent-purple/20',
-    blue: 'bg-accent-blue/10 text-accent-blue ring-accent-blue/25',
+    slate: 'bg-white/[0.05] text-fg-2 ring-line',
+    btc: 'bg-accent/10 text-accent ring-accent/25',
+    purple: 'bg-white/[0.05] text-fg-2 ring-line',
+    blue: 'bg-accent/10 text-accent ring-accent/25',
     up: 'bg-up/10 text-up ring-up/20',
     down: 'bg-down/10 text-down ring-down/20',
+    warn: 'bg-warn/10 text-warn ring-warn/25',
   }[color]
   return <span className={clsx('inline-flex h-5 w-fit items-center gap-1 whitespace-nowrap rounded-md px-1.5 text-2xs font-medium ring-1 ring-inset', cls, className)}>{children}</span>
 }
@@ -375,7 +374,7 @@ export function Segmented<V extends string | number>({
     if (el) setPill({ x: el.offsetLeft, w: el.offsetWidth })
   }, [value, options.length, size])
   return (
-    <div ref={wrap} className={clsx('seg relative inline-flex max-w-full items-center overflow-x-auto rounded-[10px] p-0.5 [scrollbar-width:none]', className)} role="tablist">
+    <div ref={wrap} className={clsx('seg relative inline-flex max-w-full items-center overflow-x-auto rounded-lg p-0.5 [scrollbar-width:none]', className)} role="tablist">
       {/* sliding active background */}
       {pill && <span aria-hidden className="seg-pill absolute bottom-0.5 top-0.5 rounded-lg transition-[transform,width] duration-200 ease-out" style={{ width: pill.w, transform: `translateX(${pill.x}px)`, left: 0 }} />}
       {options.map((o) => (
@@ -387,7 +386,7 @@ export function Segmented<V extends string | number>({
           className={clsx(
             'relative inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg font-medium transition-colors duration-150',
             size === 'sm' ? 'h-8 px-2.5 text-xs sm:h-6' : 'h-8 px-3 text-sm',
-            o.value === value ? 'text-white' : 'text-slate-400 hover:text-white',
+            o.value === value ? 'text-accent-hi' : 'text-fg-3 hover:text-white',
           )}
         >
           {o.label}
@@ -405,9 +404,8 @@ export function TabBar<V extends string>({ tabs, value, onChange, className }: {
         {tabs.map((tb) => (
           <button key={tb.value} role="tab" aria-selected={tb.value === value} onClick={() => onChange(tb.value)}
             className={clsx('relative flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg px-3.5 text-sm font-medium transition-colors duration-150',
-              tb.value === value ? 'seg-pill text-white' : 'text-slate-400 hover:bg-white/[0.03] hover:text-white')}>
+              tb.value === value ? 'seg-pill text-accent-hi' : 'text-fg-3 hover:bg-white/[0.03] hover:text-white')}>
             {tb.label}
-            {tb.value === value && <span aria-hidden className="absolute inset-x-3 -bottom-1 h-px bg-gradient-to-r from-transparent via-btc to-transparent" />}
           </button>
         ))}
       </div>
@@ -422,7 +420,7 @@ export function Toggle({ on, onClick, children }: { on: boolean; onClick: () => 
       aria-pressed={on}
       className={clsx(
         'inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-xs font-medium transition-colors sm:h-7',
-        on ? 'border-accent-blue/30 bg-accent-blue/10 text-white' : 'border-line bg-white/[0.02] text-slate-400 hover:text-white',
+        on ? 'border-accent/35 bg-accent/10 text-accent-hi' : 'border-line bg-white/[0.02] text-fg-3 hover:text-white',
       )}
     >
       {children}
@@ -444,7 +442,7 @@ export function Stat({ label, value, sub, className }: { label: ReactNode; value
 /** Inline legend: short pill swatches (dashed = dashed stroke), matching the ECharts legend. */
 export function Legend({ items }: { items: { label: string; color: string; dashed?: boolean }[] }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-3">
       {items.map((i) => (
         <span key={i.label} className="inline-flex items-center gap-1.5">
           <span className={i.dashed ? 'inline-block h-0 w-3 border-t-2 border-dashed' : 'inline-block h-1 w-2.5 rounded-full'} style={i.dashed ? { borderColor: i.color } : { background: i.color }} />
@@ -456,15 +454,16 @@ export function Legend({ items }: { items: { label: string; color: string; dashe
 }
 
 /** Thin bar. Neutral by default; pass a colour only when it carries meaning. */
-export function ProgressBar({ value, color = '#B3BCD0', className }: { value: number; color?: string; className?: string }) {
+export function ProgressBar({ value, color = T.fg3, className }: { value: number; color?: string; className?: string }) {
   return (
     <div className={clsx('h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]', className)}>
-      <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: `linear-gradient(90deg, ${hexA(color.startsWith('#') ? color : '#B3BCD0', 0.55)}, ${color})` }} />
+      <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: color }} />
     </div>
   )
 }
 
-/** Page header: tinted icon badge of the current section (from the nav) · 24px title · subtitle · actions. */
+/** Page header: tinted icon badge of the current section (from the nav) · 24px title · subtitle · actions. The actions slot is always
+ *  there, top right: tab bodies fill it through <PageActions>. */
 export function PageTitle({ title, subtitle, right }: { title: string; subtitle?: string; right?: ReactNode }) {
   const loc = useLocation()
   const nav = navFor(loc.pathname)
@@ -474,10 +473,51 @@ export function PageTitle({ title, subtitle, right }: { title: string; subtitle?
         {nav && <IconBadge icon={<nav.icon />} accent="slate" size="lg" className="hidden sm:inline-grid" />}
         <div className="min-w-0">
           <h1 className="text-page font-semibold tracking-[-0.02em] text-white">{title}</h1>
-          {subtitle && <p className="mt-0.5 max-w-3xl text-sm text-slate-400">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 max-w-3xl text-sm text-fg-3">{subtitle}</p>}
         </div>
       </div>
-      {right && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{right}</div>}
+      <div id="page-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2 empty:hidden sm:ml-auto sm:justify-end">{right}</div>
     </div>
   )
+}
+
+/** Puts the main controls of a tab in the fixed place at the top right of the page. */
+export function PageActions({ children }: { children: ReactNode }) {
+  const [el, setEl] = useState<HTMLElement | null>(null)
+  useEffect(() => setEl(document.getElementById('page-actions')), [])
+  return el ? createPortal(children, el) : null
+}
+
+/** Advanced options: closed by default, the defaults are good. On phones it opens as a bottom sheet. */
+export function SettingsPanel({ children, busy }: { children: ReactNode; busy?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', h)
+    document.addEventListener('keydown', k)
+    return () => { document.removeEventListener('mousedown', h); document.removeEventListener('keydown', k) }
+  }, [open])
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={clsx('btn-ghost', open && 'bg-raised text-white')}>
+        <SlidersHorizontal size={14} className={busy ? 'animate-pulse' : undefined} />{t('Impostazioni')}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/50 sm:hidden" onClick={() => setOpen(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-50 flex max-h-[78vh] flex-col gap-4 overflow-y-auto rounded-t-2xl border border-line bg-raised p-4 pb-6 shadow-pop sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-10 sm:w-[340px] sm:rounded-xl sm:pb-4">
+            {children}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** One labelled row inside <SettingsPanel>. */
+export function SettingRow({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return <div className="flex flex-col gap-1.5"><span className="label">{label}</span><div className="flex flex-wrap items-center gap-2">{children}</div></div>
 }

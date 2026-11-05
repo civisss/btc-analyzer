@@ -19,9 +19,10 @@ import { t, tfLabel } from '../i18n'
 import {
   AnalogCandles, DCell, LEG_COLOR, LINE_STYLE, LegBars, LegTable, MATCH_GRID, MappingList, balancedCols, PatternBadges, VisualBreakdown, buildFuture, pctRangeWithFuture, plabel, whenYear, type ChartLayers,
 } from './analogs'
+import { T, alpha } from '../theme/tokens'
 
 const ALL_TFS: AnalogTf[] = ['1h', '4h', '1d', '1w']
-const OVERLAY = '#F7931A'
+const OVERLAY = T.accent
 
 // ------------------------------------------------------------------ helpers
 type Img = { file: Blob; url: string; name: string; w: number; h: number }
@@ -51,10 +52,10 @@ function errText(e: unknown): string {
   return e instanceof Error ? e.message : t('Si è verificato un errore imprevisto.')
 }
 
-function confTone(c: number): { color: 'up' | 'btc' | 'down'; label: string } {
-  if (c >= 75) return { color: 'up', label: t('Affidabilità alta') }
-  if (c >= 50) return { color: 'btc', label: t('Affidabilità media') }
-  return { color: 'down', label: t('Affidabilità bassa') }
+function confTone(c: number): { color: 'btc' | 'slate' | 'warn'; label: string } {
+  if (c >= 75) return { color: 'btc', label: t('Affidabilità alta') }
+  if (c >= 50) return { color: 'slate', label: t('Affidabilità media') }
+  return { color: 'warn', label: t('Affidabilità bassa') }
 }
 
 // ------------------------------------------------------------------ timeframe chips (multi-select)
@@ -92,30 +93,30 @@ function Dropzone({ onFile, error, compact, className }: { onFile: (f: Blob, nam
         const f = e.dataTransfer.files?.[0]
         if (f) onFile(f, f.name)
       }}
-      className={clsx('group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed text-center outline-none transition-colors focus-visible:border-accent-blue/60',
+      className={clsx('group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed text-center outline-none transition-colors focus-visible:border-accent/60',
         compact ? 'px-4 py-5' : 'px-6 py-14 sm:py-20', className,
-        over ? 'border-accent-blue/70 bg-accent-blue/[0.06]' : 'border-white/[0.12] bg-white/[0.015] hover:border-white/25 hover:bg-white/[0.03]')}
+        over ? 'border-accent/70 bg-accent/[0.06]' : 'border-line-strong bg-white/[0.015] hover:border-white/25 hover:bg-white/[0.03]')}
     >
       <input ref={input} type="file" accept={IMAGE_TYPES.join(',')} className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f, f.name); e.target.value = '' }} />
-      <span className={clsx('grid place-items-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-200 transition-transform group-hover:-translate-y-0.5', compact ? 'h-10 w-10' : 'h-14 w-14')}>
+      <span className={clsx('grid place-items-center rounded-2xl border border-line bg-white/[0.04] text-fg transition-transform group-hover:-translate-y-0.5', compact ? 'h-10 w-10' : 'h-14 w-14')}>
         <ImagePlus size={compact ? 18 : 24} strokeWidth={1.6} />
       </span>
       <div>
         <p className={clsx('font-semibold tracking-tight text-white', compact ? 'text-sm' : 'text-lg')}>
           {t('Trascina qui uno screenshot di TradingView, oppure incollalo con Ctrl+V')}
         </p>
-        {!compact && <p className="mx-auto mt-1.5 max-w-xl text-sm text-slate-400">
+        {!compact && <p className="mx-auto mt-1.5 max-w-xl text-sm text-fg-3">
           {t('Inquadra solo il tratto di grafico che ti interessa: candele verdi/rosse su sfondo scuro o chiaro. L\'immagine viene elaborata in memoria e non viene salvata.')}
         </p>}
       </div>
-      <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-400">
+      <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-fg-3">
         <span className="btn-ghost pointer-events-none"><Upload size={ICON.chip} /> {t('Scegli file')}</span>
         <span className="inline-flex items-center gap-1.5"><ClipboardPaste size={ICON.chip} /> {t('Ctrl+V per incollare')}</span>
-        <span className="text-slate-600">·</span>
+        <span className="text-fg-off">·</span>
         <span>{t('PNG, JPG o WEBP fino a 8 MB')}</span>
       </div>
-      {error && <p className="inline-flex items-center gap-1.5 text-sm text-down"><TriangleAlert size={ICON.inline} /> {error}</p>}
+      {error && <p className="inline-flex items-center gap-1.5 text-sm text-warn"><TriangleAlert size={ICON.inline} /> {error}</p>}
     </div>
   )
 }
@@ -179,14 +180,14 @@ function CropView({ img, crop, onCrop, disabled }: { img: Img; crop: CropRect | 
       <div ref={box} className={clsx('absolute inset-0 touch-none overflow-hidden rounded-xl', disabled ? 'cursor-default' : 'cursor-crosshair')}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
         {crop && (
-          <div className="absolute cursor-move border border-accent-blue shadow-[0_0_0_9999px_rgba(6,9,16,0.58)]"
+          <div className="absolute cursor-move border border-accent shadow-[0_0_0_9999px_rgb(var(--c-bg)/0.58)]"
             style={{ left: pc(crop.x, img.w), top: pc(crop.y, img.h), width: pc(crop.w, img.w), height: pc(crop.h, img.h) }}>
             {(['nw', 'ne', 'sw', 'se'] as const).map((k) => (
-              <span key={k} className={clsx('absolute h-2.5 w-2.5 rounded-[3px] border border-accent-blue bg-[#0E1424]',
+              <span key={k} className={clsx('absolute h-2.5 w-2.5 rounded-[3px] border border-accent bg-surface',
                 k[0] === 'n' ? '-top-[5px]' : '-bottom-[5px]', k[1] === 'w' ? '-left-[5px]' : '-right-[5px]',
                 k === 'nw' || k === 'se' ? 'cursor-nwse-resize' : 'cursor-nesw-resize')} />
             ))}
-            <span className="tnum absolute left-1 top-1 rounded bg-[#0E1424]/85 px-1.5 py-0.5 text-2xs text-slate-200">
+            <span className="tnum absolute left-1 top-1 rounded bg-surface/85 px-1.5 py-0.5 text-2xs text-fg">
               {Math.round(crop.w)} × {Math.round(crop.h)} px
             </span>
           </div>
@@ -206,16 +207,16 @@ function ExtractionView({ img, ex, show }: { img: Img; ex: ImagePatternExtractio
       {show && (
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
           {(ex.crop.w < W || ex.crop.h < H) && (
-            <rect x={ex.crop.x} y={ex.crop.y} width={ex.crop.w} height={ex.crop.h} fill="none" stroke="#5B8DEF" strokeDasharray="6 4" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+            <rect x={ex.crop.x} y={ex.crop.y} width={ex.crop.w} height={ex.crop.h} fill="none" stroke={T.accent} strokeDasharray="6 4" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
           )}
           {ex.boxes.map((b) => {
             const top = Math.min(b.y_open, b.y_close)
             const hgt = Math.max(1, Math.abs(b.y_open - b.y_close))
-            const col = b.filled ? OVERLAY : '#B3BCD0'
+            const col = b.filled ? OVERLAY : T.fg2
             return (
               <g key={b.i}>
                 <line x1={b.x} x2={b.x} y1={b.y_high} y2={b.y_low} stroke={col} strokeWidth={1.25} vectorEffect="non-scaling-stroke" strokeDasharray={b.filled ? undefined : '3 3'} />
-                <rect x={b.x0} y={top} width={Math.max(1, b.x1 - b.x0)} height={hgt} fill={b.bull ? 'rgba(46,189,133,0.25)' : 'rgba(239,84,102,0.25)'}
+                <rect x={b.x0} y={top} width={Math.max(1, b.x1 - b.x0)} height={hgt} fill={b.bull ? alpha(T.up, 0.25) : alpha(T.down, 0.25)}
                   stroke={col} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeDasharray={b.filled ? undefined : '3 3'} />
               </g>
             )
@@ -229,9 +230,9 @@ function ExtractionView({ img, ex, show }: { img: Img; ex: ImagePatternExtractio
 function Swatch({ color, label }: { color: string | null; label: string }) {
   if (!color) return null
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-slate-300">
+    <span className="inline-flex items-center gap-1.5 text-xs text-fg-2">
       <span className="h-3 w-3 rounded-[4px] ring-1 ring-inset ring-white/15" style={{ background: color }} />{label}
-      <span className="tnum text-slate-500">{color.toUpperCase()}</span>
+      <span className="tnum text-fg-4">{color.toUpperCase()}</span>
     </span>
   )
 }
@@ -264,25 +265,25 @@ function ExtractionCard({ img, ex, timings }: { img: Img; ex: ImagePatternExtrac
             </div>
             <div>
               <div className="label mb-1.5">{t('Figura estratta')}</div>
-              <div className="h-14 rounded-lg border border-line bg-white/[0.015] px-2 py-1.5">
-                <Sparkline data={ex.series.close} color={C.btc} height={42} />
+              <div className="h-14 tile px-2 py-1.5">
+                <Sparkline data={ex.series.close} color={C.price} height={42} />
               </div>
             </div>
             {ex.warnings.length > 0 && (
               <ul className="flex flex-col gap-1.5">
                 {ex.warnings.map((w) => (
-                  <li key={w} className="flex items-start gap-2 text-xs leading-relaxed text-slate-300">
-                    <TriangleAlert size={ICON.inline} className="mt-0.5 shrink-0 text-amber-400" />{w}
+                  <li key={w} className="flex items-start gap-2 text-xs leading-relaxed text-fg-2">
+                    <TriangleAlert size={ICON.inline} className="mt-0.5 shrink-0 text-warn" />{w}
                   </li>
                 ))}
               </ul>
             )}
-            <p className="mt-auto inline-flex items-center gap-1.5 text-xs text-slate-500">
+            <p className="mt-auto inline-flex items-center gap-1.5 text-xs text-fg-4">
               <Timer size={ICON.inline} /> {t('Estrazione {a} ms · ricerca {b} ms', { a: timings.extract_ms, b: timings.search_ms })}
             </p>
           </div>
         </div>
-        {show && <div className="mt-3"><Legend items={[{ label: t('Candela rilevata (corpo e ombre)'), color: OVERLAY }, { label: t('Ricostruita per interpolazione'), color: '#B3BCD0', dashed: true }]} /></div>}
+        {show && <div className="mt-3"><Legend items={[{ label: t('Candela rilevata (corpo e ombre)'), color: OVERLAY }, { label: t('Ricostruita per interpolazione'), color: T.fg2, dashed: true }]} /></div>}
       </CardBody>
     </Card>
   )
@@ -292,19 +293,19 @@ function ExtractionCard({ img, ex, timings }: { img: Img; ex: ImagePatternExtrac
 function MatchCard({ m, selected, onClick }: { m: ImagePatternMatch; selected: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick}
-      className={clsx('flex h-full flex-col rounded-2xl border bg-surface p-4 text-left transition-colors', selected ? 'border-accent-blue/60' : 'border-line hover:border-white/15')}>
+      className={clsx('flex h-full flex-col rounded-2xl border bg-surface p-4 text-left transition-colors', selected ? 'border-accent/60' : 'border-line hover:border-line-strong')}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="tnum text-xs text-slate-400">#{m.rank}</span>
+          <span className="tnum text-xs text-fg-3">#{m.rank}</span>
           <Badge color="slate">{tfLabel(m.tf)}</Badge>
         </div>
         <Change value={m.outcome.change} digits={1} className="text-sm" />
       </div>
       <div className="mt-1.5 truncate text-sm text-white">{plabel(m.period.label).replace(/ \(\w+\)$/, '')}</div>
-      <div className="relative mt-2 min-h-10 flex-1"><Sparkline className="absolute inset-0 h-full" data={m.candles.map((c) => c.close)} color={selected ? C.blue : '#8B94A7'} height={40} /></div>
-      <div className="mt-2 flex items-center justify-between text-xs"><span className="text-slate-400">{t('Similarità')}</span><span className="tnum text-white">{m.similarity.toFixed(0)}%</span></div>
-      <ProgressBar value={m.similarity} color="#5B8DEF" className="mt-1 h-1" />
-      <div className="mt-1.5 flex justify-between text-2xs text-slate-400"><span>{t('Grafica {n}%', { n: m.visual_similarity.toFixed(0) })}</span><span>{t('Struttura {n}%', { n: m.feature_similarity.toFixed(0) })}</span></div>
+      <div className="relative mt-2 min-h-10 flex-1"><Sparkline className="absolute inset-0 h-full" data={m.candles.map((c) => c.close)} color={selected ? C.accent : T.fg3} height={40} /></div>
+      <div className="mt-2 flex items-center justify-between text-xs"><span className="text-fg-3">{t('Similarità')}</span><span className="tnum text-white">{m.similarity.toFixed(0)}%</span></div>
+      <ProgressBar value={m.similarity} color={T.accent} className="mt-1 h-1" />
+      <div className="mt-1.5 flex justify-between text-2xs text-fg-3"><span>{t('Grafica {n}%', { n: m.visual_similarity.toFixed(0) })}</span><span>{t('Struttura {n}%', { n: m.feature_similarity.toFixed(0) })}</span></div>
     </button>
   )
 }
@@ -326,20 +327,20 @@ function OutcomeTable({ d, sel, onSelect }: { d: ImagePattern; sel: number; onSe
           {d.matches.map((m, i) => {
             const target = m.outcome.change != null ? d.price_now * (1 + m.outcome.change / 100) : null
             return (
-              <tr key={`${m.tf}-${m.period.start}`} onClick={() => onSelect(i)} className={clsx('cursor-pointer', i === sel && '[&>td]:bg-accent-blue/[0.06]')}>
-                <td className="text-slate-400">{m.rank}</td>
+              <tr key={`${m.tf}-${m.period.start}`} onClick={() => onSelect(i)} className={clsx('cursor-pointer', i === sel && '[&>td]:bg-accent/[0.06]')}>
+                <td className="text-fg-3">{m.rank}</td>
                 <td>{tfLabel(m.tf)}</td>
                 <td className="text-white">{plabel(m.period.label).replace(/ \(\w+\)$/, '')}</td>
                 <td className="text-right">{m.similarity.toFixed(0)}%</td>
                 <td className="text-right"><Change value={m.outcome.change} digits={1} /></td>
                 <td className="text-right"><Change value={m.outcome.max_up} digits={1} /></td>
                 <td className="text-right"><Change value={m.outcome.max_down} digits={1} /></td>
-                <td className="text-right text-slate-200">{target ? usd(target) : '—'}</td>
+                <td className="text-right text-fg">{target ? usd(target) : '—'}</td>
               </tr>
             )
           })}
           <tr>
-            <td /><td className="text-slate-400" colSpan={2}>{t('Mediana di {n} analoghi', { n: d.summary.count })}</td><td />
+            <td /><td className="text-fg-3" colSpan={2}>{t('Mediana di {n} analoghi', { n: d.summary.count })}</td><td />
             <td className="text-right font-semibold"><Change value={medChg} digits={1} /></td><td /><td />
             <td className="text-right font-semibold text-white">{end != null ? usd(end) : '—'}</td>
           </tr>
@@ -398,11 +399,11 @@ function Results({ d, img }: { d: ImagePattern; img: Img }) {
               <h2 className="text-lg font-semibold leading-snug tracking-tight text-white">
                 {t('La figura dell\'immagine ({w} candele) somiglia a', { w })}{' '}
                 <span className="text-white">{pl.replace(/ \(\w+\)$/, '')}</span>
-                <span className="text-slate-400"> · {t('somiglianza grafica {n}%', { n: Math.round(m.visual_similarity) })}</span>
+                <span className="text-fg-3"> · {t('somiglianza grafica {n}%', { n: Math.round(m.visual_similarity) })}</span>
               </h2>
-              <p className="mt-1.5 text-sm text-slate-300">{m.patterns.text}</p>
-              <p className="mt-1 text-sm text-slate-400">
-                {t('Complessiva')} <b className="text-slate-200">{m.similarity.toFixed(0)}%</b> {t('= 85% grafica + 15% struttura')}
+              <p className="mt-1.5 text-sm text-fg-2">{m.patterns.text}</p>
+              <p className="mt-1 text-sm text-fg-3">
+                {t('Complessiva')} <b className="text-fg">{m.similarity.toFixed(0)}%</b> {t('= 85% grafica + 15% struttura')}
                 {' '}· {date(m.period.start)} → {date(m.period.end)}
               </p>
             </div>
@@ -411,7 +412,7 @@ function Results({ d, img }: { d: ImagePattern; img: Img }) {
       </Card>
       <KpiStrip cols="grid-cols-2 lg:grid-cols-4">
         <KpiCell icon={<Target />} label={t('Mediana analoghi ({n})', { n: d.summary.count })} value={medChg != null ? pct(medChg, 1) : '—'}
-          delta={medEnd != null ? <span className="text-slate-200">{usd(medEnd)}</span> : null} foot={t('Tra {n} candele', { n: d.horizon })}
+          delta={medEnd != null ? <span className="text-fg">{usd(medEnd)}</span> : null} foot={t('Tra {n} candele', { n: d.horizon })}
           title={t('Mediana dei percorsi successivi di tutti gli analoghi, riportata al prezzo attuale di BTC.')} />
         <KpiCell icon={<Trophy />} label={t('Più simile')} value={`${Math.round(best.similarity)}%`} foot={`${tfLabel(best.tf)} · ${plabel(best.period.label).replace(/ \(\w+\)$/, '')}`} />
         <KpiCell icon={<Crosshair />} label={t('Analogo #{r} · dopo {n} candele', { r: m.rank, n: m.outcome.candles })} value={<Change value={m.outcome.change} digits={1} />}
@@ -432,20 +433,20 @@ function Results({ d, img }: { d: ImagePattern; img: Img }) {
           <div className="grid gap-4 xl:grid-cols-2">
             <div className="min-w-0">
               <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-btc" />{t('Figura dall\'immagine')} · {tfLabel(m.tf)}</span>
-                <span className="tnum text-slate-300">{usd(d.price_now)}</span>
+                <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-accent" />{t('Figura dall\'immagine')} · {tfLabel(m.tf)}</span>
+                <span className="tnum text-fg-2">{usd(d.price_now)}</span>
               </div>
               <PatternBadges patterns={m.patterns.current} />
-              <AnalogCandles candles={cur} future={future} points={m.mapping} side="current" tf={m.tf} yMin={yMin} yMax={yMax} active={hover} accent={C.btc}
+              <AnalogCandles candles={cur} future={future} points={m.mapping} side="current" tf={m.tf} yMin={yMin} yMax={yMax} active={hover} accent={C.accent}
                 height={chartH} legs={m.legs_current} patterns={m.patterns.current} layers={layers} compact={narrow} />
             </div>
             <div className="min-w-0">
               <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-slate-400" />{t('Analogo')} · {pl}</span>
-                <span className="tnum text-slate-300">{usd(anaWin[anaWin.length - 1]?.close)}</span>
+                <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-fg-3" />{t('Analogo')} · {pl}</span>
+                <span className="tnum text-fg-2">{usd(anaWin[anaWin.length - 1]?.close)}</span>
               </div>
               <PatternBadges patterns={m.patterns.analog} />
-              <AnalogCandles candles={anaWin} after={anaAfter} outcome={m.outcome.change} points={m.mapping} side="analog" tf={m.tf} yMin={yMin} yMax={yMax} active={hover} accent={C.blue}
+              <AnalogCandles candles={anaWin} after={anaAfter} outcome={m.outcome.change} points={m.mapping} side="analog" tf={m.tf} yMin={yMin} yMax={yMax} active={hover} accent={C.accent}
                 height={chartH} legs={m.legs_analog} patterns={m.patterns.analog} layers={layers} compact={narrow} />
             </div>
           </div>
@@ -462,7 +463,7 @@ function Results({ d, img }: { d: ImagePattern; img: Img }) {
             <Legend items={[
               ...(future ? [
                 { label: t('Mediana analoghi ({n})', { n: future.n }), color: C.primary },
-                ...(future.p25 ? [{ label: t('Banda P25–P75 analoghi'), color: 'rgba(91,141,239,0.55)' }] : []),
+                ...(future.p25 ? [{ label: t('Banda P25–P75 analoghi'), color: alpha(T.accent, 0.55) }] : []),
                 ...(future.sel ? [{ label: t('Analogo selezionato · {x}', { x: pl }), color: C.grey, dashed: true }] : []),
               ] : []),
               { label: t('Gambe ZigZag (G1, G2…)'), color: LEG_COLOR },
@@ -477,14 +478,14 @@ function Results({ d, img }: { d: ImagePattern; img: Img }) {
       <div className="grid gap-3 xl:grid-cols-12">
         <Card className="xl:col-span-5">
           <CardHeader title={t('Somiglianza grafica')} icon={<ScanSearch />} subtitle={t('Componenti visive e relativo peso (85% del punteggio)')}
-            right={<span className="text-xs text-slate-400">{t('Totale')} <b className="tnum text-lg font-semibold text-white">{Math.round(m.visual_similarity)}%</b></span>} />
+            right={<span className="text-xs text-fg-3">{t('Totale')} <b className="tnum text-lg font-semibold text-white">{Math.round(m.visual_similarity)}%</b></span>} />
           <CardBody><VisualBreakdown components={m.visual.components} /></CardBody>
         </Card>
         <Card className="flex flex-col xl:col-span-7 xl:h-0 xl:min-h-full">
           <CardHeader title={t('Gamba per gamba')} icon={<Spline />} subtitle={t('Movimenti ZigZag allineati · immagine vs {y}', { y: yr })} />
           <CardBody className="flex min-h-0 flex-1 flex-col px-2">
             <div className="min-h-0 shrink overflow-y-auto"><LegTable pairs={m.leg_pairs} cur={m.legs_current} ana={m.legs_analog} when={m.period.when} curLabel={imgLabel} /></div>
-            <p className="mt-2 px-3 text-xs text-slate-500">{t('Le variazioni della figura sono stimate: escursione calibrata a {r} sul timeframe {tf}.', { r: pct(m.scale_range, 1), tf: tfLabel(m.tf) })}</p>
+            <p className="mt-2 px-3 text-xs text-fg-4">{t('Le variazioni della figura sono stimate: escursione calibrata a {r} sul timeframe {tf}.', { r: pct(m.scale_range, 1), tf: tfLabel(m.tf) })}</p>
             <LegBars className="mt-4 flex-1 px-3" pairs={m.leg_pairs} cur={m.legs_current} ana={m.legs_analog} when={m.period.when} curLabel={imgLabel} />
           </CardBody>
         </Card>
@@ -498,7 +499,7 @@ function Results({ d, img }: { d: ImagePattern; img: Img }) {
         </Card>
         <Card className="2xl:col-span-4">
           <CardHeader title={t('Perché si somigliano')} icon={<MessageSquareText />} />
-          <CardBody className="gap-x-8 text-sm leading-relaxed text-slate-300 lg:columns-2 2xl:columns-1">
+          <CardBody className="gap-x-8 text-sm leading-relaxed text-fg-2 lg:columns-2 2xl:columns-1">
             {m.narrative.map((s, i) => <p key={i} className="mb-2.5 break-inside-avoid last:mb-0">{s}</p>)}
           </CardBody>
         </Card>
@@ -511,7 +512,7 @@ function Results({ d, img }: { d: ImagePattern; img: Img }) {
             right={<ToneBadge tone={d.summary.bias} />} />
           <CardBody className="px-2">
             <OutcomeTable d={d} sel={sel} onSelect={pick} />
-            <p className="mt-3 px-3 text-sm text-slate-300">{d.summary.text}</p>
+            <p className="mt-3 px-3 text-sm text-fg-2">{d.summary.text}</p>
           </CardBody>
         </Card>
         <Card className="xl:col-span-3">
@@ -524,7 +525,7 @@ function Results({ d, img }: { d: ImagePattern; img: Img }) {
                   className="flex items-center justify-between gap-3 border-t border-line py-2.5 text-left first:border-t-0 first:pt-0 disabled:cursor-default">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-white">{tfLabel(p.tf)}</div>
-                    <div className="truncate text-xs text-slate-400">{p.best_period ? plabel(p.best_period).replace(/ \(\w+\)$/, '') : p.note ?? t('Nessun risultato')}</div>
+                    <div className="truncate text-xs text-fg-3">{p.best_period ? plabel(p.best_period).replace(/ \(\w+\)$/, '') : p.note ?? t('Nessun risultato')}</div>
                   </div>
                   <span className="tnum text-lg font-semibold text-white">{p.best_similarity != null ? `${Math.round(p.best_similarity)}%` : '—'}</span>
                 </button>
@@ -536,7 +537,7 @@ function Results({ d, img }: { d: ImagePattern; img: Img }) {
 
       {/* ---------------- altri analoghi */}
       <div>
-        <h2 className="mb-3 text-lg font-semibold leading-7 tracking-tight text-white">{t('Tutti gli analoghi')} <span className="text-xs font-normal text-slate-400">· {t('clicca per confrontare')}</span></h2>
+        <h2 className="mb-3 text-lg font-semibold leading-7 tracking-tight text-white">{t('Tutti gli analoghi')} <span className="text-xs font-normal text-fg-3">· {t('clicca per confrontare')}</span></h2>
         <div className={MATCH_GRID} style={balancedCols(d.matches.length, 4, 8)}>
           {d.matches.map((mm, i) => <MatchCard key={`${mm.tf}-${mm.period.start}`} m={mm} selected={i === sel} onClick={() => pick(i)} />)}
         </div>
@@ -626,7 +627,7 @@ export function ImagePatternTab() {
           <div className="grid gap-5 xl:grid-cols-12">
             <div className="min-w-0 xl:col-span-8">
               <CropView img={img} crop={crop} onCrop={setCrop} disabled={busy} />
-              <p className="mt-2 truncate text-center text-xs text-slate-500">{img.name} · {img.w} × {img.h} px</p>
+              <p className="mt-2 truncate text-center text-xs text-fg-4">{img.name} · {img.w} × {img.h} px</p>
             </div>
             <div className="flex min-w-0 flex-col gap-5 xl:col-span-4">
               <div className="flex flex-col gap-2">
@@ -654,25 +655,25 @@ export function ImagePatternTab() {
 
       {busy && (
         <div className="grid gap-3">
-          <Card><CardBody className="flex items-center gap-3 pt-5 text-sm text-slate-300"><ScanEye size={16} className="animate-pulse text-btc" /> {t('Riconoscimento delle candele e ricerca nello storico di BTC su {n} timeframe…', { n: tfs.length })}</CardBody></Card>
+          <Card><CardBody className="flex items-center gap-3 pt-5 text-sm text-fg-2"><ScanEye size={16} className="animate-pulse text-accent" /> {t('Riconoscimento delle candele e ricerca nello storico di BTC su {n} timeframe…', { n: tfs.length })}</CardBody></Card>
           <Skeleton className="h-44" /><Skeleton className="h-[380px]" />
         </div>
       )}
       {!busy && mut.isError && (
         <Card>
           <CardBody className="flex flex-col items-center gap-2 py-10 text-center">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-400/10 text-amber-400"><TriangleAlert size={18} /></span>
-            <p className="text-sm font-medium text-slate-200">{t('Pattern non estratto')}</p>
-            <p className="max-w-md text-sm text-slate-400">{errText(mut.error)}</p>
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-warn/10 text-warn"><TriangleAlert size={18} /></span>
+            <p className="text-sm font-medium text-fg">{t('Pattern non estratto')}</p>
+            <p className="max-w-md text-sm text-fg-3">{errText(mut.error)}</p>
             <button className="btn-ghost mt-1" onClick={run}><RotateCcw size={ICON.chip} /> {t('Riprova')}</button>
           </CardBody>
         </Card>
       )}
       {!busy && hasResult && mut.data && (mut.data.matches.length
         ? <Results d={mut.data} img={img} />
-        : <Card><CardBody className="py-10 text-center text-sm text-slate-400">{t('Nessun periodo storico simile trovato: prova con un\'altra selezione.')}</CardBody></Card>)}
+        : <Card><CardBody className="py-10 text-center text-sm text-fg-3">{t('Nessun periodo storico simile trovato: prova con un\'altra selezione.')}</CardBody></Card>)}
       {!busy && !mut.data && !mut.isError && (
-        <p className="px-1 text-center text-sm text-slate-500">{t('Seleziona l\'area (facoltativo), scegli i timeframe e premi «Cerca pattern».')}</p>
+        <p className="px-1 text-center text-sm text-fg-4">{t('Seleziona l\'area (facoltativo), scegli i timeframe e premi «Cerca pattern».')}</p>
       )}
     </div>
   )

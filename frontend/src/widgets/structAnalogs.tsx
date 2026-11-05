@@ -2,23 +2,24 @@
  * sequenza di massimi e minimi ZigZag (HH/HL/LH/LL, BOS/CHoCH), proiezione dei prossimi pivot e backtest walk-forward.
  * I testi sono composti qui (chiavi + numeri dell'API). */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, FlaskConical, Scale, GitCompareArrows, History, ListOrdered, Radio, Route, Settings2, Spline, Target, X } from 'lucide-react'
+import { Check, FlaskConical, Scale, GitCompareArrows, History, ListOrdered, Radio, Route, Spline, Target, X } from 'lucide-react'
 import { useStructAnalogs, type SaAnalog, type SaAsset, type SaBacktest, type SaBreak, type SaCandle, type SaKind, type SaPivot, type SaProjPivot, type SaTf, type SaUnit, type StructAnalogs } from '../api/structAnalogs'
+import type { SaVerdict } from '../api/structAnalogs'
 import { useLive } from '../api/live'
 import EChart from '../components/charts/EChart'
 import { C, axisLabel, hexA, tooltipBase, valueAxis } from '../components/charts/theme'
-import { Badge, Card, CardBody, CardHeader, KpiCell, KpiStrip, Legend, MethodNote, ProgressBar, Q, Segmented, Skeleton, clsx } from '../components/ui'
+import { Badge, Card, CardBody, CardHeader, KpiCell, KpiStrip, Legend, MethodNote, ProgressBar, Q, Segmented, Skeleton, clsx, PageActions, SettingsPanel } from '../components/ui'
 import { date, dateTime, pct, usd, usdCompact } from '../lib/format'
 import { months, t, tfLabel } from '../i18n'
 import { usePrice } from './hooks'
 import { DCell, tickLabel } from './analogs'
-import { VerdictBadge, fmtP } from './astro'
+import { T, alpha } from '../theme/tokens'
 
 export const ASSET_LABEL: Record<SaAsset, string> = { btc: 'BTC', usdtd: 'USDT.D', ethbtc: 'ETH/BTC' }
 const DEFAULT_MULT: Record<SaTf, number> = { '4h': 3, '1d': 2.5, '1w': 2 }
-const PIV_COLOR = '#E8ECF4'
-const PROJ = C.purple
-const BRK = '#8B94A7'
+const PIV_COLOR = T.fg
+const PROJ = C.steel
+const BRK = T.fg3
 
 // ------------------------------------------------------------------ formattazione
 const fin = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -143,12 +144,12 @@ export function StructChart({
     ])
     const areas: unknown[] = []
     if (side === 'analog' && after.length) {
-      markLines.push({ xAxis: cut * 1000, lineStyle: { color: 'rgba(148,163,184,0.5)', type: 'dashed', width: 1 }, label: { show: true, position: 'end', formatter: t('Fine tratto'), color: '#B3BCD0', fontSize: 11 } })
-      areas.push([{ xAxis: cut * 1000, itemStyle: { color: 'rgba(148,163,184,0.045)' }, label: { show: !compact, position: 'insideTopRight', formatter: t('Dopo'), color: '#8B94A7', fontSize: 11 } }, { xAxis: xMaxData * 1000 }])
+      markLines.push({ xAxis: cut * 1000, lineStyle: { color: alpha(T.fg3, 0.5), type: 'dashed', width: 1 }, label: { show: true, position: 'end', formatter: t('Fine tratto'), color: T.fg2, fontSize: 11 } })
+      areas.push([{ xAxis: cut * 1000, itemStyle: { color: alpha(T.fg3, 0.045) }, label: { show: !compact, position: 'insideTopRight', formatter: t('Dopo'), color: T.fg3, fontSize: 11 } }, { xAxis: xMaxData * 1000 }])
     }
     if (side === 'current' && proj?.length) {
-      markLines.push({ xAxis: xMaxData * 1000, lineStyle: { color: 'rgba(148,163,184,0.5)', type: 'dashed', width: 1 }, label: { show: true, position: 'end', formatter: t('Oggi'), color: '#B3BCD0', fontSize: 11 } })
-      areas.push([{ xAxis: xMaxData * 1000, itemStyle: { color: 'rgba(155,135,245,0.035)' } }, { xAxis: xMax * 1000 }])
+      markLines.push({ xAxis: xMaxData * 1000, lineStyle: { color: alpha(T.fg3, 0.5), type: 'dashed', width: 1 }, label: { show: true, position: 'end', formatter: t('Oggi'), color: T.fg2, fontSize: 11 } })
+      areas.push([{ xAxis: xMaxData * 1000, itemStyle: { color: alpha(T.steel, 0.035) } }, { xAxis: xMax * 1000 }])
     }
     const mainSeriesExtra = { markLine: { symbol: ['none', 'none'], silent: true, animation: false, data: markLines }, markArea: areas.length ? { silent: true, data: areas } : undefined }
     if (style === 'candles') {
@@ -160,7 +161,7 @@ export function StructChart({
       series.push({ type: 'line', id: 'px', name: t('Prezzo'), data: main.map((c) => [c.time * 1000, y(c.close)]), showSymbol: false, z: 3,
         lineStyle: { color: accent, width: 1.5 }, itemStyle: { color: accent }, ...mainSeriesExtra })
       if (after.length) series.push({ type: 'line', id: 'px2', name: t('Dopo'), data: [main[main.length - 1], ...after].filter(Boolean).map((c) => [c.time * 1000, y(c.close)]),
-        showSymbol: false, z: 2, lineStyle: { color: hexA('#94A0BC', 0.55), width: 1.4 }, itemStyle: { color: '#94A0BC' } })
+        showSymbol: false, z: 2, lineStyle: { color: hexA(T.fg3, 0.55), width: 1.4 }, itemStyle: { color: T.fg3 } })
     }
     // ---- pivot numerati + etichette di struttura
     const off = (k: SaKind) => (k === 'high' ? -11 : 11)
@@ -168,15 +169,15 @@ export function StructChart({
       type: 'scatter', id: 'piv', name: t('Pivot'), symbol: 'circle', symbolSize: 17, z: 6,
       data: pivots.map((p) => ({
         value: [p.time * 1000, y(p.price)], ref: p, symbolOffset: [0, off(p.kind)],
-        itemStyle: { color: p.after ? PROJ : PIV_COLOR, borderColor: '#0E1424', borderWidth: 1.5 },
-        label: { show: true, position: 'inside', formatter: String(p.n), color: p.after ? '#FFFFFF' : '#0A0E17', fontSize: 10, fontWeight: 700 },
+        itemStyle: { color: p.after ? PROJ : PIV_COLOR, borderColor: T.surface, borderWidth: 1.5 },
+        label: { show: true, position: 'inside', formatter: String(p.n), color: p.after ? T.fg : T.bg, fontSize: 10, fontWeight: 700 },
       })),
     })
     series.push({
       type: 'scatter', id: 'pivlab', name: '_lab', symbolSize: 1, silent: true, z: 5, tooltip: { show: false }, itemStyle: { color: 'transparent' },
       data: pivots.filter((p) => p.label).map((p) => ({
         value: [p.time * 1000, y(p.price)],
-        label: { show: true, position: p.kind === 'high' ? 'top' : 'bottom', distance: 22, formatter: p.label, color: p.after ? PROJ : '#B3BCD0', fontSize: 11, fontWeight: 600 },
+        label: { show: true, position: p.kind === 'high' ? 'top' : 'bottom', distance: 22, formatter: p.label, color: p.after ? PROJ : T.fg2, fontSize: 11, fontWeight: 600 },
       })),
     })
     // ---- pivot in formazione
@@ -184,8 +185,8 @@ export function StructChart({
       series.push({
         type: 'scatter', id: 'pend', name: t('In formazione'), symbol: 'circle', symbolSize: 15, z: 6,
         data: [{ value: [pending.time * 1000, y(pending.price)], ref: pending, symbolOffset: [0, off(pending.kind)],
-          label: { show: !compact, position: pending.kind === 'high' ? 'top' : 'bottom', distance: 20, formatter: t('In formazione'), color: '#8B94A7', fontSize: 10 } }],
-        itemStyle: { color: 'rgba(155,135,245,0.12)', borderColor: PROJ, borderType: 'dashed', borderWidth: 1.5 },
+          label: { show: !compact, position: pending.kind === 'high' ? 'top' : 'bottom', distance: 20, formatter: t('In formazione'), color: T.fg3, fontSize: 10 } }],
+        itemStyle: { color: alpha(T.steel, 0.12), borderColor: PROJ, borderType: 'dashed', borderWidth: 1.5 },
       })
     }
     // ---- pivot proiettati
@@ -203,8 +204,8 @@ export function StructChart({
         type: 'scatter', id: 'proj', name: t('Pivot proiettato'), symbol: 'circle', symbolSize: 17, z: 7,
         data: proj.map((q) => ({
           value: [q.time * 1000, y(q.price)], ref: q, symbolOffset: [0, off(q.kind)],
-          itemStyle: { color: PROJ, borderColor: '#0E1424', borderWidth: 1.5 },
-          label: { show: true, position: 'inside', formatter: String(projFirstN + q.h - 1), color: '#FFFFFF', fontSize: 10, fontWeight: 700 },
+          itemStyle: { color: PROJ, borderColor: T.surface, borderWidth: 1.5 },
+          label: { show: true, position: 'inside', formatter: String(projFirstN + q.h - 1), color: T.fg, fontSize: 10, fontWeight: 700 },
         })),
       })
       // label overlap: same-side labels closer than ~110px (h1 and h3) are stacked further out
@@ -219,8 +220,8 @@ export function StructChart({
             label: {
               show: true, position: q.kind === 'high' ? 'top' : 'bottom', distance: 22 + (clash ? 30 : 0), lineHeight: 14,
               formatter: compact ? `{a|${q.label} ${fmtV(q.price, unit, true)}}` : `{a|${q.label} ~${fmtV(q.price, unit, true)}}\n{b|${dRange(q.t_lo, q.t_hi, tf)}}`,
-              rich: { a: { color: '#E8ECF4', fontSize: 11, fontWeight: 600 }, b: { color: '#B3BCD0', fontSize: 10 } },
-              backgroundColor: 'rgba(14,20,36,0.82)', padding: [3, 5], borderRadius: 4,
+              rich: { a: { color: T.fg, fontSize: 11, fontWeight: 600 }, b: { color: T.fg2, fontSize: 10 } },
+              backgroundColor: alpha(T.surface, 0.82), padding: [3, 5], borderRadius: 4,
             },
           }
         }),
@@ -230,15 +231,15 @@ export function StructChart({
     return {
       grid: { left: 6, right: 6, top: 34, bottom: 6, containLabel: true },
       tooltip: {
-        ...tooltipBase, trigger: 'axis', confine: true, axisPointer: { type: 'line', lineStyle: { color: 'rgba(148,163,184,0.35)' } },
+        ...tooltipBase, trigger: 'axis', confine: true, axisPointer: { type: 'line', lineStyle: { color: alpha(T.fg3, 0.35) } },
         formatter: (raw: TipP[] | TipP) => {
           const ps = Array.isArray(raw) ? raw : [raw]
           const ms = Number(ps[0]?.axisValue ?? (ps[0]?.data?.value?.[0]))
           const c = byTime.get(ms)
           const rel = (v: number) => (scale === 'pct' ? ` (${pct((v / base - 1) * 100, 1)})` : '')
-          let h = `<div style="color:#94a3b8;margin-bottom:4px">${tf === '4h' ? dateTime(ms / 1000) : date(ms / 1000)}</div>`
+          let h = `<div style="color:${T.fg3};margin-bottom:4px">${tf === '4h' ? dateTime(ms / 1000) : date(ms / 1000)}</div>`
           if (c) h += tipRow(c.close >= c.open ? C.up : C.down, t('Chiusura'), `${fmtV(c.close, unit)}${rel(c.close)}`) +
-            (style === 'candles' ? tipRow('#8B94A7', t('Massimo'), fmtV(c.high, unit)) + tipRow('#8B94A7', t('Minimo'), fmtV(c.low, unit)) : '')
+            (style === 'candles' ? tipRow(T.fg3, t('Massimo'), fmtV(c.high, unit)) + tipRow(T.fg3, t('Minimo'), fmtV(c.low, unit)) : '')
           for (const p of ps) {
             const ref = p.data?.ref as SaPivot | SaProjPivot | undefined
             if (!ref) continue
@@ -250,7 +251,7 @@ export function StructChart({
               h += tipRow(PROJ, `${projFirstN + q.h - 1}. ${t('Proiezione')} · ${kindName(q.kind)} ${q.label}`, fmtV(q.price, unit)) +
                 tipRow('transparent', 'P25–P75', `${fmtV(q.lo, unit, true)} – ${fmtV(q.hi, unit, true)}`) +
                 tipRow('transparent', t('Quando'), dRange(q.t_lo, q.t_hi, tf)) +
-                (q.btc ? tipRow(C.btc, t('BTC stimato'), `${usdCompact(q.btc.price, 1)} (${usdCompact(q.btc.lo, 1)}–${usdCompact(q.btc.hi, 1)})`) : '')
+                (q.btc ? tipRow(C.price, t('BTC stimato'), `${usdCompact(q.btc.price, 1)} (${usdCompact(q.btc.lo, 1)}–${usdCompact(q.btc.hi, 1)})`) : '')
             } else if (p.seriesId === 'pend') {
               const q = ref as unknown as StructAnalogs['current']['pending']
               h += tipRow(PROJ, `${t('In formazione')} · ${kindName(q.kind)}`, `${fmtV(q.price, unit)} (${pct(q.move, 1)})`)
@@ -274,6 +275,26 @@ export function StructChart({
 }
 
 // ------------------------------------------------------------------ pezzi della scheda
+const fmtP = (p: number | null | undefined) => (p == null || !Number.isFinite(p) ? '—' : p < 0.001 ? '<0.001' : p.toFixed(p < 0.1 ? 3 : 2))
+
+const VERDICT: Record<SaVerdict, string> = {
+  none: 'Nessun effetto distinguibile dal caso', strong: 'Effetto significativo e stabile', anecdotal: 'Troppo pochi casi: aneddotico', weak: 'Effetto debole e instabile',
+}
+
+function VerdictBadge({ v }: { v: SaVerdict | null | undefined; short?: boolean }) {
+  if (!v) return null
+  const cls = v === 'strong' ? 'bg-accent/10 text-white ring-accent/30' : v === 'weak' ? 'bg-warn/10 text-warn ring-warn/25'
+    : 'bg-white/[0.04] text-fg-2 ring-line'
+  const dot = v === 'strong' ? 'bg-accent' : v === 'weak' ? 'bg-warn' : v === 'anecdotal' ? 'bg-fg-4' : 'bg-fg-3'
+  const label = { none: t('Caso'), weak: t('Debole'), strong: t('Significativo'), anecdotal: t('Aneddotico') }[v]
+  return (
+    <span className={clsx('inline-flex h-5 max-w-full items-center gap-1.5 rounded-full px-2 text-2xs font-medium ring-1 ring-inset', cls)} title={t(VERDICT[v])}>
+      <span className={clsx('h-1.5 w-1.5 shrink-0 rounded-full', dot)} />
+      <span className="truncate">{label}</span>
+    </span>
+  )
+}
+
 function Slider({ label, value, min, max, step = 1, onChange, fmt }: { label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void; fmt?: (v: number) => string }) {
   return (
     <label className="flex min-w-[160px] flex-1 flex-col gap-2">
@@ -297,7 +318,7 @@ function LabelSeq({ labels, className }: { labels: (string | null)[]; className?
     <span className={clsx('inline-flex flex-wrap items-center gap-1', className)}>
       {labels.map((l, i) => (
         <span key={i} className={clsx('tnum rounded px-1 text-2xs font-semibold ring-1 ring-inset',
-          l === 'HH' || l === 'HL' ? 'text-up ring-up/25' : l === 'LH' || l === 'LL' ? 'text-down ring-down/25' : 'text-slate-400 ring-white/10')}>{l ?? '·'}</span>
+          l === 'HH' || l === 'HL' ? 'text-up ring-up/25' : l === 'LH' || l === 'LL' ? 'text-down ring-down/25' : 'text-fg-3 ring-line')}>{l ?? '·'}</span>
       ))}
     </span>
   )
@@ -317,7 +338,7 @@ function BacktestCard({ bt, tf, className }: { bt: SaBacktest; tf: SaTf; classNa
     return (
       <Card className={className}>
         <CardHeader title={t('Backtest walk-forward')} icon={<FlaskConical />} subtitle={t('Nessun istante con abbastanza candidati')} />
-        <CardBody><p className="text-sm text-slate-400">{verdictSentence(bt)}</p></CardBody>
+        <CardBody><p className="text-sm text-fg-3">{verdictSentence(bt)}</p></CardBody>
       </Card>
     )
   }
@@ -334,7 +355,7 @@ function BacktestCard({ bt, tf, className }: { bt: SaBacktest; tf: SaTf; classNa
         subtitle={t('{n} conferme di pivot · {a} → {b} · solo dati noti a ogni istante', { n: bt.n, a: date(bt.from), b: date(bt.to) })}
         right={<VerdictBadge v={bt.verdict} short />} />
       <CardBody className="flex flex-col gap-4">
-        <p className="text-sm leading-relaxed text-slate-300">{verdictSentence(bt)}</p>
+        <p className="text-sm leading-relaxed text-fg-2">{verdictSentence(bt)}</p>
         <div className="-mx-1 overflow-x-auto">
           <table className="w-full min-w-[440px] text-sm">
             <thead>
@@ -348,10 +369,10 @@ function BacktestCard({ bt, tf, className }: { bt: SaBacktest; tf: SaTf; classNa
             <tbody className="tnum">
               {rows.map((x) => (
                 <tr key={x.k} className="border-t border-line">
-                  <td className="px-1 py-2 text-slate-300">{x.k}</td>
-                  <td className={clsx('px-1 py-2 text-right', x.best === 'm' ? 'font-semibold text-white' : 'text-slate-200')}>{x.m}</td>
-                  <td className="px-1 py-2 text-right text-slate-400">{x.b}</td>
-                  <td className="px-1 py-2 text-right text-slate-400">{x.r}</td>
+                  <td className="px-1 py-2 text-fg-2">{x.k}</td>
+                  <td className={clsx('px-1 py-2 text-right', x.best === 'm' ? 'font-semibold text-white' : 'text-fg')}>{x.m}</td>
+                  <td className="px-1 py-2 text-right text-fg-3">{x.b}</td>
+                  <td className="px-1 py-2 text-right text-fg-3">{x.r}</td>
                 </tr>
               ))}
             </tbody>
@@ -367,7 +388,7 @@ function BacktestCard({ bt, tf, className }: { bt: SaBacktest; tf: SaTf; classNa
           <div className="flex flex-col gap-1.5">
             <span className="label">{t('Stabilità nel tempo')}</span>
             {bt.halves.map((hf) => (
-              <div key={hf.from} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 text-xs text-slate-400">
+              <div key={hf.from} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 text-xs text-fg-3">
                 <span>{date(hf.from)} → {date(hf.to)} · {hf.n} {t('casi')}</span>
                 <span className="tnum">{t('Etichetta {a} vs {b}', { a: pct(hf.hit, 0, false), b: pct(hf.base_hit, 0, false) })} · {t('errore rel. {x}', { x: fmtR(hf.mase) })}</span>
               </div>
@@ -390,22 +411,22 @@ function RecentCard({ bt, unit, tf, className }: { bt: SaBacktest; unit: SaUnit;
             {rows.map((r) => (
               <div key={r.time} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-0.5 border-b border-line px-2 py-2 last:border-0">
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-x-2 text-sm text-slate-200">
-                    <span className="tnum text-slate-400">{tf === '4h' ? dateTime(r.time) : date(r.time)}</span>
-                    <span>{t('Atteso')} <b className={r.hit ? 'text-white' : 'text-slate-300'}>{r.pred_label}</b> · {t('reale')} <b className="text-white">{r.actual_label}</b></span>
+                  <div className="flex flex-wrap items-center gap-x-2 text-sm text-fg">
+                    <span className="tnum text-fg-3">{tf === '4h' ? dateTime(r.time) : date(r.time)}</span>
+                    <span>{t('Atteso')} <b className={r.hit ? 'text-white' : 'text-fg-2'}>{r.pred_label}</b> · {t('reale')} <b className="text-white">{r.actual_label}</b></span>
                   </div>
-                  <div className="tnum text-xs text-slate-400">
+                  <div className="tnum text-xs text-fg-3">
                     {fmtV(r.pred, unit, true)} ({fmtV(r.lo, unit, true)}–{fmtV(r.hi, unit, true)}) → {fmtV(r.actual, unit, true)} · {t('errore {x}', { x: pct(r.err, 1, false) })}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span title={r.hit ? t('Etichetta corretta') : t('Etichetta sbagliata')} className={clsx('grid h-5 w-5 place-items-center rounded-full', r.hit ? 'bg-up/15 text-up' : 'bg-down/15 text-down')}>{r.hit ? <Check size={12} /> : <X size={12} />}</span>
-                  <span title={r.inside ? t('Prezzo dentro P25–P75') : t('Prezzo fuori da P25–P75')} className={clsx('rounded px-1.5 text-2xs ring-1 ring-inset', r.inside ? 'text-slate-200 ring-white/15' : 'text-slate-500 ring-white/5')}>P25–75</span>
+                  <span title={r.hit ? t('Etichetta corretta') : t('Etichetta sbagliata')} className={clsx('grid h-5 w-5 place-items-center rounded-full', r.hit ? 'bg-accent/15 text-accent' : 'bg-warn/15 text-warn')}>{r.hit ? <Check size={12} /> : <X size={12} />}</span>
+                  <span title={r.inside ? t('Prezzo dentro P25–P75') : t('Prezzo fuori da P25–P75')} className={clsx('rounded px-1.5 text-2xs ring-1 ring-inset', r.inside ? 'text-fg ring-white/15' : 'text-fg-4 ring-line')}>P25–75</span>
                 </div>
               </div>
             ))}
           </div>
-        ) : <p className="px-2 text-sm text-slate-400">{t('Nessun caso disponibile.')}</p>}
+        ) : <p className="px-2 text-sm text-fg-3">{t('Nessun caso disponibile.')}</p>}
       </CardBody>
     </Card>
   )
@@ -435,18 +456,18 @@ function ProjectionCard({ d, proj, title, analog, pending, className }: { d: Str
                   <td className="px-1 py-2"><span className="grid h-5 w-5 place-items-center rounded-full text-2xs font-bold text-white" style={{ background: PROJ }}>{firstN + q.h - 1}</span></td>
                   <td className="px-1 py-2">
                     <div className="text-white">{kindName(q.kind)} <b>{q.label}</b></div>
-                    <div className="text-xs text-slate-400">{q.reached ? t('Già toccato dal pivot in formazione') : q.agree != null ? t('{n}% degli analoghi concorda', { n: Math.round(q.agree) }) : t('Analogo selezionato')}</div>
+                    <div className="text-xs text-fg-3">{q.reached ? t('Già toccato dal pivot in formazione') : q.agree != null ? t('{n}% degli analoghi concorda', { n: Math.round(q.agree) }) : t('Analogo selezionato')}</div>
                   </td>
                   <td className="px-1 py-2 text-right">
                     <div className="font-semibold text-white">~{fmtV(q.price, d.unit)}</div>
-                    <div className="text-xs text-slate-400">{fmtV(q.lo, d.unit, true)}–{fmtV(q.hi, d.unit, true)}</div>
+                    <div className="text-xs text-fg-3">{fmtV(q.lo, d.unit, true)}–{fmtV(q.hi, d.unit, true)}</div>
                   </td>
-                  <td className={clsx('px-1 py-2 text-right', d.asset !== 'btc' ? 'text-slate-200' : q.change >= 0 ? 'text-up' : 'text-down')}>{pct(q.change, 1)}</td>
-                  <td className="px-1 py-2 text-slate-300">{dRange(q.t_lo, q.t_hi, d.tf)}<div className="text-xs text-slate-500">{t('Centrale {x}', { x: dRange(q.time, q.time, d.tf) })}</div></td>
+                  <td className={clsx('px-1 py-2 text-right', d.asset !== 'btc' ? 'text-fg' : q.change >= 0 ? 'text-up' : 'text-down')}>{pct(q.change, 1)}</td>
+                  <td className="px-1 py-2 text-fg-2">{dRange(q.t_lo, q.t_hi, d.tf)}<div className="text-xs text-fg-4">{t('Centrale {x}', { x: dRange(q.time, q.time, d.tf) })}</div></td>
                   {d.asset !== 'btc' && (
                     <td className="px-1 py-2 text-right">
                       <div className="text-white">{q.btc ? `~${usdCompact(q.btc.price, 1)}` : '—'}</div>
-                      <div className="text-xs text-slate-400">{q.btc ? `${usdCompact(q.btc.lo, 1)}–${usdCompact(q.btc.hi, 1)}` : ''}</div>
+                      <div className="text-xs text-fg-3">{q.btc ? `${usdCompact(q.btc.lo, 1)}–${usdCompact(q.btc.hi, 1)}` : ''}</div>
                     </td>
                   )}
                 </tr>
@@ -477,11 +498,11 @@ function TranslationCard({ d }: { d: StructAnalogs }) {
   return (
     <Card>
       <CardHeader title={t('Traduzione in BTC')} icon={<Scale />} subtitle={t('Dal pivot proiettato di {a} al prezzo di BTC', { a: ASSET_LABEL[d.asset] })}
-        right={tr ? <Badge color={tr.strength === 'weak' ? 'down' : tr.strength === 'moderate' ? 'slate' : 'blue'}>{t(tr.strength === 'strong' ? 'Relazione forte' : tr.strength === 'moderate' ? 'Relazione moderata' : 'Relazione debole')}</Badge> : null} />
+        right={tr ? <Badge color={tr.strength === 'weak' ? 'warn' : tr.strength === 'moderate' ? 'slate' : 'btc'}>{t(tr.strength === 'strong' ? 'Relazione forte' : tr.strength === 'moderate' ? 'Relazione moderata' : 'Relazione debole')}</Badge> : null} />
       <CardBody className="flex flex-col gap-3">
         {tr ? (
               <>
-                <p className="text-xs leading-relaxed text-slate-400">
+                <p className="text-xs leading-relaxed text-fg-3">
                   {t('BTC ≈ BTC attuale × ({a} / {a} attuale)^β, con β stimata swing per swing sugli ultimi {n} swing di {a} (regressione per l\'origine dei Δlog). L\'intervallo somma P25–P75 della proiezione e l\'errore residuo.', { a: ASSET_LABEL[d.asset], n: tr.n })}
                 </p>
                 <div className="dgrid grid-cols-2 lg:grid-cols-4">
@@ -491,10 +512,10 @@ function TranslationCard({ d }: { d: StructAnalogs }) {
                   <DCell label={t('Direzione BTC')} value={btb ? pct(btb.dir_hit, 0, false) : '—'} foot={btb ? t('Copertura {x}', { x: pct(btb.cov, 0, false) }) : undefined} />
                 </div>
                 {btb && (btb.mase ?? 9) >= 1 && (
-                  <p className="text-xs text-amber-200/90">{t('Nel backtest il prezzo BTC tradotto non è più vicino al pivot reale di un semplice «BTC invariato»: la traduzione è indicativa, non una stima affidabile.')}</p>
+                  <p className="text-xs text-warn/90">{t('Nel backtest il prezzo BTC tradotto non è più vicino al pivot reale di un semplice «BTC invariato»: la traduzione è indicativa, non una stima affidabile.')}</p>
                 )}
               </>
-            ) : <p className="text-xs text-slate-400">{t('Relazione non stimabile: troppi pochi swing con BTC allineato.')}</p>}
+            ) : <p className="text-xs text-fg-3">{t('Relazione non stimabile: troppi pochi swing con BTC allineato.')}</p>}
       </CardBody>
     </Card>
   )
@@ -518,11 +539,11 @@ function SwingCompare({ d, analog }: { d: StructAnalogs; analog: SaAnalog }) {
           <tbody className="tnum">
             {rows.map(([name, sw]) => (
               <tr key={name} className="border-t border-line">
-                <td className="whitespace-nowrap px-1 py-1.5 text-slate-300">{name}</td>
+                <td className="whitespace-nowrap px-1 py-1.5 text-fg-2">{name}</td>
                 {sw.map((x, i) => (
                   <td key={i} className="px-1 py-1.5 text-right">
-                    <div className={d.asset !== 'btc' ? 'text-slate-200' : x.amp >= 0 ? 'text-up' : 'text-down'}>{pct(x.amp, 1)}</div>
-                    <div className="text-slate-500">{barsTxt(x.bars, d.tf)}</div>
+                    <div className={d.asset !== 'btc' ? 'text-fg' : x.amp >= 0 ? 'text-up' : 'text-down'}>{pct(x.amp, 1)}</div>
+                    <div className="text-fg-4">{barsTxt(x.bars, d.tf)}</div>
                   </td>
                 ))}
               </tr>
@@ -545,19 +566,19 @@ function AnalogList({ d, sel, onSel, className }: { d: StructAnalogs; sel: numbe
           return (
             <button key={a.rank} onClick={() => onSel(i)}
               className={clsx('grid grid-cols-[auto_1fr_auto] items-center gap-x-3 rounded-xl border px-3 py-2 text-left transition-colors',
-                i === sel ? 'border-accent-blue/50 bg-accent-blue/[0.06]' : 'border-transparent hover:border-line hover:bg-white/[0.02]')}>
-              <span className="tnum text-xs text-slate-400">#{a.rank}</span>
+                i === sel ? 'border-accent/50 bg-accent/[0.06]' : 'border-transparent hover:border-line hover:bg-white/[0.02]')}>
+              <span className="tnum text-xs text-fg-3">#{a.rank}</span>
               <div className="min-w-0">
                 <div className="truncate text-sm text-white">{periodLabel(a.start, a.end)}</div>
                 <div className="mt-1 flex items-center gap-2">
-                  <ProgressBar value={a.similarity} color="#5B8DEF" className="h-1 max-w-[140px]" />
-                  <span className="tnum text-2xs text-slate-400">{Math.round(a.similarity)}%</span>
+                  <ProgressBar value={a.similarity} color={T.accent} className="h-1 max-w-[140px]" />
+                  <span className="tnum text-2xs text-fg-3">{Math.round(a.similarity)}%</span>
                 </div>
                 <LabelSeq labels={a.labels} className="mt-1.5" />
               </div>
               <div className="text-right">
-                <div className="text-xs text-slate-400">{t('Poi')} <b className={clsx(o.label === 'HH' || o.label === 'HL' ? 'text-up' : 'text-down')}>{o.label}</b></div>
-                <div className={clsx('tnum text-sm font-medium', d.asset !== 'btc' ? 'text-slate-200' : o.change >= 0 ? 'text-up' : 'text-down')}>{pct(o.change, 1)}</div>
+                <div className="text-xs text-fg-3">{t('Poi')} <b className={clsx(o.label === 'HH' || o.label === 'HL' ? 'text-up' : 'text-down')}>{o.label}</b></div>
+                <div className={clsx('tnum text-sm font-medium', d.asset !== 'btc' ? 'text-fg' : o.change >= 0 ? 'text-up' : 'text-down')}>{pct(o.change, 1)}</div>
               </div>
             </button>
           )
@@ -619,22 +640,15 @@ export function StructureAnalogsTab() {
 
   return (
     <div>
-      <Card className="mb-3">
-        <CardHeader title={t('Parametri')} icon={<Settings2 />} right={q.isFetching ? <span className="text-xs text-slate-400">{t('Calcolo in corso…')}</span> : null} />
-        <CardBody className="flex flex-wrap items-end gap-x-8 gap-y-4">
-          <div className="flex flex-col gap-2">
-            <span className="label">{t('Serie')}</span>
-            <Segmented value={asset} onChange={onAsset} size="md" options={(['btc', 'usdtd', 'ethbtc'] as const).map((v) => ({ value: v, label: ASSET_LABEL[v] }))} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="label">{t('Timeframe')}</span>
-            <Segmented value={tf} onChange={onTf} size="md" options={tfs.map((v) => ({ value: v, label: tfLabel(v) }))} />
-          </div>
+      <PageActions>
+        <Segmented value={asset} onChange={onAsset} options={(['btc', 'usdtd', 'ethbtc'] as const).map((v) => ({ value: v, label: ASSET_LABEL[v] }))} />
+        <Segmented value={tf} onChange={onTf} options={tfs.map((v) => ({ value: v, label: tfLabel(v) }))} />
+        <SettingsPanel busy={q.isFetching}>
           <Slider label={t('Soglia ZigZag')} value={mult} min={1.5} max={6} step={0.5} onChange={setMult} fmt={(v) => `${v.toFixed(1)}× ATR`} />
           <Slider label={t('Swing confrontati')} value={k} min={3} max={8} onChange={setK} />
           <Slider label={t('Analoghi (top-N)')} value={top} min={1} max={10} onChange={setTop} />
-        </CardBody>
-      </Card>
+        </SettingsPanel>
+      </PageActions>
 
       <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-28" /><Skeleton className="h-[440px]" /><Skeleton className="h-72" /></div>}
         isEmpty={(d) => !d.current.pivots.length} empty={t('Pivot insufficienti con questi parametri.')}>
@@ -651,7 +665,7 @@ export function StructureAnalogsTab() {
             ? t('Mediana di {n} analoghi · intervalli {x}', { n: d.projection.n, x: d.projection.calibrated ? t('calibrati sugli errori del backtest') : t('dalla dispersione degli analoghi') })
             : ''
           const chartH = narrow ? 340 : 440
-          const accent = d.asset === 'btc' ? C.btc : C.primary
+          const accent = d.asset === 'btc' ? C.price : C.primary
           const asLbl = ASSET_LABEL[d.asset]
           const kpiVal = (q2?: SaProjPivot) => (q2 ? `${q2.label} ~${fmtV(q2.price, d.unit, true)}` : '—')
           return (
@@ -685,25 +699,25 @@ export function StructureAnalogsTab() {
                     <div className="grid gap-5 xl:grid-cols-2">
                       <div className="min-w-0">
                         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-sm">
-                          <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-slate-400" />{t('Analogo #{r}', { r: a.rank })} · {periodLabel(a.start, a.end)}</span>
-                          <span className="tnum text-slate-400">{t('Somiglianza {n}%', { n: Math.round(a.similarity) })}</span>
+                          <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-fg-3" />{t('Analogo #{r}', { r: a.rank })} · {periodLabel(a.start, a.end)}</span>
+                          <span className="tnum text-fg-3">{t('Somiglianza {n}%', { n: Math.round(a.similarity) })}</span>
                         </div>
-                        <div className="mb-1 flex min-h-6 flex-wrap items-center gap-2 text-xs text-slate-400"><LabelSeq labels={a.labels} /><span>· {t('scala ×{a} in ampiezza, ×{b} in durata', { a: a.ratio.amp.toFixed(2), b: a.ratio.time.toFixed(2) })}</span></div>
+                        <div className="mb-1 flex min-h-6 flex-wrap items-center gap-2 text-xs text-fg-3"><LabelSeq labels={a.labels} /><span>· {t('scala ×{a} in ampiezza, ×{b} in durata', { a: a.ratio.amp.toFixed(2), b: a.ratio.time.toFixed(2) })}</span></div>
                         <StructChart candles={a.candles} pivots={a.pivots} breaks={a.breaks} unit={d.unit} tf={d.tf} scale={scale} style={style} side="analog"
-                          endTime={a.pivots.find((p) => p.n === d.k + 1)?.time} accent="#B3BCD0" height={chartH} compact={narrow} />
+                          endTime={a.pivots.find((p) => p.n === d.k + 1)?.time} accent={T.fg2} height={chartH} compact={narrow} />
                       </div>
                       <div className="min-w-0">
                         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-sm">
                           <span className="font-medium text-white"><span className="mr-1.5 inline-block h-2 w-2 rounded-sm" style={{ background: accent }} />{t('Oggi')} · {asLbl} {tfLabel(d.tf)}</span>
-                          <span className="tnum inline-flex items-center gap-2 text-slate-300">{lc.live && <Badge color="up"><Radio size={12} /> {t('Live')}</Badge>}{fmtV(lc.price, d.unit)}</span>
+                          <span className="tnum inline-flex items-center gap-2 text-fg-2">{lc.live && <Badge color="btc"><Radio size={12} /> {t('Live')}</Badge>}{fmtV(lc.price, d.unit)}</span>
                         </div>
-                        <div className="mb-1 flex min-h-6 flex-wrap items-center gap-2 text-xs text-slate-400"><LabelSeq labels={d.current.pivots.map((p) => p.label)} /><span>· {t('in formazione: {k} {l}', { k: kindName(lc.pending.kind).toLowerCase(), l: lc.pending.label })}</span></div>
+                        <div className="mb-1 flex min-h-6 flex-wrap items-center gap-2 text-xs text-fg-3"><LabelSeq labels={d.current.pivots.map((p) => p.label)} /><span>· {t('in formazione: {k} {l}', { k: kindName(lc.pending.kind).toLowerCase(), l: lc.pending.label })}</span></div>
                         <StructChart candles={lc.candles} pivots={d.current.pivots} breaks={d.current.breaks} unit={d.unit} tf={d.tf} scale={scale} style={style} side="current"
                           proj={proj} projFirstN={firstN} pending={lc.pending} accent={accent} height={chartH} compact={narrow} />
                       </div>
                     </div>
                   ) : (
-                    <p className="py-10 text-center text-sm text-slate-400">{t('Nessun tratto passato con questa sequenza di etichette: riduci gli swing confrontati o cambia soglia.')}</p>
+                    <p className="py-10 text-center text-sm text-fg-3">{t('Nessun tratto passato con questa sequenza di etichette: riduci gli swing confrontati o cambia soglia.')}</p>
                   )}
                   <div className="mt-3">
                     <Legend items={[
@@ -713,7 +727,7 @@ export function StructureAnalogsTab() {
                       { label: t('Intervallo P25–P75 (prezzo × data)'), color: hexA(PROJ, 0.5) },
                     ]} />
                   </div>
-                  {d.projection?.few && <p className="mt-2 text-xs text-amber-200/90">{t('Solo {n} candidati nello storico: proiezione poco robusta.', { n: d.history.candidates })}</p>}
+                  {d.projection?.few && <p className="mt-2 text-xs text-warn/90">{t('Solo {n} candidati nello storico: proiezione poco robusta.', { n: d.history.candidates })}</p>}
                 </CardBody>
               </Card>
 

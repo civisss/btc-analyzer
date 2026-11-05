@@ -6,4 +6,9 @@ frontend/dist
 *.md
 !README.md
 backend/data/.*.tmp
-backend/data/models
+# cache di moduli rimossi: possono restare nella cartella dati locale, l'app non li legge
+backend/data/astro_gfz.parquet
+backend/data/elliott_bt.json
+backend/data/forecast_oneday*
+backend/data/kronos_*
+backend/data/journal_notes.json

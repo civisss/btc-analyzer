@@ -1,7 +1,6 @@
 // Events page (pages/EventsPage.tsx + widgets/events.tsx).
 const en: Record<string, string> = {
   // page
-  'Eventi e ciclo politico': 'Events & political cycle',
   'Calendario macro, scadenze dei derivati ed elezioni USA, con la reazione storica di BTC e la volatilità attesa.':
     'Macro calendar, derivatives expiries and US elections, with BTC’s historical reaction and expected volatility.',
   // KPIs

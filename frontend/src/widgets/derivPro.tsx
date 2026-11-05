@@ -19,6 +19,7 @@ import { getLang, t, tr } from '../i18n'
 import { DASH, compact, date, dateTime, dayUnit, int, pct, pts, usd, usdCompact } from '../lib/format'
 import { TimeLinesChart } from './charts'
 import { TL, TR, TW } from './positioning'
+import { EXCHANGE, T, alpha } from '../theme/tokens'
 
 type Num = number | null | undefined
 const fin = (v: Num): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -37,12 +38,12 @@ const ord = (v: Num) => {
   return `${n}${sfx}`
 }
 
-const tipHead = (s: string) => `<div style="color:#94a3b8;font-size:11px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.06)">${s}</div>`
+const tipHead = (s: string) => `<div style="color:${T.fg3};font-size:11px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid ${alpha(T.fg, 0.06)}">${s}</div>`
 const tipRow = (color: string, name: string, val: string) =>
   `<div style="display:flex;justify-content:space-between;gap:18px;align-items:center;line-height:20px"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px"></span>${name}</span><b style="font-variant-numeric:tabular-nums">${val}</b></div>`
 
 // ===================================================================== exchange identity (shared with Liquidazioni)
-export const EX_COLOR: Record<ExchangeId, string> = { binance: C.blue, bybit: C.purple, okx: C.teal }
+export const EX_COLOR: Record<ExchangeId, string> = { binance: EXCHANGE.binance, bybit: EXCHANGE.bybit, okx: EXCHANGE.okx }
 export const EX_NAME: Record<ExchangeId, string> = { binance: 'Binance', bybit: 'Bybit', okx: 'OKX' }
 export function ExchangeBadge({ ex, className }: { ex: ExchangeId | string | undefined; className?: string }) {
   const id = (ex && ex in EX_COLOR ? ex : 'binance') as ExchangeId
@@ -63,7 +64,7 @@ function Signals({ items }: { items: Sig[] }) {
       {items.map((s, i) => (
         <li key={i} className="flex flex-col gap-1 border-t border-line py-2.5 first:border-t-0 first:pt-0">
           <ToneBadge tone={s.tone} className="self-start" />
-          <p className="text-sm leading-relaxed text-slate-300">{s.text}</p>
+          <p className="text-sm leading-relaxed text-fg-2">{s.text}</p>
         </li>
       ))}
     </ul>
@@ -76,7 +77,7 @@ function Stat({ k, v, sub }: { k: ReactNode; v: ReactNode; sub?: ReactNode }) {
     <div className="min-w-0 px-3 py-2.5">
       <div className="label truncate">{k}</div>
       <div className="tnum mt-1 truncate text-lg font-semibold text-white">{v}</div>
-      <div className="tnum truncate text-xs text-slate-400">{sub ?? DASH}</div>
+      <div className="tnum truncate text-xs text-fg-3">{sub ?? DASH}</div>
     </div>
   )
 }
@@ -85,10 +86,10 @@ function Stat({ k, v, sub }: { k: ReactNode; v: ReactNode; sub?: ReactNode }) {
 function Check({ ok, label, children }: { ok: boolean | null; label: ReactNode; children: ReactNode }) {
   return (
     <div className="flex gap-2.5 border-t border-line py-2.5 text-sm first:border-t-0 first:pt-0">
-      <span className={clsx('mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full', ok === true ? 'bg-up' : ok === false ? 'bg-amber-400' : 'bg-slate-500')} />
+      <span className={clsx('mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full', ok === true ? 'bg-accent' : ok === false ? 'bg-warn' : 'bg-fg-4')} />
       <div className="min-w-0">
         <div className="font-medium text-white">{label}</div>
-        <div className="tnum mt-0.5 text-xs leading-relaxed text-slate-400">{children}</div>
+        <div className="tnum mt-0.5 text-xs leading-relaxed text-fg-3">{children}</div>
       </div>
     </div>
   )
@@ -98,7 +99,7 @@ const Skel = () => <div className="grid gap-3"><Skeleton className="h-24" /><Ske
 
 // ===================================================================== BASIS
 const VENUE_LABEL: Record<BasisVenue, string> = { deribit: 'Deribit', binance_usdm: 'Binance USDⓈ-M', binance_coinm: 'Binance COIN-M' }
-const VENUE_COLOR: Record<BasisVenue, string> = { deribit: C.primary, binance_usdm: C.blue, binance_coinm: C.purple }
+const VENUE_COLOR: Record<BasisVenue, string> = { deribit: EXCHANGE.deribit, binance_usdm: EXCHANGE.binance, binance_coinm: T.clay }
 const shapeLabel = (s: BasisData['shape']) => (s ? { contango: 'Contango', backwardation: 'Backwardation', flat: 'Contango', mixed: t('Mista') }[s] : DASH)
 const daysTxt = (d: number) => (d < 1 ? `${Math.max(1, Math.round(d * 24))}h` : `${Math.round(d)}${dayUnit()}`)
 
@@ -142,11 +143,11 @@ function BasisHistoryChart({ d, mode, height = 380 }: { d: BasisData; mode: Hist
     const byT = new Map(h.coinm_contract.map((p) => [p.time, p.value]))
     const rolls = h.rolls.coinm.map((tm) => [tm * 1000, byT.get(tm) ?? null]).filter((x) => x[1] != null)
     const series: unknown[] = [
-      lineSeries(nC, toXY(c), C.purple, { lineStyle: { width: 1.5, color: C.purple },
+      lineSeries(nC, toXY(c), C.steel, { lineStyle: { width: 1.5, color: C.steel },
         markLine: { symbol: 'none', silent: true, data: [{ yAxis: 0, lineStyle: { color: hexA(C.grey, 0.45), type: 'dashed' }, label: { show: false } }] } }),
-      lineSeries(nU, toXY(u), C.blue, { lineStyle: { width: 1.2, color: C.blue } }),
+      lineSeries(nU, toXY(u), C.accent, { lineStyle: { width: 1.2, color: C.accent } }),
     ]
-    if (mode === 'contract') series.push({ name: nR, type: 'scatter', data: rolls, symbol: 'circle', symbolSize: 7, itemStyle: { color: C.amber }, z: 5 })
+    if (mode === 'contract') series.push({ name: nR, type: 'scatter', data: rolls, symbol: 'circle', symbolSize: 7, itemStyle: { color: C.warn }, z: 5 })
     return {
       grid: { left: 8, right: 8, top: 34, bottom: 36, containLabel: true },
       legend: { ...legendBase, data: mode === 'contract' ? [nC, nU, nR] : [nC, nU] },
@@ -192,7 +193,7 @@ function BasisKpis({ d }: { d: BasisData }) {
 function CurveTable({ rows }: { rows: BasisRow[] }) {
   return (
     <div className={TW}>
-      <table className="tbl min-w-[720px]">
+      <table className="tbl-wrap tbl max-lg:min-w-[640px]">
         <thead>
           <tr>
             <th className={TL}>{t('Scadenza')}</th><th>{t('Mercato')}</th><th className="text-right">{tr('Tempo', 'Time left')}</th>
@@ -203,14 +204,14 @@ function CurveTable({ rows }: { rows: BasisRow[] }) {
           {rows.map((r) => (
             <tr key={`${r.venue}-${r.instrument}`}>
               <td className={clsx(TL, 'font-medium text-white')}>{date(r.expiry)}</td>
-              <td className="text-slate-300"><span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: VENUE_COLOR[r.venue] }} />{VENUE_LABEL[r.venue]}</td>
-              <td className="text-right text-slate-300">{daysTxt(r.days)}</td>
-              <td className="text-right text-slate-200">{usd(r.mark)}</td>
-              <td className="text-right text-slate-300">{pct(r.basis_pct, 3)}</td>
-              <td className={clsx('text-right', r.noisy ? 'text-slate-500' : 'font-medium text-white')} title={r.noisy ? t('Meno di 7 giorni alla scadenza: annualizzato rumoroso') : undefined}>
+              <td className="text-fg-2"><span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: VENUE_COLOR[r.venue] }} />{VENUE_LABEL[r.venue]}</td>
+              <td className="text-right text-fg-2">{daysTxt(r.days)}</td>
+              <td className="text-right text-fg">{usd(r.mark)}</td>
+              <td className="text-right text-fg-2">{pct(r.basis_pct, 3)}</td>
+              <td className={clsx('text-right', r.noisy ? 'text-fg-4' : 'font-medium text-white')} title={r.noisy ? t('Meno di 7 giorni alla scadenza: annualizzato rumoroso') : undefined}>
                 {pct(r.annualized_pct, 2)}{r.noisy ? '*' : ''}
               </td>
-              <td className={clsx(TR, 'text-slate-300')}>{fin(r.oi_usd) ? usdCompact(r.oi_usd, 1) : DASH}</td>
+              <td className={clsx(TR, 'text-fg-2')}>{fin(r.oi_usd) ? usdCompact(r.oi_usd, 1) : DASH}</td>
             </tr>
           ))}
         </tbody>
@@ -306,7 +307,7 @@ export function BasisTab() {
 const COT_LABEL: Record<CotCat, () => string> = {
   lev: () => 'Leveraged funds', am: () => 'Asset manager', dealer: () => 'Dealer', other: () => t('Altri riportabili'), nr: () => t('Non riportabili'),
 }
-const COT_COLOR: Record<CotCat, string> = { lev: C.purple, am: C.blue, dealer: C.teal, other: C.grey, nr: C.grey2 }
+const COT_COLOR: Record<CotCat, string> = { lev: C.steel, am: C.accent, dealer: C.sand, other: C.grey, nr: C.grey2 }
 
 function CotNetChart({ d, height = 360 }: { d: CmeData; height?: number | string }) {
   const lines = useMemo(() => (['lev', 'am', 'dealer'] as CotCat[]).map((c) => ({
@@ -318,7 +319,7 @@ function CotNetChart({ d, height = 360 }: { d: CmeData; height?: number | string
 
 function CotOiChart({ d, height = 300 }: { d: CmeData; height?: number | string }) {
   const lines = useMemo(() => [
-    { name: t('OI CME (5 BTC)'), data: d.history.oi_btc, color: C.blue, area: true },
+    { name: t('OI CME (5 BTC)'), data: d.history.oi_btc, color: C.accent, area: true },
     { name: t('OI Micro (0.1 BTC)'), data: d.history.micro_oi_btc, color: C.grey, width: 1.2 },
   ], [d])
   return <TimeLinesChart height={height} lines={lines} yFmt={(v) => `${int(v)} BTC`} zoom />
@@ -333,8 +334,8 @@ export function CmeTab() {
         const v = d.verification
         return (
           <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-line bg-surface px-4 py-2.5 text-xs text-slate-300">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-line bg-surface px-4 py-2.5 text-xs text-fg-2">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />
               {t('Dati del martedì {r}, pubblicati dalla CFTC venerdì {p} (ritardo di 3 giorni). Prossimo report: dati del {n}, pubblicazione prevista {q}.', {
                 r: date(d.report_date), p: date(d.published), n: date(d.next_report, false), q: date(d.next_publication, false),
               })}
@@ -370,7 +371,7 @@ export function CmeTab() {
                 <CardHeader icon={<Users />} title={t('Posizioni della settimana')} subtitle={t('Contratti da 5 BTC · variazione rispetto alla settimana precedente')} />
                 <CardBody className="pt-0">
                   <div className={TW}>
-                    <table className="tbl min-w-[680px]">
+                    <table className="tbl-wrap tbl max-lg:min-w-[640px]">
                       <thead>
                         <tr>
                           <th className={TL}>{t('Categoria')}</th><th className="text-right">Long</th><th className="text-right">Short</th>
@@ -382,12 +383,12 @@ export function CmeTab() {
                         {d.categories.map((c) => (
                           <tr key={c.id}>
                             <td className={clsx(TL, 'font-medium text-white')}><span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: COT_COLOR[c.id] }} />{COT_LABEL[c.id]()}</td>
-                            <td className="text-right text-slate-200">{int(c.long)}</td>
-                            <td className="text-right text-slate-200">{int(c.short)}</td>
+                            <td className="text-right text-fg">{int(c.long)}</td>
+                            <td className="text-right text-fg">{int(c.short)}</td>
                             <td className="text-right font-medium text-white">{signedInt(c.net)}</td>
-                            <td className="text-right text-slate-300">{signedInt(c.net_change)}</td>
-                            <td className="text-right text-slate-300">{c.pct_oi_long.toFixed(1)}% / {c.pct_oi_short.toFixed(1)}%</td>
-                            <td className={clsx(TR, 'text-slate-300')}>{ord(c.net_pctl_3y)}</td>
+                            <td className="text-right text-fg-2">{signedInt(c.net_change)}</td>
+                            <td className="text-right text-fg-2">{c.pct_oi_long.toFixed(1)}% / {c.pct_oi_short.toFixed(1)}%</td>
+                            <td className={clsx(TR, 'text-fg-2')}>{ord(c.net_pctl_3y)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -446,9 +447,9 @@ function ExchangeTable({ d }: { d: AggregateData }) {
               <td className={clsx(TL, 'font-semibold text-white')}>{t('Totale')}</td>
               <td className="text-right font-semibold text-white">{usdCompact(d.total.oi_usd, 2)}</td>
               <td className="text-right font-semibold text-white">{btc(d.total.oi_btc)}</td>
-              <td className="text-slate-400">{t('{n} di 3 exchange', { n: d.total.exchanges_ok })}</td>
+              <td className="text-fg-3">{t('{n} di 3 exchange', { n: d.total.exchanges_ok })}</td>
               <td className="text-right font-semibold text-white" title={t('Media ponderata per OI in USD')}>{pct8h(d.total.funding_8h)}</td>
-              <td className="text-right text-slate-300">{pct(d.total.funding_annual, 1)}</td>
+              <td className="text-right text-fg-2">{pct(d.total.funding_annual, 1)}</td>
               <td className={TR} />
             </tr>
           </tbody>
@@ -465,23 +466,23 @@ function ExRows({ e, open }: { e: AggregateData['exchanges'][number]; open: bool
   return (
     <>
       <tr>
-        <td className={TL}><ExchangeBadge ex={e.id} />{!e.ok && <span className="ml-2 text-xs text-amber-400">{t('non disponibile')}</span>}</td>
+        <td className={TL}><ExchangeBadge ex={e.id} />{!e.ok && <span className="ml-2 text-xs text-warn">{t('non disponibile')}</span>}</td>
         <td className="text-right font-medium text-white">{usdCompact(e.oi_usd, 2)}</td>
-        <td className="text-right text-slate-200">{btc(e.oi_btc)}</td>
-        <td><div className="flex items-center gap-2"><ProgressBar value={e.share_pct ?? 0} color={EX_COLOR[e.id]} className="h-1 flex-1" /><span className="tnum w-12 text-right text-xs text-slate-300">{pct(e.share_pct, 1, false)}</span></div></td>
-        <td className="text-right text-slate-200">{pct8h(e.funding_8h)}</td>
-        <td className="text-right text-slate-300">{fin(e.funding_8h) ? pct(e.funding_8h * 3 * 365, 1) : DASH}</td>
-        <td className={clsx(TR, 'text-slate-300')}>{fin(e.long_pct) ? `${e.long_pct.toFixed(1)}%` : DASH}</td>
+        <td className="text-right text-fg">{btc(e.oi_btc)}</td>
+        <td><div className="flex items-center gap-2"><ProgressBar value={e.share_pct ?? 0} color={EX_COLOR[e.id]} className="h-1 flex-1" /><span className="tnum w-12 text-right text-xs text-fg-2">{pct(e.share_pct, 1, false)}</span></div></td>
+        <td className="text-right text-fg">{pct8h(e.funding_8h)}</td>
+        <td className="text-right text-fg-2">{fin(e.funding_8h) ? pct(e.funding_8h * 3 * 365, 1) : DASH}</td>
+        <td className={clsx(TR, 'text-fg-2')}>{fin(e.long_pct) ? `${e.long_pct.toFixed(1)}%` : DASH}</td>
       </tr>
       {open && e.contracts.map((c) => (
         <tr key={c.symbol} className="text-xs">
-          <td className={clsx(TL, 'pl-8 text-slate-400')}>{c.symbol} <span className="text-slate-500">· {c.kind}</span></td>
-          <td className="text-right text-slate-300">{usdCompact(c.oi_usd, 2)}</td>
-          <td className="text-right text-slate-400">{btc(c.oi_btc)}</td>
-          <td className="text-slate-500">{fin(c.oi_usd_both_sides) ? t('API: {v} a due lati', { v: usdCompact(c.oi_usd_both_sides, 2) }) : ''}</td>
-          <td className="text-right text-slate-300">{pct8h(c.funding_8h)}</td>
-          <td className="text-right text-slate-400">{c.interval_h !== 8 ? t('ogni {h}h', { h: c.interval_h }) : pct(c.funding_8h * 3 * 365, 1)}</td>
-          <td className={clsx(TR, 'text-slate-400')}>{usd(c.mark)}</td>
+          <td className={clsx(TL, 'pl-8 text-fg-3')}>{c.symbol} <span className="text-fg-4">· {c.kind}</span></td>
+          <td className="text-right text-fg-2">{usdCompact(c.oi_usd, 2)}</td>
+          <td className="text-right text-fg-3">{btc(c.oi_btc)}</td>
+          <td className="text-fg-4">{fin(c.oi_usd_both_sides) ? t('API: {v} a due lati', { v: usdCompact(c.oi_usd_both_sides, 2) }) : ''}</td>
+          <td className="text-right text-fg-2">{pct8h(c.funding_8h)}</td>
+          <td className="text-right text-fg-3">{c.interval_h !== 8 ? t('ogni {h}h', { h: c.interval_h }) : pct(c.funding_8h * 3 * 365, 1)}</td>
+          <td className={clsx(TR, 'text-fg-3')}>{usd(c.mark)}</td>
         </tr>
       ))}
     </>
@@ -565,10 +566,10 @@ export function LeverageTab() {
                       {cc.rows.map((r) => (
                         <tr key={`${r.exchange}-${r.symbol}`}>
                           <td className={TL}><ExchangeBadge ex={r.exchange} /></td>
-                          <td className="text-slate-300">{r.symbol}{r.both_sides && <span className="ml-1.5 text-xs text-slate-500">{t('(CoinGecko a due lati)')}</span>}</td>
-                          <td className="text-right text-slate-200">{usdCompact(r.ours_usd, 2)}</td>
-                          <td className="text-right text-slate-200">{usdCompact(r.coingecko_usd, 2)}</td>
-                          <td className={clsx(TR, fin(r.diff_pct) && Math.abs(r.diff_pct) < 2 ? 'text-slate-300' : 'text-amber-400')}>{pct(r.diff_pct, 2)}</td>
+                          <td className="text-fg-2">{r.symbol}{r.both_sides && <span className="ml-1.5 text-xs text-fg-4">{t('(CoinGecko a due lati)')}</span>}</td>
+                          <td className="text-right text-fg">{usdCompact(r.ours_usd, 2)}</td>
+                          <td className="text-right text-fg">{usdCompact(r.coingecko_usd, 2)}</td>
+                          <td className={clsx(TR, fin(r.diff_pct) && Math.abs(r.diff_pct) < 2 ? 'text-fg-2' : 'text-warn')}>{pct(r.diff_pct, 2)}</td>
                         </tr>
                       ))}
                     </tbody>

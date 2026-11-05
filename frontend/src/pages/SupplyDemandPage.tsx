@@ -7,22 +7,20 @@ import {
   useAttention, useEtf, useExchanges, type AttentionData, type AttentionZone, type EtfData, type ExchangesData, type FlowRegime, type FwdBlock,
 } from '../api/supplyDemand'
 import { C, hexA } from '../components/charts/theme'
-import {
-  Badge, Card, CardBody, CardHeader, Change, Fill, KpiCell, KpiStrip, Legend, MethodNote, PageTitle, Q, Segmented, Skeleton, TabBar, Toggle, clsx,
-} from '../components/ui'
+import { Badge, Card, CardBody, CardHeader, Change, Fill, KpiCell, KpiStrip, Legend, MethodNote, Q, Segmented, Skeleton, Toggle, clsx } from '../components/ui'
 import { getLang, t, tr } from '../i18n'
-import { useTab } from '../lib/useTab'
 import { DASH, date, dayUnit, pct, usd } from '../lib/format'
 import { AnomalyToggle, TimeLinesChart, marksIn } from '../widgets/charts'
 import { useAnomalyMarks } from '../api/superchart'
 import {
   AttentionChart, EtfFlowsChart, ISSUER_COLORS, ISSUER_NAME, MonthlyAbsorptionChart, NetflowBars, RatioChart, ReservesChart, btcAmt, fin, intg, mult, sfx, usdM,
 } from '../widgets/supplyDemand'
+import { T } from '../theme/tokens'
 
 const TW = '-mx-4 overflow-x-auto no-scrollbar sm:-mx-5'
 const TL = 'pl-4 sm:pl-5'
 const TR = 'pr-4 text-right sm:pr-5'
-const unit = (s: string) => <span className="ml-1 text-sm font-normal text-slate-400">{s}</span>
+const unit = (s: string) => <span className="ml-1 text-sm font-normal text-fg-3">{s}</span>
 const PageSkeleton = () => <div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[380px]" /><Skeleton className="h-[300px]" /></div>
 
 /** Labels: Italian source strings, translated at render. */
@@ -42,18 +40,18 @@ function Stat({ k, v, sub }: { k: ReactNode; v: ReactNode; sub?: ReactNode }) {
     <div className="min-w-0 px-3 py-2.5">
       <div className="label truncate">{k}</div>
       <div className="tnum mt-1 truncate text-lg font-semibold text-white">{v}</div>
-      {sub && <div className="truncate text-xs text-slate-400">{sub}</div>}
+      {sub && <div className="truncate text-xs text-fg-3">{sub}</div>}
     </div>
   )
 }
 
 function Bullets({ items }: { items: { text: ReactNode; tone?: 'bullish' | 'bearish' | 'neutral' }[] }) {
-  const dot = { bullish: 'bg-up', bearish: 'bg-down', neutral: 'bg-slate-400' }
+  const dot = { bullish: 'bg-up', bearish: 'bg-down', neutral: 'bg-fg-3' }
   return (
     // in a stretched side card the bullets spread over the free height
     <ul className="flex flex-1 flex-col justify-around">
       {items.map((s, i) => (
-        <li key={i} className="flex gap-2.5 border-t border-line py-2 text-sm leading-relaxed text-slate-300 first:border-t-0 first:pt-0">
+        <li key={i} className="flex gap-2.5 border-t border-line py-2 text-sm leading-relaxed text-fg-2 first:border-t-0 first:pt-0">
           <span className={clsx('mt-2 h-1.5 w-1.5 shrink-0 rounded-full', dot[s.tone ?? 'neutral'])} />
           <span>{s.text}</span>
         </li>
@@ -65,8 +63,8 @@ function Bullets({ items }: { items: { text: ReactNode; tone?: 'bullish' | 'bear
 function Notice({ icon, children, tone = 'muted' }: { icon: ReactNode; children: ReactNode; tone?: 'muted' | 'amber' }) {
   return (
     <div className={clsx('flex items-start gap-2 rounded-lg border px-3 py-1.5 text-xs',
-      tone === 'amber' ? 'border-amber-400/20 bg-amber-400/[0.06] text-amber-200' : 'border-white/[0.06] bg-white/[0.03] text-slate-300')}>
-      <span className={clsx('mt-px shrink-0', tone === 'amber' ? 'text-amber-400' : 'text-slate-400')}>{icon}</span>
+      tone === 'amber' ? 'border-warn/20 bg-warn/[0.06] text-warn' : 'border-line-subtle bg-white/[0.03] text-fg-2')}>
+      <span className={clsx('mt-px shrink-0', tone === 'amber' ? 'text-warn' : 'text-fg-3')}>{icon}</span>
       <span className="min-w-0">{children}</span>
     </div>
   )
@@ -76,7 +74,7 @@ function Notice({ icon, children, tone = 'muted' }: { icon: ReactNode; children:
 function Check({ ok, children }: { ok: boolean; children: ReactNode }) {
   return (
     <p className="flex gap-2">
-      <span className={clsx('shrink-0 font-semibold', ok ? 'text-up' : 'text-amber-400')}>{ok ? '✓' : '!'}</span>
+      <span className={clsx('shrink-0 font-semibold', ok ? 'text-accent' : 'text-warn')}>{ok ? '✓' : '!'}</span>
       <span>{children}</span>
     </p>
   )
@@ -86,7 +84,7 @@ function Check({ ok, children }: { ok: boolean; children: ReactNode }) {
 function Fwd({ b, h }: { b: FwdBlock; h: 7 | 30 | 90 | 180 }) {
   const r = b[`r${h}` as const] as number | null | undefined
   const hit = b[`hit${h}` as const] as number | null | undefined
-  return <><Change value={r ?? null} digits={1} /> <span className="text-xs text-slate-400">· {fin(hit) ? `${hit.toFixed(0)}%` : DASH}</span></>
+  return <><Change value={r ?? null} digits={1} /> <span className="text-xs text-fg-3">· {fin(hit) ? `${hit.toFixed(0)}%` : DASH}</span></>
 }
 
 const du = () => dayUnit()
@@ -195,7 +193,7 @@ function NetflowCard({ d }: { d: ExchangesData }) {
         {v === 'weekly' && <NetflowBars data={d.series.net_weekly} height={300} zoom unitLabel={tr('settimana', 'week')} />}
         {v === 'rolling' && (
           <TimeLinesChart height={300} zoom yFmt={(x) => btcAmt(x, true, false)} markLines={[{ y: 0, color: hexA(C.grey, 0.5) }]}
-            lines={[{ name: t('Flusso netto 30 giorni'), data: d.series.net30, color: C.blue }, { name: t('Flusso netto 90 giorni'), data: d.series.net90, color: C.purple }]} />
+            lines={[{ name: t('Flusso netto 30 giorni'), data: d.series.net30, color: C.accent }, { name: t('Flusso netto 90 giorni'), data: d.series.net90, color: C.steel }]} />
         )}
       </CardBody>
     </Card>
@@ -210,7 +208,7 @@ function RegimesCard({ d }: { d: ExchangesData }) {
         info={t('Ogni giorno è classificato con lo z-score del flusso netto a 30 giorni rispetto ai 2 anni precedenti (solo dati passati). Le colonne riportano il rendimento mediano di BTC a 30/90/180 giorni e la quota di casi positivi. I giorni consecutivi si sovrappongono: il campione indipendente è il numero di episodi.')} />
       <CardBody>
         <div className={TW}>
-          <table className="tbl min-w-[620px]">
+          <table className="tbl-wrap tbl max-lg:min-w-[560px]">
             <thead><tr>
               <th className={TL}>{tr('Regime', 'Regime')}</th><th className="text-right">{tr('Giorni', 'Days')}</th><th className="text-right">{tr('Episodi', 'Episodes')}</th>
               <th className="text-right">{`30${du()}`}</th><th className="text-right">{`90${du()}`}</th><th className={TR}>{`180${du()}`}</th>
@@ -218,20 +216,20 @@ function RegimesCard({ d }: { d: ExchangesData }) {
             <tbody>
               {d.regimes.rows.map((r) => (
                 <tr key={r.key}>
-                  <td className={clsx(TL, r.key === cur ? 'font-medium text-white' : 'text-slate-200')}>
-                    {t(REGIME_LABEL[r.key])} <span className="text-xs text-slate-400">{REGIME_RANGE[r.key]}</span>
+                  <td className={clsx(TL, r.key === cur ? 'font-medium text-white' : 'text-fg')}>
+                    {t(REGIME_LABEL[r.key])} <span className="text-xs text-fg-3">{REGIME_RANGE[r.key]}</span>
                     {r.key === cur && <Badge color="blue" className="ml-2">{tr('Ora', 'Now')}</Badge>}
                   </td>
-                  <td className="text-right text-slate-300">{intg(r.days)}</td>
-                  <td className="text-right text-slate-300">{r.episodes}</td>
+                  <td className="text-right text-fg-2">{intg(r.days)}</td>
+                  <td className="text-right text-fg-2">{r.episodes}</td>
                   <td className="text-right"><Fwd b={r} h={30} /></td>
                   <td className="text-right"><Fwd b={r} h={90} /></td>
                   <td className={TR}><Fwd b={r} h={180} /></td>
                 </tr>
               ))}
               <tr>
-                <td className={clsx(TL, 'text-slate-400')}>{t('Tutti i giorni')}</td>
-                <td className="text-right text-slate-400">{intg(d.regimes.baseline.days)}</td><td className="text-right text-slate-400">—</td>
+                <td className={clsx(TL, 'text-fg-3')}>{t('Tutti i giorni')}</td>
+                <td className="text-right text-fg-3">{intg(d.regimes.baseline.days)}</td><td className="text-right text-fg-3">—</td>
                 <td className="text-right"><Fwd b={d.regimes.baseline} h={30} /></td>
                 <td className="text-right"><Fwd b={d.regimes.baseline} h={90} /></td>
                 <td className={TR}><Fwd b={d.regimes.baseline} h={180} /></td>
@@ -260,7 +258,7 @@ function ExtremesCard({ d }: { d: ExchangesData }) {
         right={<Segmented options={[{ value: 'outflows' as const, label: tr('Uscite', 'Outflows') }, { value: 'inflows' as const, label: tr('Entrate', 'Inflows') }]} value={side} onChange={setSide} />} />
       <CardBody>
         <div className={TW}>
-          <table className="tbl min-w-[560px]">
+          <table className="tbl-wrap tbl max-lg:min-w-[560px]">
             <thead><tr>
               <th className={TL}>{tr('Data', 'Date')}</th><th className="text-right">{t('Netto')}</th><th className="text-right">z</th>
               <th className="text-right">{t('Prezzo')}</th><th className="text-right">{`30${du()}`}</th><th className={TR}>{`90${du()}`}</th>
@@ -268,10 +266,10 @@ function ExtremesCard({ d }: { d: ExchangesData }) {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.time}>
-                  <td className={clsx(TL, 'text-slate-200')}>{date(r.time)}</td>
+                  <td className={clsx(TL, 'text-fg')}>{date(r.time)}</td>
                   <td className={clsx('text-right font-medium', (r.net ?? 0) > 0 ? 'text-down' : 'text-up')}>{btcAmt(r.net, true, false)}</td>
-                  <td className="text-right text-slate-300">{sfx(r.z, 1)}</td>
-                  <td className="text-right text-slate-300">{usd(r.price, 0)}</td>
+                  <td className="text-right text-fg-2">{sfx(r.z, 1)}</td>
+                  <td className="text-right text-fg-2">{usd(r.price, 0)}</td>
                   <td className="text-right"><Change value={r.r30} digits={1} /></td>
                   <td className={TR}><Change value={r.r90} digits={1} /></td>
                 </tr>
@@ -303,12 +301,12 @@ function PhasesCard({ d }: { d: ExchangesData }) {
                     <Badge color={p.kind === 'rialzo' ? 'up' : 'down'}>{p.kind === 'rialzo' ? tr('Rialzo', 'Uptrend') : tr('Ribasso', 'Downtrend')}</Badge>
                     {p.ongoing && <Badge color="blue" className="ml-1.5">{tr('In corso', 'Ongoing')}</Badge>}
                   </td>
-                  <td className="text-slate-300">{date(p.start)} – {p.ongoing ? tr('oggi', 'today') : date(p.end)} <span className="text-xs text-slate-400">{intg(p.days)}{du()}</span></td>
+                  <td className="text-fg-2">{date(p.start)} – {p.ongoing ? tr('oggi', 'today') : date(p.end)} <span className="text-xs text-fg-3">{intg(p.days)}{du()}</span></td>
                   <td className="text-right"><Change value={p.price_change} digits={0} /></td>
-                  <td className="text-right text-slate-200">{btcAmt(p.reserve_change, true, false)} <span className="text-xs text-slate-400">{pct(p.reserve_change_pct, 1)}</span></td>
-                  <td className="text-right text-slate-300">{sfx(p.share_change_pt, 2)} pt</td>
+                  <td className="text-right text-fg">{btcAmt(p.reserve_change, true, false)} <span className="text-xs text-fg-3">{pct(p.reserve_change_pct, 1)}</span></td>
+                  <td className="text-right text-fg-2">{sfx(p.share_change_pt, 2)} pt</td>
                   <td className={clsx('text-right font-medium', (p.avg_daily_net ?? 0) > 0 ? 'text-down' : 'text-up')}>{btcAmt(p.avg_daily_net, true)}</td>
-                  <td className={clsx(TR, 'text-slate-300')}>{fin(p.outflow_days_pct) ? `${p.outflow_days_pct.toFixed(0)}%` : DASH}</td>
+                  <td className={clsx(TR, 'text-fg-2')}>{fin(p.outflow_days_pct) ? `${p.outflow_days_pct.toFixed(0)}%` : DASH}</td>
                 </tr>
               ))}
             </tbody>
@@ -326,19 +324,19 @@ function RecentFlowsCard({ d }: { d: ExchangesData }) {
       <CardBody>
         <div className={clsx(TW, 'max-h-[420px] overflow-y-auto')}>
           <table className="tbl min-w-[560px]">
-            <thead className="sticky top-0 z-10 bg-[#0E1424]"><tr>
+            <thead className="sticky top-0 z-10 bg-surface"><tr>
               <th className={TL}>{tr('Data', 'Date')}</th><th className="text-right">{t('Entrate')}</th><th className="text-right">{t('Uscite')}</th>
               <th className="text-right">{t('Netto')}</th><th className="text-right">z</th><th className={TR}>{t('Riserve')}</th>
             </tr></thead>
             <tbody>
               {d.recent.map((r, i) => (
                 <tr key={r.time}>
-                  <td className={clsx(TL, 'text-slate-200')}>{date(r.time)}{i === 0 && r.flash && <Badge className="ml-2">flash</Badge>}</td>
-                  <td className="text-right text-slate-300">{intg(r.inflow)}</td>
-                  <td className="text-right text-slate-300">{intg(r.outflow)}</td>
+                  <td className={clsx(TL, 'text-fg')}>{date(r.time)}{i === 0 && r.flash && <Badge className="ml-2">flash</Badge>}</td>
+                  <td className="text-right text-fg-2">{intg(r.inflow)}</td>
+                  <td className="text-right text-fg-2">{intg(r.outflow)}</td>
                   <td className={clsx('text-right font-medium', (r.net ?? 0) > 0 ? 'text-down' : 'text-up')}>{intg(r.net, true)}</td>
-                  <td className="text-right text-slate-300">{sfx(r.z, 1)}</td>
-                  <td className={clsx(TR, 'text-slate-300')}>{intg(r.reserve)}</td>
+                  <td className="text-right text-fg-2">{sfx(r.z, 1)}</td>
+                  <td className={clsx(TR, 'text-fg-2')}>{intg(r.reserve)}</td>
                 </tr>
               ))}
             </tbody>
@@ -349,7 +347,7 @@ function RecentFlowsCard({ d }: { d: ExchangesData }) {
   )
 }
 
-function ExchangeTab() {
+export function ExchangeTab() {
   const q = useExchanges()
   return (
     <Q q={q} loading={<PageSkeleton />} isEmpty={(d) => !d.series?.reserve?.length}>
@@ -369,7 +367,7 @@ function ExchangeTab() {
               </Card>
             </div>
             <NetflowCard d={d} />
-            <div className="grid items-start gap-3 xl:grid-cols-2">
+            <div className="grid gap-3 xl:grid-cols-2">
               <RegimesCard d={d} />
               <ExtremesCard d={d} />
             </div>
@@ -510,17 +508,17 @@ function IssuersCard({ d }: { d: EtfData }) {
               {d.issuers.map((r) => (
                 <tr key={r.ticker}>
                   <td className={clsx(TL, 'font-medium text-white')}>
-                    <span className="mr-2 inline-block h-2 w-2 rounded-sm" style={{ background: ISSUER_COLORS[r.ticker] ?? '#3B4560' }} />{r.ticker}
-                    {ISSUER_NAME[r.ticker] && <span className="ml-1.5 text-xs font-normal text-slate-400">{ISSUER_NAME[r.ticker]}</span>}
+                    <span className="mr-2 inline-block h-2 w-2 rounded-sm" style={{ background: ISSUER_COLORS[r.ticker] ?? T.fgOff }} />{r.ticker}
+                    {ISSUER_NAME[r.ticker] && <span className="ml-1.5 text-xs font-normal text-fg-3">{ISSUER_NAME[r.ticker]}</span>}
                     {d.partial_issuers.includes(r.ticker) && <Badge className="ml-2">{tr('In attesa', 'Pending')}</Badge>}
                   </td>
                   <td className={clsx('text-right font-medium', (r.cum_usd ?? 0) >= 0 ? 'text-up' : 'text-down')}>{usdM(r.cum_usd)}</td>
-                  <td className="text-right text-slate-300">{btcAmt(r.cum_btc, true, false)}</td>
-                  <td className="text-right text-slate-300">{usdM(r.last)}</td>
-                  <td className="text-right text-slate-300">{usdM(r.d5)}</td>
-                  <td className="text-right text-slate-300">{usdM(r.d30)}</td>
-                  <td className="text-right text-slate-300">{usdM(r.max_in)} <span className="text-xs text-slate-500">{date(r.max_in_time)}</span></td>
-                  <td className={clsx(TR, 'text-slate-300')}>{usdM(r.max_out)} <span className="text-xs text-slate-500">{date(r.max_out_time)}</span></td>
+                  <td className="text-right text-fg-2">{btcAmt(r.cum_btc, true, false)}</td>
+                  <td className="text-right text-fg-2">{usdM(r.last)}</td>
+                  <td className="text-right text-fg-2">{usdM(r.d5)}</td>
+                  <td className="text-right text-fg-2">{usdM(r.d30)}</td>
+                  <td className="text-right text-fg-2">{usdM(r.max_in)} <span className="text-xs text-fg-4">{date(r.max_in_time)}</span></td>
+                  <td className={clsx(TR, 'text-fg-2')}>{usdM(r.max_out)} <span className="text-xs text-fg-4">{date(r.max_out_time)}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -553,8 +551,8 @@ function StreaksCard({ d }: { d: EtfData }) {
             <tbody>
               {([['big_in', t('Afflussi ≥ $500M')], ['big_out', t('Deflussi ≤ −$500M')], ['all', t('Tutte le sedute')]] as const).map(([key, label]) => (
                 <tr key={key}>
-                  <td className={clsx(TL, key === 'all' ? 'text-slate-400' : 'text-slate-200')}>{label}</td>
-                  <td className="text-right text-slate-300">{r[key].days}</td>
+                  <td className={clsx(TL, key === 'all' ? 'text-fg-3' : 'text-fg')}>{label}</td>
+                  <td className="text-right text-fg-2">{r[key].days}</td>
                   <td className="text-right"><Fwd b={r[key]} h={7} /></td>
                   <td className="text-right"><Fwd b={r[key]} h={30} /></td>
                   <td className={TR}><Fwd b={r[key]} h={90} /></td>
@@ -563,7 +561,7 @@ function StreaksCard({ d }: { d: EtfData }) {
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-slate-400">{t('Mediana del rendimento di BTC (giorni di calendario) e quota di casi positivi. Giorni vicini si sovrappongono: campione piccolo, solo indicativo.')}</p>
+        <p className="text-xs text-fg-3">{t('Mediana del rendimento di BTC (giorni di calendario) e quota di casi positivi. Giorni vicini si sovrappongono: campione piccolo, solo indicativo.')}</p>
       </CardBody>
     </Card>
   )
@@ -578,7 +576,7 @@ function RecentEtfCard({ d }: { d: EtfData }) {
       <CardBody>
         <div className={clsx(TW, 'max-h-[460px] overflow-y-auto')}>
           <table className="tbl min-w-[820px]">
-            <thead className="sticky top-0 z-10 bg-[#0E1424]"><tr>
+            <thead className="sticky top-0 z-10 bg-surface"><tr>
               <th className={TL}>{tr('Data', 'Date')}</th>
               {cols.map((c) => <th key={c} className="text-right">{c}</th>)}
               <th className="text-right">{t('Altri')}</th><th className="text-right">{t('Totale')}</th><th className="text-right">BTC</th><th className={TR}>{t('Prezzo 16:00 NY')}</th>
@@ -588,12 +586,12 @@ function RecentEtfCard({ d }: { d: EtfData }) {
                 const oth = others.reduce((a, c) => a + (r.by[c] ?? 0), 0)
                 return (
                   <tr key={r.time}>
-                    <td className={clsx(TL, 'text-slate-200')}>{date(r.time)}{r.provisional && <Badge color="btc" className="ml-2">{tr('Provvisorio', 'Provisional')}</Badge>}</td>
-                    {cols.map((c) => <td key={c} className={clsx('text-right', (r.by[c] ?? 0) > 0 ? 'text-up' : (r.by[c] ?? 0) < 0 ? 'text-down' : 'text-slate-500')}>{fin(r.by[c]) ? sfx(r.by[c], 1) : DASH}</td>)}
-                    <td className={clsx('text-right', oth > 0 ? 'text-up' : oth < 0 ? 'text-down' : 'text-slate-500')}>{sfx(oth, 1)}</td>
-                    <td className={clsx('text-right font-medium', (r.total ?? 0) > 0 ? 'text-up' : (r.total ?? 0) < 0 ? 'text-down' : 'text-slate-300')}>{sfx(r.total, 1)}</td>
-                    <td className="text-right text-slate-300">{intg(r.btc, true)}</td>
-                    <td className={clsx(TR, 'text-slate-300')}>{usd(r.price)}</td>
+                    <td className={clsx(TL, 'text-fg')}>{date(r.time)}{r.provisional && <Badge color="btc" className="ml-2">{tr('Provvisorio', 'Provisional')}</Badge>}</td>
+                    {cols.map((c) => <td key={c} className={clsx('text-right', (r.by[c] ?? 0) > 0 ? 'text-up' : (r.by[c] ?? 0) < 0 ? 'text-down' : 'text-fg-4')}>{fin(r.by[c]) ? sfx(r.by[c], 1) : DASH}</td>)}
+                    <td className={clsx('text-right', oth > 0 ? 'text-up' : oth < 0 ? 'text-down' : 'text-fg-4')}>{sfx(oth, 1)}</td>
+                    <td className={clsx('text-right font-medium', (r.total ?? 0) > 0 ? 'text-up' : (r.total ?? 0) < 0 ? 'text-down' : 'text-fg-2')}>{sfx(r.total, 1)}</td>
+                    <td className="text-right text-fg-2">{intg(r.btc, true)}</td>
+                    <td className={clsx(TR, 'text-fg-2')}>{usd(r.price)}</td>
                   </tr>
                 )
               })}
@@ -605,7 +603,7 @@ function RecentEtfCard({ d }: { d: EtfData }) {
   )
 }
 
-function EtfTab() {
+export function EtfTab() {
   const q = useEtf()
   return (
     <Q q={q} loading={<PageSkeleton />} isEmpty={(d) => !d.daily?.dates?.length}>
@@ -700,7 +698,7 @@ function attentionReading(d: AttentionData) {
   return out
 }
 
-function AttentionTab() {
+export function AttentionTab() {
   const q = useAttention()
   const [showIt, setShowIt] = useState(false)
   return (
@@ -730,7 +728,7 @@ function AttentionTab() {
                 info={t("Massimi di ciclo del prezzo dal modulo Cicli. Ritardo = giorni tra il massimo del prezzo e il picco dell'attenzione (negativo = l'attenzione ha raggiunto il picco prima).")} />
               <CardBody className="flex flex-col">
                 <div className={clsx(TW, 'flex-1')}>
-                  <table className="tbl min-w-[600px] xl:h-full">
+                  <table className="tbl-wrap tbl max-lg:min-w-[560px] xl:h-full">
                     <thead><tr>
                       <th className={TL}>{t('Massimo di ciclo')}</th><th className="text-right">{t('Picco media 30 giorni')}</th><th className="text-right">{t('Ritardo')}</th>
                       <th className="text-right">{t('Picco giornaliero')}</th><th className={TR}>{t('Ritardo')}</th>
@@ -738,11 +736,11 @@ function AttentionTab() {
                     <tbody>
                       {d.peaks.map((p) => (
                         <tr key={p.top}>
-                          <td className={clsx(TL, 'text-slate-200')}>{date(p.top)} <span className="text-xs text-slate-400">{usd(p.top_price)}</span></td>
-                          <td className="text-right text-slate-300">{intg(p.peak30_views)} <span className="text-xs text-slate-500">{date(p.peak30)}</span></td>
-                          <td className="text-right text-slate-200">{intg(p.lag30_days, true)}{du()}</td>
-                          <td className="text-right text-slate-300">{intg(p.peak_day_views)} <span className="text-xs text-slate-500">{date(p.peak_day)}</span></td>
-                          <td className={clsx(TR, 'text-slate-200')}>{intg(p.lag_day_days, true)}{du()}</td>
+                          <td className={clsx(TL, 'text-fg')}>{date(p.top)} <span className="text-xs text-fg-3">{usd(p.top_price)}</span></td>
+                          <td className="text-right text-fg-2">{intg(p.peak30_views)} <span className="text-xs text-fg-4">{date(p.peak30)}</span></td>
+                          <td className="text-right text-fg">{intg(p.lag30_days, true)}{du()}</td>
+                          <td className="text-right text-fg-2">{intg(p.peak_day_views)} <span className="text-xs text-fg-4">{date(p.peak_day)}</span></td>
+                          <td className={clsx(TR, 'text-fg')}>{intg(p.lag_day_days, true)}{du()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -755,7 +753,7 @@ function AttentionTab() {
                 info={t('Percentile calcolato ogni giorno solo sui dati disponibili fino a quel giorno (almeno un anno di storia). Rendimento mediano di BTC a 30/90/180 giorni e quota di casi positivi; il campione indipendente è il numero di episodi.')} />
               <CardBody>
                 <div className={TW}>
-                  <table className="tbl min-w-[560px]">
+                  <table className="tbl-wrap tbl max-lg:min-w-[560px]">
                     <thead><tr>
                       <th className={TL}>{tr('Zona', 'Zone')}</th><th className="text-right">{tr('Giorni', 'Days')}</th><th className="text-right">{tr('Episodi', 'Episodes')}</th>
                       <th className="text-right">{`30${du()}`}</th><th className="text-right">{`90${du()}`}</th><th className={TR}>{`180${du()}`}</th>
@@ -763,20 +761,20 @@ function AttentionTab() {
                     <tbody>
                       {d.backtest.rows.map((r) => (
                         <tr key={r.key}>
-                          <td className={clsx(TL, r.key === d.kpi.zone ? 'font-medium text-white' : 'text-slate-200')}>
-                            {t(ZONE_LABEL[r.key])} <span className="text-xs text-slate-400">{r.lo}–{r.hi}°</span>
+                          <td className={clsx(TL, r.key === d.kpi.zone ? 'font-medium text-white' : 'text-fg')}>
+                            {t(ZONE_LABEL[r.key])} <span className="text-xs text-fg-3">{r.lo}–{r.hi}°</span>
                             {r.key === d.kpi.zone && <Badge color="blue" className="ml-2">{tr('Ora', 'Now')}</Badge>}
                           </td>
-                          <td className="text-right text-slate-300">{intg(r.days)}</td>
-                          <td className="text-right text-slate-300">{r.episodes}</td>
+                          <td className="text-right text-fg-2">{intg(r.days)}</td>
+                          <td className="text-right text-fg-2">{r.episodes}</td>
                           <td className="text-right"><Fwd b={r} h={30} /></td>
                           <td className="text-right"><Fwd b={r} h={90} /></td>
                           <td className={TR}><Fwd b={r} h={180} /></td>
                         </tr>
                       ))}
                       <tr>
-                        <td className={clsx(TL, 'text-slate-400')}>{t('Tutti i giorni')}</td>
-                        <td className="text-right text-slate-400">{intg(d.backtest.baseline.days)}</td><td className="text-right text-slate-400">—</td>
+                        <td className={clsx(TL, 'text-fg-3')}>{t('Tutti i giorni')}</td>
+                        <td className="text-right text-fg-3">{intg(d.backtest.baseline.days)}</td><td className="text-right text-fg-3">—</td>
                         <td className="text-right"><Fwd b={d.backtest.baseline} h={30} /></td>
                         <td className="text-right"><Fwd b={d.backtest.baseline} h={90} /></td>
                         <td className={TR}><Fwd b={d.backtest.baseline} h={180} /></td>
@@ -799,9 +797,9 @@ function AttentionTab() {
                   <tbody>
                     {d.spikes.map((s) => (
                       <tr key={s.time}>
-                        <td className={clsx(TL, 'text-slate-200')}>{date(s.time)}</td>
+                        <td className={clsx(TL, 'text-fg')}>{date(s.time)}</td>
                         <td className="text-right font-medium text-white">{intg(s.views)}</td>
-                        <td className="text-right text-slate-300">{usd(s.price, 0)}</td>
+                        <td className="text-right text-fg-2">{usd(s.price, 0)}</td>
                         <td className="text-right"><Change value={s.r30} digits={1} /></td>
                         <td className={TR}><Change value={s.r90} digits={1} /></td>
                       </tr>
@@ -826,26 +824,3 @@ function AttentionTab() {
     </Q>
   )
 }
-
-// ===================================================================== pagina
-const TABS = [
-  { value: 'exchange', label: 'Exchange', sub: 'Riserve di BTC sugli exchange, afflussi e deflussi giornalieri, regimi di flusso e rendimenti successivi.' },
-  { value: 'etf', label: 'ETF spot', sub: "Flussi giornalieri degli ETF spot USA per emittente e assorbimento dei BTC emessi dai miner." },
-  { value: 'attenzione', label: 'Attenzione', sub: 'Attenzione retail misurata dalle visite alla pagina Bitcoin di Wikipedia.' },
-] as const
-type Tab = (typeof TABS)[number]['value']
-
-export default function SupplyDemandPage() {
-  const [tab, changeTab] = useTab<Tab>(TABS.map((x) => x.value), 'exchange')
-  const cur = TABS.find((x) => x.value === tab) ?? TABS[0]
-  return (
-    <div>
-      <PageTitle title={t('Domanda e offerta')} subtitle={t(cur.sub)} />
-      <TabBar tabs={TABS.map((x) => ({ value: x.value, label: t(x.label) }))} value={tab} onChange={changeTab} />
-      {tab === 'exchange' && <ExchangeTab />}
-      {tab === 'etf' && <EtfTab />}
-      {tab === 'attenzione' && <AttentionTab />}
-    </div>
-  )
-}
-

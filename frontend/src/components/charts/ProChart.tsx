@@ -9,6 +9,7 @@ import { pct, usd } from '../../lib/format'
 import { C, FONT, usdAxis } from './theme'
 export { usdAxis }
 import { cap, months, t, tfIn, tr } from '../../i18n'
+import { T, alpha } from '../../theme/tokens'
 
 // lightweight-charts renders timestamps as UTC; shift to the viewer's local time.
 const TZ = -new Date().getTimezoneOffset() * 60
@@ -24,7 +25,7 @@ export type ZoneDef = { low: number; high: number; color: string; label?: string
 export type PaneSeries = { id: string; type: 'line' | 'histogram'; data: Pt[]; color: string; colorFn?: (v: number) => string; width?: number }
 export type PaneDef = { id: string; title: string; height: number; series: PaneSeries[]; levels?: { value: number; color: string }[] }
 /**
- * User drawing (journal annotations) rendered as an SVG overlay. Times may fall between bars or in the future (interpolated on
+ * User drawing (chart annotations) rendered as an SVG overlay. Times may fall between bars or in the future (interpolated on
  * the bar grid). hline: points[0].price · vline: points[0].time · text: points[0] time+price · trendline: 2 points (`extend` → ray).
  */
 export type ChartAnnotationDef = {
@@ -36,8 +37,8 @@ export type ChartPoint = { time: number; price: number }
 
 // Same theme as the ECharts charts (theme.ts): horizontal hairline grid only, grey dashed crosshair, raised labels.
 const NO_OVERLAY: OverlayMarkerDef[] = []
-const LEVEL_COLOR = 'rgba(148,163,184,0.45)'
-const MARKER_COLOR = '#8B94A7'
+const LEVEL_COLOR = alpha(T.fg3, 0.45)
+const MARKER_COLOR = T.fg3
 const baseOptions = {
   layout: { background: { color: 'transparent' }, textColor: C.muted, fontFamily: FONT, fontSize: 11 },
   grid: { vertLines: { visible: false }, horzLines: { color: C.grid } },
@@ -56,8 +57,8 @@ const baseOptions = {
   },
   crosshair: {
     mode: CrosshairMode.Normal,
-    vertLine: { color: 'rgba(160,175,225,0.35)', labelBackgroundColor: '#1E2840', style: LineStyle.Dashed },
-    horzLine: { color: 'rgba(160,175,225,0.35)', labelBackgroundColor: '#1E2840', style: LineStyle.Dashed },
+    vertLine: { color: alpha(T.fg3, 0.35), labelBackgroundColor: T.overlay, style: LineStyle.Dashed },
+    horzLine: { color: alpha(T.fg3, 0.35), labelBackgroundColor: T.overlay, style: LineStyle.Dashed },
   },
   localization: {
     locale: 'en-US',
@@ -151,7 +152,7 @@ export default function ProChart({
     const cs = chart.addCandlestickSeries({
       upColor: C.up, downColor: C.down, borderUpColor: C.up, borderDownColor: C.down, wickUpColor: C.up, wickDownColor: C.down,
       priceFormat: { type: 'price', precision: 0, minMove: 1 },
-      lastValueVisible: true, priceLineVisible: true, priceLineColor: C.btc, priceLineStyle: LineStyle.Dotted,
+      lastValueVisible: true, priceLineVisible: true, priceLineColor: C.price, priceLineStyle: LineStyle.Dotted,
     })
     chartRef.current = chart
     candleRef.current = cs
@@ -212,7 +213,7 @@ export default function ProChart({
     const cs = candleRef.current
     if (!cs) return
     cs.setData(sorted.map((c) => ({ time: lt(c.time), open: c.open, high: c.high, low: c.low, close: c.close })))
-    volRef.current?.setData(sorted.map((c) => ({ time: lt(c.time), value: c.volume, color: c.close >= c.open ? 'rgba(46,189,133,0.32)' : 'rgba(239,84,102,0.32)' })))
+    volRef.current?.setData(sorted.map((c) => ({ time: lt(c.time), value: c.volume, color: c.close >= c.open ? alpha(T.up, 0.32) : alpha(T.down, 0.32) })))
     lastBarRef.current = sorted[sorted.length - 1] ?? null
     setLastBar(lastBarRef.current)
     if (prevFit.current !== fitKey) {
@@ -241,7 +242,7 @@ export default function ProChart({
       if (!cs) return
       try {
         cs.update({ time: lt(c.time), open: c.open, high: c.high, low: c.low, close: c.close })
-        volRef.current?.update({ time: lt(c.time), value: c.volume, color: c.close >= c.open ? 'rgba(46,189,133,0.32)' : 'rgba(239,84,102,0.32)' })
+        volRef.current?.update({ time: lt(c.time), value: c.volume, color: c.close >= c.open ? alpha(T.up, 0.32) : alpha(T.down, 0.32) })
         lastBarRef.current = c
         setLastBar(c)
       } catch {
@@ -288,7 +289,7 @@ export default function ProChart({
     plRefs.current = priceLines.map((p, i) =>
       cs.createPriceLine({
         price: p.price, color: LEVEL_COLOR, lineWidth: 1, lineStyle: p.dashed === false ? LineStyle.Solid : LineStyle.Dashed,
-        axisLabelVisible: show.has(i), axisLabelColor: '#1E2840', axisLabelTextColor: '#B3BCD0', title: show.has(i) ? p.title ?? '' : '',
+        axisLabelVisible: show.has(i), axisLabelColor: T.overlay, axisLabelTextColor: T.fg2, title: show.has(i) ? p.title ?? '' : '',
       }),
     )
   }, [priceLines, nearestKey])
@@ -319,7 +320,7 @@ export default function ProChart({
         const y1 = cs.priceToCoordinate(z.high), y2 = cs.priceToCoordinate(z.low)
         if (y1 == null || y2 == null) return []
         // zones are levels, not signals: neutral fill regardless of the caller's colour
-        return [{ top: Math.min(y1, y2), height: Math.max(2, Math.abs(y2 - y1)), color: 'rgba(148,163,184,0.06)', label: z.label }]
+        return [{ top: Math.min(y1, y2), height: Math.max(2, Math.abs(y2 - y1)), color: alpha(T.fg3, 0.06), label: z.label }]
       })
       const key = JSON.stringify(boxes.map((b) => [Math.round(b.top), Math.round(b.height)]))
       if (key !== prev) { prev = key; setZoneBoxes(boxes) }
@@ -403,7 +404,7 @@ export default function ProChart({
       }
       if (pickDraft) {
         const x = X(pickDraft.time), y = Y(pickDraft.price)
-        if (x != null && y != null) items.push({ a: { id: '__draft', kind: 'text', points: [], color: '#B3BCD0' }, x1: x, y1: y, x2: x, y2: y, draft: true })
+        if (x != null && y != null) items.push({ a: { id: '__draft', kind: 'text', points: [], color: T.fg2 }, x1: x, y1: y, x2: x, y2: y, draft: true })
       }
       const key = `${w},${h};` + items.map((g) => `${g.a.id}:${Math.round(g.x1)},${Math.round(g.y1)},${Math.round(g.x2)},${Math.round(g.y2)},${g.a.selected ? 1 : 0},${g.a.color},${g.a.text ?? ''},${g.a.extend ? 1 : 0}`).join(';')
       if (key !== prev) { prev = key; setAnnGeo({ w, h, items }) }
@@ -504,23 +505,23 @@ export default function ProChart({
   return (
     <div ref={wrapRef} className="flex w-full flex-col" style={{ height }}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 pb-2 text-xs">
-        <span className="text-sm font-semibold text-white">{symbol}{tfLabel && <span className="text-slate-400"> · {tfIn(tfLabel)}</span>}</span>
+        <span className="text-sm font-semibold text-white">{symbol}{tfLabel && <span className="text-fg-3"> · {tfIn(tfLabel)}</span>}</span>
         {shown && (
-          <span className="tnum flex flex-wrap gap-x-3 text-slate-400">
-            <span>{tr('A', 'O')} <b className="font-medium text-slate-200">{usd(shown.open)}</b></span>
-            <span>{tr('Max', 'H')} <b className="font-medium text-slate-200">{usd(shown.high)}</b></span>
-            <span>{tr('Min', 'L')} <b className="font-medium text-slate-200">{usd(shown.low)}</b></span>
-            <span>{tr('C', 'C')} <b className="font-medium text-slate-200">{usd(shown.close)}</b></span>
+          <span className="tnum flex flex-wrap gap-x-3 text-fg-3">
+            <span>{tr('A', 'O')} <b className="font-medium text-fg">{usd(shown.open)}</b></span>
+            <span>{tr('Max', 'H')} <b className="font-medium text-fg">{usd(shown.high)}</b></span>
+            <span>{tr('Min', 'L')} <b className="font-medium text-fg">{usd(shown.low)}</b></span>
+            <span>{tr('C', 'C')} <b className="font-medium text-fg">{usd(shown.close)}</b></span>
             {chg != null && <b className={chg >= 0 ? 'font-medium text-up' : 'font-medium text-down'}>{pct(chg)}</b>}
           </span>
         )}
-        {hoverLevel && <span className="tnum text-slate-300">{t('Livello')} <b className="font-medium text-white">{hoverLevel.title || '—'}</b> {usd(hoverLevel.price)}</span>}
+        {hoverLevel && <span className="tnum text-fg-2">{t('Livello')} <b className="font-medium text-white">{hoverLevel.title || '—'}</b> {usd(hoverLevel.price)}</span>}
       </div>
       <div className="relative min-h-0 flex-1">
         <div ref={mainRef} className={`absolute inset-0${onPick ? ' [&_td]:!cursor-crosshair [&_canvas]:!cursor-crosshair' : ''}`} />
         <div className="pointer-events-none absolute inset-y-0 left-0 right-[70px] overflow-hidden">
           {zoneBoxes.map((z, i) => (
-            <div key={i} className="absolute left-0 right-0 border-y border-white/[0.08]" style={{ top: z.top, height: z.height, background: z.color }} title={z.label}>
+            <div key={i} className="absolute left-0 right-0 border-y border-line" style={{ top: z.top, height: z.height, background: z.color }} title={z.label}>
               {/* zone names live in the tooltip (no text over the candles) */}
             </div>
           ))}
@@ -530,8 +531,8 @@ export default function ProChart({
             {annGeo.items.filter((g) => !g.draft).map((g) => <AnnShape key={g.a.id} g={g} w={annGeo.w} onClick={onPick ? undefined : onAnnotationClick} />)}
             {draftGeo && (
               <g>
-                {cursor && <line x1={draftGeo.x1} y1={draftGeo.y1} x2={cursor.x} y2={cursor.y} stroke="#B3BCD0" strokeWidth={1.5} strokeDasharray="5 4" />}
-                <circle cx={draftGeo.x1} cy={draftGeo.y1} r={4} fill="#0E1424" stroke="#E8ECF4" strokeWidth={1.5} />
+                {cursor && <line x1={draftGeo.x1} y1={draftGeo.y1} x2={cursor.x} y2={cursor.y} stroke={T.fg2} strokeWidth={1.5} strokeDasharray="5 4" />}
+                <circle cx={draftGeo.x1} cy={draftGeo.y1} r={4} fill={T.surface} stroke={T.fg} strokeWidth={1.5} />
               </g>
             )}
           </svg>
@@ -543,7 +544,7 @@ export default function ProChart({
               return (
                 <button key={m.id} type="button" aria-label={m.title ?? m.label}
                   onMouseEnter={() => setOv(m.id)} onMouseLeave={() => setOv(null)} onFocus={() => setOv(m.id)} onBlur={() => setOv(null)}
-                  className={`tnum pointer-events-auto absolute flex h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-surface font-semibold leading-none ${m.label.length > 1 ? 'text-[10.5px] tracking-[-0.03em]' : 'text-[13px]'} text-white transition-colors ${on ? 'z-[1] border-[#4C8DFF] bg-raised' : 'border-white/[0.16]'}`}
+                  className={`tnum pointer-events-auto absolute flex h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-surface font-semibold leading-none ${m.label.length > 1 ? 'text-[10.5px] tracking-[-0.03em]' : 'text-[13px]'} text-white transition-colors ${on ? 'z-[1] border-accent bg-raised' : 'border-line-strong'}`}
                   style={{ left: x, top: y }}>
                   {m.label}
                 </button>
@@ -552,9 +553,9 @@ export default function ProChart({
             {ovTip && (
               <div className="pointer-events-none absolute z-[2] whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-xs shadow-lg"
                 style={{ left: Math.max(80, Math.min(ovTip.x, (mainRef.current?.clientWidth ?? 0) - 150)), top: ovTip.y < 48 ? ovTip.y + 14 : ovTip.y - 14, transform: `translate(-50%, ${ovTip.y < 48 ? '0' : '-100%'})` }}>
-                <span className="tnum mr-1.5 text-slate-400">{ovTip.m.label}</span>
+                <span className="tnum mr-1.5 text-fg-3">{ovTip.m.label}</span>
                 <span className="text-white">{ovTip.m.title}</span>
-                {ovTip.m.sub && <span className="tnum ml-1.5 text-slate-400">{ovTip.m.sub}</span>}
+                {ovTip.m.sub && <span className="tnum ml-1.5 text-fg-3">{ovTip.m.sub}</span>}
               </div>
             )}
           </div>
@@ -562,18 +563,18 @@ export default function ProChart({
       </div>
       {panes.map((p, i) => (
         <div key={p.id} className="relative mt-1 border-t border-line" style={{ height: p.height }}>
-          <span className="absolute left-2 top-1 z-10 text-2xs font-medium text-slate-400">{p.title}</span>
+          <span className="absolute left-2 top-1 z-10 text-2xs font-medium text-fg-3">{p.title}</span>
           <div ref={(el) => { paneRefs.current[i] = paneRefs.current[i] ?? { el: null, chart: null, series: new Map() }; paneRefs.current[i].el = el }} className="absolute inset-0" />
         </div>
       ))}
       {panesH > 0 && <div className="h-1" />}
       {/* attribution required by the lightweight-charts licence (in place of the in-chart logo) */}
-      <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer" className="mt-1 self-end text-2xs text-slate-600 hover:text-slate-400">{t('Grafico: TradingView Lightweight Charts™')}</a>
+      <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer" className="mt-1 self-end text-2xs text-fg-off hover:text-fg-3">{t('Grafico: TradingView Lightweight Charts™')}</a>
     </div>
   )
 }
 
-// ------------------------------------------------------------------ user annotations (journal) helpers
+// ------------------------------------------------------------------ user annotations helpers
 type AnnGeo = { a: ChartAnnotationDef; x1: number; y1: number; x2: number; y2: number; draft?: boolean }
 const NO_ANN: ChartAnnotationDef[] = []
 
@@ -624,8 +625,8 @@ function AnnShape({ g, w, onClick }: { g: AnnGeo; w: number; onClick?: (id: stri
     return (
       <g {...click}>
         <title>{txt}</title>
-        <rect x={lx} y={y - 10} width={width} height={20} rx={6} fill="#161E31" fillOpacity={0.94} stroke={a.color} strokeOpacity={a.selected ? 0.95 : 0.5} />
-        <text x={lx + 7} y={y + 4} fontSize={11} fill="#E8ECF4" fontFamily={FONT} style={{ fontVariantNumeric: 'tabular-nums' }}>{shown}</text>
+        <rect x={lx} y={y - 10} width={width} height={20} rx={6} fill={T.raised} fillOpacity={0.94} stroke={a.color} strokeOpacity={a.selected ? 0.95 : 0.5} />
+        <text x={lx + 7} y={y + 4} fontSize={11} fill={T.fg} fontFamily={FONT} style={{ fontVariantNumeric: 'tabular-nums' }}>{shown}</text>
       </g>
     )
   }
@@ -652,8 +653,8 @@ function AnnShape({ g, w, onClick }: { g: AnnGeo; w: number; onClick?: (id: stri
       <g>
         <line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} stroke={a.color} strokeWidth={sw + 0.5} strokeLinecap="round" />
         {onClick && <line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} stroke="transparent" strokeWidth={12} {...click} />}
-        <circle cx={g.x1} cy={g.y1} r={a.selected ? 4 : 3} fill="#0E1424" stroke={a.color} strokeWidth={1.5} />
-        {!a.extend && <circle cx={g.x2} cy={g.y2} r={a.selected ? 4 : 3} fill="#0E1424" stroke={a.color} strokeWidth={1.5} />}
+        <circle cx={g.x1} cy={g.y1} r={a.selected ? 4 : 3} fill={T.surface} stroke={a.color} strokeWidth={1.5} />
+        {!a.extend && <circle cx={g.x2} cy={g.y2} r={a.selected ? 4 : 3} fill={T.surface} stroke={a.color} strokeWidth={1.5} />}
         {label && pill((g.x1 + g.x2) / 2, (g.y1 + g.y2) / 2 - 16, label, 'middle')}
       </g>
     )
@@ -661,7 +662,7 @@ function AnnShape({ g, w, onClick }: { g: AnnGeo; w: number; onClick?: (id: stri
   // text note pinned to a time/price
   return (
     <g>
-      <circle cx={g.x1} cy={g.y1} r={a.selected ? 5 : 4} fill={a.color} stroke="#0E1424" strokeWidth={1.5} {...click} />
+      <circle cx={g.x1} cy={g.y1} r={a.selected ? 5 : 4} fill={a.color} stroke={T.surface} strokeWidth={1.5} {...click} />
       {pill(g.x1 + 9, g.y1 - 16, label || '•')}
     </g>
   )

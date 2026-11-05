@@ -33,7 +33,6 @@ const en: Record<string, string> = {
   'Eventi recenti': 'Recent events',
   'Sweep, recuperi, accettazioni, retest, SFP, BOS/CHoCH': 'Sweeps, reclaims, acceptances, retests, SFP, BOS/CHoCH',
   'Esiti storici per tipo di evento': 'Historical outcomes by event type',
-  "{tf} dal {d} · rendimenti mediani dalla chiusura dell'evento": '{tf} since {d} · median returns from the event close',
   "Rendimenti mediani a 1/3/7/14 giorni (passa sopra una cella per media e % positivi). Obiettivo 1/2 e invalidazione dipendono dall'evento (passa sopra la percentuale per vederli) e sono verificati sulle 14 giornate successive: se nella stessa candela si toccano obiettivo e invalidazione conta l'invalidazione. Campioni sotto 15 casi in grigio.":
     'Median returns at 1/3/7/14 days (hover a cell for mean and % positive). Targets 1/2 and invalidation depend on the event (hover the percentage to see them) and are checked over the next 14 days: if target and invalidation are hit on the same candle, invalidation counts. Samples under 15 cases in grey.',
 
@@ -99,8 +98,8 @@ const en: Record<string, string> = {
   'Percentile {p} dal 2018': 'Percentile {p} since 2018',
   'Apertura mensile': 'Monthly open',
   'Range del lunedì e aperture': 'Monday range & opens',
-  'Linee piene: massimo e minimo del lunedì corrente; tratteggio scuro: lunedì precedente; tratteggio blu: apertura settimanale. Le linee orizzontali grigie sono apertura mensile/annuale e massimi/minimi della settimana e del mese precedenti.':
-    'Solid lines: current Monday high and low; dark dashed: previous Monday; blue dashed: weekly open. Grey horizontal lines are the monthly/yearly open and the previous week and month highs/lows.',
+  'Linee piene: massimo e minimo del lunedì corrente; tratteggio scuro: lunedì precedente; tratteggio arancione: apertura settimanale. Le linee orizzontali grigie sono apertura mensile/annuale e massimi/minimi della settimana e del mese precedenti.':
+    'Solid lines: current Monday high and low; dark dashed: previous Monday; orange dashed: weekly open. Grey horizontal lines are the monthly/yearly open and the previous week and month highs/lows.',
   'Settimana corrente': 'Current week',
   'Dal {d}': 'Since {d}',
   'Lunedì in corso': 'Monday in progress',

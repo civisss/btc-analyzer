@@ -7,19 +7,20 @@ import { C, areaGradient, axisLabel, dateFmt, hexA, lineSeries, timeAxis, toolti
 import { clsx } from '../components/ui'
 import { usd, usdCompact } from '../lib/format'
 import { cap, t } from '../i18n'
+import { T, alpha } from '../theme/tokens'
 
-export const MEMBER_COLOR: Record<ForecastMemberKey, string> = { cycle: C.btc, lgb: C.blue, mc: C.purple, rw0: C.grey2 }
+export const MEMBER_COLOR: Record<ForecastMemberKey, string> = { cycle: C.accent, lgb: C.steel, mc: C.sand, rw0: C.grey2 }
 export const MEMBER_ORDER: ForecastMemberKey[] = ['cycle', 'lgb', 'mc', 'rw0']
 /** Short member names (module level: Italian, translated at render). */
 export const MEMBER_SHORT: Record<ForecastMemberKey, string> = { cycle: 'Posizione nel ciclo', lgb: 'LightGBM', mc: 'Monte Carlo', rw0: 'Random walk' }
 
-const tipHead = (s: string) => `<div style="color:#94a3b8;font-size:11px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.06)">${s}</div>`
+const tipHead = (s: string) => `<div style="color:${T.fg3};font-size:11px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid ${alpha(T.fg, 0.06)}">${s}</div>`
 const tipRow = (color: string, name: string, val: string) =>
   `<div style="display:flex;justify-content:space-between;gap:16px;align-items:center"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px"></span>${name}</span><b style="font-variant-numeric:tabular-nums">${val}</b></div>`
 
 /** History shown before "today" for each forecast horizon (days). */
 const HIST_DAYS: Record<number, number> = { 30: 120, 90: 210, 180: 300, 365: 365 }
-export const cycleColor = (i: number, w: number, maxW: number) => (i === 0 ? C.blue : hexA('#B3BCD0', 0.22 + 0.5 * (w / Math.max(1, maxW))))
+export const cycleColor = (i: number, w: number, maxW: number) => (i === 0 ? C.accent : hexA(T.fg2, 0.22 + 0.5 * (w / Math.max(1, maxW))))
 
 // ------------------------------------------------------------------ ventaglio 0–365 giorni
 type Tip = { seriesName: string; value: [number, number | null]; color: string }
@@ -44,11 +45,11 @@ export function ForecastPathChart({ d, horizon, cycles, height = '100%' }: { d: 
           const pp = path.find((p) => ms(p.time) === x)
           let s = tipHead(dateFmt(x))
           const h = ps.find((p) => p.seriesName === N.hist)
-          if (h?.value[1] != null) s += tipRow(C.btc, N.hist, usd(h.value[1]))
+          if (h?.value[1] != null) s += tipRow(C.price, N.hist, usd(h.value[1]))
           if (pp && pp.day > 0) {
-            s += tipRow('#E6E9EF', `${N.med} · ${t('giorno {n}', { n: pp.day })}`, usd(pp.p50))
-            s += tipRow(hexA(C.purple, 0.9), N.b50, `${usdCompact(pp.p25, 1)} – ${usdCompact(pp.p75, 1)}`)
-            s += tipRow(hexA(C.blue, 0.7), N.b90, `${usdCompact(pp.p05, 1)} – ${usdCompact(pp.p95, 1)}`)
+            s += tipRow(T.fg, `${N.med} · ${t('giorno {n}', { n: pp.day })}`, usd(pp.p50))
+            s += tipRow(hexA(C.steel, 0.9), N.b50, `${usdCompact(pp.p25, 1)} – ${usdCompact(pp.p75, 1)}`)
+            s += tipRow(hexA(C.accent, 0.7), N.b90, `${usdCompact(pp.p05, 1)} – ${usdCompact(pp.p95, 1)}`)
           }
           ps.filter((p) => cycles.some((c) => c.label === p.seriesName) && p.value[1] != null).slice(0, 6)
             .forEach((p) => { s += tipRow(p.color, p.seriesName, usd(p.value[1])) })
@@ -59,24 +60,24 @@ export function ForecastPathChart({ d, horizon, cycles, height = '100%' }: { d: 
       yAxis: valueAxis({ position: 'right', scale: true, axisLabel: { ...axisLabel, formatter: usdAxisFmt } }),
       series: [
         lineSeries('_p05', path.map((p) => [ms(p.time), p.p05]), 'transparent', { stack: 'b90', lineStyle: { width: 0 }, tooltip: { show: false } }),
-        lineSeries(N.b90, path.map((p) => [ms(p.time), p.p95 - p.p05]), hexA(C.blue, 0.6), { stack: 'b90', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.blue, 0.13) }, tooltip: { show: false } }),
+        lineSeries(N.b90, path.map((p) => [ms(p.time), p.p95 - p.p05]), hexA(C.accent, 0.6), { stack: 'b90', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.accent, 0.13) }, tooltip: { show: false } }),
         lineSeries('_p25', path.map((p) => [ms(p.time), p.p25]), 'transparent', { stack: 'b50', lineStyle: { width: 0 }, tooltip: { show: false } }),
-        lineSeries(N.b50, path.map((p) => [ms(p.time), p.p75 - p.p25]), hexA(C.purple, 0.8), { stack: 'b50', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.purple, 0.24) }, tooltip: { show: false } }),
+        lineSeries(N.b50, path.map((p) => [ms(p.time), p.p75 - p.p25]), hexA(C.steel, 0.8), { stack: 'b50', lineStyle: { width: 0 }, areaStyle: { color: hexA(C.steel, 0.24) }, tooltip: { show: false } }),
         ...cycles.map((c, i) => lineSeries(c.label, c.path.filter((p) => p.day <= horizon).map((p) => [ms(p.time), p.value]), cycleColor(i, c.weight, maxW), {
           lineStyle: { width: i === 0 ? 1.6 : 1.1, color: cycleColor(i, c.weight, maxW), type: i === 0 ? 'solid' : 'dashed' }, z: 3,
         })),
-        lineSeries(N.hist, hist.map((p) => [ms(p.time), p.value]), C.btc, {
-          lineStyle: { width: 2, color: C.btc }, areaStyle: { color: areaGradient(C.btc, 0.12, 0) }, z: 4,
+        lineSeries(N.hist, hist.map((p) => [ms(p.time), p.value]), C.price, {
+          lineStyle: { width: 2, color: C.price }, areaStyle: { color: areaGradient(C.price, 0.12, 0) }, z: 4,
           markLine: {
             symbol: 'none', silent: true,
             data: [
-              { xAxis: ms(today), lineStyle: { color: 'rgba(226,232,240,0.5)', type: 'dashed' }, label: { formatter: t('Oggi'), color: C.text, fontSize: 11, position: 'insideEndTop' } },
-              ...events.map((e) => ({ xAxis: ms(e.time), lineStyle: { color: e.kind === 'top' ? hexA(C.down, 0.55) : e.kind === 'bottom' ? hexA(C.up, 0.55) : hexA(C.amber, 0.5), type: 'dotted' },
+              { xAxis: ms(today), lineStyle: { color: alpha(T.fg, 0.5), type: 'dashed' }, label: { formatter: t('Oggi'), color: C.text, fontSize: 11, position: 'insideEndTop' } },
+              ...events.map((e) => ({ xAxis: ms(e.time), lineStyle: { color: e.kind === 'top' ? hexA(C.down, 0.55) : e.kind === 'bottom' ? hexA(C.up, 0.55) : hexA(C.warn, 0.5), type: 'dotted' },
                 label: { formatter: evLabel(e.kind, e.probable), color: C.muted, fontSize: 10, position: 'insideEndTop' } })),
             ],
           },
         }),
-        lineSeries(N.med, path.map((p) => [ms(p.time), p.p50]), '#E6E9EF', { lineStyle: { width: 2, type: 'dashed', color: '#E6E9EF' }, z: 5 }),
+        lineSeries(N.med, path.map((p) => [ms(p.time), p.p50]), T.fg, { lineStyle: { width: 2, type: 'dashed', color: T.fg }, z: 5 }),
       ],
     }
   }, [d, horizon, cycles])
@@ -90,7 +91,7 @@ export function WeightsByHorizon({ d, className }: { d: ForecastV2; className?: 
     <div className={clsx('flex flex-col justify-around gap-2.5', className)}>
       {d.horizons.map((h) => (
         <div key={h.days} className="grid grid-cols-[52px_minmax(0,1fr)] items-center gap-3">
-          <span className="tnum text-sm text-slate-300">{t('{n} g', { n: h.days })}</span>
+          <span className="tnum text-sm text-fg-2">{t('{n} g', { n: h.days })}</span>
           <div className="flex h-5 overflow-hidden rounded-md bg-white/[0.04]">
             {MEMBER_ORDER.map((k) => {
               const w = h.weights[k] ?? 0
@@ -105,7 +106,7 @@ export function WeightsByHorizon({ d, className }: { d: ForecastV2; className?: 
           </div>
         </div>
       ))}
-      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 pl-[64px] text-xs text-slate-400">
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 pl-[64px] text-xs text-fg-3">
         {MEMBER_ORDER.map((k) => <span key={k} className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: MEMBER_COLOR[k] }} />{t(MEMBER_SHORT[k])}</span>)}
       </div>
     </div>
@@ -120,8 +121,8 @@ export function DriverBars({ top }: { top: Driver[] }) {
       {top.map((x) => (
         <div key={x.key} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_56px] items-center gap-3 border-t border-line py-1.5 first:border-t-0">
           <div className="min-w-0">
-            <div className="truncate text-sm text-slate-200" title={x.name}>{cap(t(x.name))}</div>
-            <div className="truncate text-2xs text-slate-500">{t(x.group)}</div>
+            <div className="truncate text-sm text-fg" title={x.name}>{cap(t(x.name))}</div>
+            <div className="truncate text-2xs text-fg-4">{t(x.group)}</div>
           </div>
           <div className="relative h-2 rounded-full bg-white/[0.04]">
             <span className="absolute inset-y-[-3px] left-1/2 w-px bg-white/20" />
@@ -148,16 +149,16 @@ export function CalibrationChart({ buckets, height = '100%' }: { buckets: CalBuc
       tooltip: {
         ...tooltipBase, trigger: 'item',
         formatter: (p: { seriesName: string; value: [number, number, number] }) => p.seriesName === OBS
-          ? `${tipHead(t('Fascia {a}–{b}%', { a: Math.floor(p.value[0] / 10) * 10, b: Math.floor(p.value[0] / 10) * 10 + 10 }))}${tipRow(C.blue, t('Previsto'), `${p.value[0].toFixed(0)}%`)}${tipRow('#E6E9EF', OBS, `${p.value[1].toFixed(0)}%`)}${tipRow(C.grey2, t('Casi'), String(p.value[2]))}`
+          ? `${tipHead(t('Fascia {a}–{b}%', { a: Math.floor(p.value[0] / 10) * 10, b: Math.floor(p.value[0] / 10) * 10 + 10 }))}${tipRow(C.accent, t('Previsto'), `${p.value[0].toFixed(0)}%`)}${tipRow(T.fg, OBS, `${p.value[1].toFixed(0)}%`)}${tipRow(C.grey2, t('Casi'), String(p.value[2]))}`
           : '',
       },
       xAxis: { type: 'value', min: 0, max: 100, interval: 25, name: t('P(rialzo) prevista'), nameLocation: 'middle', nameGap: 24, nameTextStyle: { color: C.muted, fontSize: 10 },
         axisLabel: { ...axisLabel, formatter: (v: number) => `${v}%` }, splitLine: { lineStyle: { color: C.grid } }, axisLine: { lineStyle: { color: C.axis } } },
       yAxis: { type: 'value', min: 0, max: 100, interval: 25, position: 'right', axisLabel: { ...axisLabel, formatter: (v: number) => `${v}%` }, splitLine: { lineStyle: { color: C.grid } } },
       series: [
-        { name: PERF, type: 'line', data: [[0, 0], [100, 100]], symbol: 'none', silent: true, lineStyle: { color: hexA('#B3BCD0', 0.35), type: 'dashed', width: 1 } },
-        { name: OBS, type: 'line', data: pts.map((b) => [b.predicted, b.observed, b.n]), smooth: false, lineStyle: { color: hexA(C.blue, 0.5), width: 1.2 },
-          symbol: 'circle', symbolSize: (v: number[]) => 6 + 12 * Math.sqrt(v[2] / maxN), itemStyle: { color: C.blue, borderColor: '#0A0E17', borderWidth: 1 } },
+        { name: PERF, type: 'line', data: [[0, 0], [100, 100]], symbol: 'none', silent: true, lineStyle: { color: hexA(T.fg2, 0.35), type: 'dashed', width: 1 } },
+        { name: OBS, type: 'line', data: pts.map((b) => [b.predicted, b.observed, b.n]), smooth: false, lineStyle: { color: hexA(C.accent, 0.5), width: 1.2 },
+          symbol: 'circle', symbolSize: (v: number[]) => 6 + 12 * Math.sqrt(v[2] / maxN), itemStyle: { color: C.accent, borderColor: T.bg, borderWidth: 1 } },
       ],
     }
   }, [buckets])

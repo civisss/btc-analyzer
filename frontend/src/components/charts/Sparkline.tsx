@@ -1,9 +1,10 @@
 import { useId, useMemo } from 'react'
 import type { Pt } from '../../api/types'
+import { T } from '../../theme/tokens'
 
 /** Tiny SVG sparkline: line in the series colour, optional soft gradient area (`fill`). */
 export default function Sparkline({
-  data, color = '#8B94A7', width = 120, height = 40, className, fill = false, strokeWidth = 1.25,
+  data, color = T.fg3, width = 120, height = 40, className, fill = false, strokeWidth = 1.25,
 }: { data: (Pt | number)[] | undefined; color?: string; width?: number; height?: number; className?: string; fill?: boolean; strokeWidth?: number }) {
   const id = useId().replace(/:/g, '')
   const path = useMemo(() => {

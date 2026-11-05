@@ -125,14 +125,20 @@ def _fut15(old):
     return _merge(old, src.futures_klines("15m", 30))
 
 
+def _days_back(old: pd.DataFrame | None, minimum: int, first: int) -> int:
+    """Giorni da scaricare: copre anche il buco lasciato da un'app rimasta spenta più a lungo di `minimum`."""
+    if old is None or old.empty:
+        return first
+    gap = (pd.Timestamp.now(tz="UTC") - pd.to_datetime(old["time"], utc=True).max()).days + 2
+    return min(first, max(minimum, gap))
+
+
 def _fut1h(old):
-    days = 3 if old is not None and not old.empty else 365
-    return _merge(old, src.futures_klines("1h", days))
+    return _merge(old, src.futures_klines("1h", _days_back(old, 3, 365)))
 
 
 def _fut1d(old):
-    days = 5 if old is not None and not old.empty else 2700
-    return _merge(old, src.futures_klines("1d", days))
+    return _merge(old, src.futures_klines("1d", _days_back(old, 5, 2700)))
 
 
 def _onchain(old):
@@ -151,6 +157,16 @@ def _caps(old):
         frames.append(df.set_index("time"))
     out = pd.concat(frames, axis=1).sort_index()
     return out.reset_index().rename(columns={"index": "time"})
+
+
+def _usdt_supply(old):
+    """USDT in circolazione da DefiLlama: per la tessera recente. La serie CoinMetrics in `caps` conta anche
+    la tesoreria e procede a gradini (scarti di ~$6B); lo storico DefiLlama però è inutilizzabile prima del 2020."""
+    rows = src._get("https://stablecoins.llama.fi/stablecoincharts/all", {"stablecoin": 1})
+    out = [(int(r["date"]), float(v)) for r in rows if (v := (r.get("totalCirculatingUSD") or {}).get("peggedUSD"))]
+    df = pd.DataFrame(out, columns=["t", "usdt"])
+    df["time"] = pd.to_datetime(df["t"] // 86400 * 86400, unit="s", utc=True)
+    return df[df["time"] >= "2021-01-01"][["time", "usdt"]].drop_duplicates("time", keep="last").reset_index(drop=True)
 
 
 def _fng(old):
@@ -173,6 +189,7 @@ REGISTRY: dict[str, tuple[Callable, int]] = {
     "ls": (_ls, 300),
     "onchain": (_onchain, 6 * 3600),
     "caps": (_caps, 6 * 3600),
+    "usdt_supply": (_usdt_supply, 3 * 3600),
     "fng": (_fng, 3 * 3600),
 }
 

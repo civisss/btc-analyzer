@@ -411,6 +411,12 @@ def build_overview() -> dict:
     btc_dom = util.num(pct.get("btc"))
     usdt_dom = util.num(pct.get("usdt"))
     usdt_series = caps_i["usdt"].dropna()
+    try:  # circolante DefiLlama per tessera e variazione: la serie CoinMetrics procede a gradini
+        us = store.get("usdt_supply").set_index("time")["usdt"].dropna()
+        if len(us) > 30:
+            usdt_series = us
+    except Exception as e:  # noqa: BLE001
+        log.info("usdt_supply non disponibile: %s", e)
     usdt_mcap = usdt_series.iloc[-1] if len(usdt_series) else None
     if total_mcap and usdt_dom:
         usdt_mcap = total_mcap * usdt_dom / 100

@@ -7,7 +7,7 @@ import {
 } from '../api/superchart'
 import { live } from '../api/live'
 import SuperChart, { type LiveBar } from '../components/charts/SuperChart'
-import { Card, MethodNote, PageTitle, Segmented, Skeleton, Toggle, clsx } from '../components/ui'
+import { Card, MethodNote, Segmented, Skeleton, Toggle, clsx, PageActions, SettingsPanel, SettingRow } from '../components/ui'
 import {
   AnomalyChip, BacktestCard, IndicatorLibrary, LayoutMenu, PRESET_LABEL, RecentAnomaliesCard, ReplayBar,
   anomalyIndex, buildPanes, decodePanes, encodePanes, engineCandles, paneColor, scDefs,
@@ -40,8 +40,7 @@ export default function SuperchartPage() {
   const cat = useScCatalog()
   return (
     <div>
-      <PageTitle title="Superchart" subtitle={t('Prezzo, derivati, flussi e on-chain su un unico asse del tempo: pannelli sincronizzati, replay senza dati futuri e anomalie con il loro backtest.')} />
-      {cat.data ? <Workspace catalog={cat.data} /> : cat.isError ? <Card className="p-6 text-sm text-slate-400">{t('Catalogo degli indicatori non disponibile.')}</Card> : <Skeleton style={{ height: 640 }} />}
+      {cat.data ? <Workspace catalog={cat.data} /> : cat.isError ? <Card className="p-6 text-sm text-fg-3">{t('Catalogo degli indicatori non disponibile.')}</Card> : <Skeleton style={{ height: 640 }} />}
     </div>
   )
 }
@@ -103,6 +102,7 @@ function Workspace({ catalog }: { catalog: ScCatalog }) {
   useEffect(() => {
     if (replay?.playing) return
     const p = new URLSearchParams()
+    p.set('tab', 'superchart')
     p.set('tf', tf)
     if (log) p.set('log', '1')
     p.set('p', encodePanes(panes))
@@ -240,17 +240,17 @@ function Workspace({ catalog }: { catalog: ScCatalog }) {
 
   // ---------- headers
   const idx = hover ?? end
-  const iconBtn = 'pointer-events-auto grid h-7 w-7 place-items-center rounded-md text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-white sm:h-6 sm:w-6'
+  const iconBtn = 'pointer-events-auto grid h-7 w-7 place-items-center rounded-md text-fg-4 transition-colors hover:bg-white/[0.06] hover:text-white sm:h-6 sm:w-6'
   const paneControls = (p: ScPaneState, i: number, n: number) => {
     const meta = catMap[p.id]
     return (
-      <span className="pointer-events-auto ml-auto flex shrink-0 items-center gap-0.5 rounded-md bg-surface/80 backdrop-blur-sm">
+      <span className="pointer-events-auto ml-auto flex shrink-0 items-center gap-0.5 rounded-md bg-surface/80">
         {meta?.anom && (
-          <button type="button" className={clsx(iconBtn, p.an && 'text-amber-300 hover:text-amber-200')} aria-pressed={p.an}
+          <button type="button" className={clsx(iconBtn, p.an && 'text-warn hover:text-warn')} aria-pressed={p.an}
             title={p.an ? t('Nascondi anomalie') : t('Mostra anomalie')} aria-label={p.an ? t('Nascondi anomalie') : t('Mostra anomalie')} onClick={() => patch(p.id, (x) => ({ ...x, an: !x.an }))}><Radar size={13} /></button>
         )}
         {meta?.place !== 'overlay' && (
-          <button type="button" className={clsx(iconBtn, p.ov && 'text-accent-blue')} aria-pressed={p.ov}
+          <button type="button" className={clsx(iconBtn, p.ov && 'text-accent')} aria-pressed={p.ov}
             title={p.ov ? t('Sposta in un pannello separato') : t('Sovrapponi al prezzo')} aria-label={p.ov ? t('Sposta in un pannello separato') : t('Sovrapponi al prezzo')}
             onClick={() => patch(p.id, (x) => ({ ...x, ov: !x.ov, h: x.ov ? (x.h || 110) : x.h }))}>{p.ov ? <LayoutPanelTop size={13} /> : <Layers size={13} />}</button>
         )}
@@ -274,13 +274,13 @@ function Workspace({ catalog }: { catalog: ScCatalog }) {
           const v = ser.cols[c.key]?.[idx]
           if (compactMode && k > 0 && def.cols.length > 2) return null
           return (
-            <span key={c.key} className="tnum whitespace-nowrap text-slate-400">
+            <span key={c.key} className="tnum whitespace-nowrap text-fg-3">
               {def.cols.length > 1 && <span style={{ color: ep?.series[k]?.color }}>{c.label} </span>}
-              <b className="font-medium text-slate-100">{v == null ? '—' : def.fmt(v)}</b>
+              <b className="font-medium text-fg">{v == null ? '—' : def.fmt(v)}</b>
             </span>
           )
         })}
-        {lagged && <span className="hidden whitespace-nowrap text-slate-500 sm:inline">{t('dato del {d}', { d: date(o, new Date(o! * 1000).getUTCFullYear() !== new Date(data!.t[idx] * 1000).getUTCFullYear()) })}</span>}
+        {lagged && <span className="hidden whitespace-nowrap text-fg-4 sm:inline">{t('dato del {d}', { d: date(o, new Date(o! * 1000).getUTCFullYear() !== new Date(data!.t[idx] * 1000).getUTCFullYear()) })}</span>}
         {a && <AnomalyChip a={a} how={catMap[p.id]?.anom_how ?? null} fmt={def.fmt} />}
       </>
     )
@@ -297,12 +297,12 @@ function Workspace({ catalog }: { catalog: ScCatalog }) {
     const color = paneColor(panes.findIndex((x) => x.id === key))
     return (
       <div className="flex min-w-0 items-start gap-2 px-1.5 pt-1 text-2xs sm:text-xs">
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 rounded-md bg-surface/70 px-1 backdrop-blur-[2px]">
-          <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 font-medium text-slate-200">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 rounded-md bg-surface/90 px-1">
+          <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 font-medium text-fg">
             <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: color }} /><span className="truncate">{defs[p.id]?.label ?? p.id}</span>
           </span>
-          {na ? <span className="text-slate-500">{t('Non disponibile su questo timeframe')}</span>
-            : err ? <span className="text-amber-400">{t('Dati non disponibili')}</span> : valuesAt(p, mobile)}
+          {na ? <span className="text-fg-4">{t('Non disponibile su questo timeframe')}</span>
+            : err ? <span className="text-warn">{t('Dati non disponibili')}</span> : valuesAt(p, mobile)}
         </span>
         {paneControls(p, i, sepPanes.length)}
       </div>
@@ -315,23 +315,23 @@ function Workspace({ catalog }: { catalog: ScCatalog }) {
     const chg = ok && prevC ? ((cd!.c[idx] - prevC) / prevC) * 100 : null
     return (
       <div className="flex min-w-0 flex-col gap-1 px-1.5 pt-1 text-xs">
-        <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md bg-surface/70 px-1 backdrop-blur-[2px]">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md bg-surface/90 px-1">
           <span className="font-semibold text-white">BTC · {tfLabel(tf)}</span>
           {ok && (
-            <span className="tnum flex flex-wrap gap-x-2.5 text-slate-400">
-              {!mobile && <span>{t('A')} <b className="font-medium text-slate-200">{usd(cd!.o[idx])}</b></span>}
-              {!mobile && <span>{t('Max')} <b className="font-medium text-slate-200">{usd(cd!.h[idx])}</b></span>}
-              {!mobile && <span>{t('Min')} <b className="font-medium text-slate-200">{usd(cd!.l[idx])}</b></span>}
-              <span>{t('C')} <b className="font-medium text-slate-200">{usd(cd!.c[idx])}</b></span>
+            <span className="tnum flex flex-wrap gap-x-2.5 text-fg-3">
+              {!mobile && <span>{t('A')} <b className="font-medium text-fg">{usd(cd!.o[idx])}</b></span>}
+              {!mobile && <span>{t('Max')} <b className="font-medium text-fg">{usd(cd!.h[idx])}</b></span>}
+              {!mobile && <span>{t('Min')} <b className="font-medium text-fg">{usd(cd!.l[idx])}</b></span>}
+              <span>{t('C')} <b className="font-medium text-fg">{usd(cd!.c[idx])}</b></span>
               {chg != null && <b className={chg >= 0 ? 'font-medium text-up' : 'font-medium text-down'}>{pct(chg)}</b>}
             </span>
           )}
-          {ok && <span className="tnum hidden text-slate-500 md:inline">{dateTime(data!.t[idx])}</span>}
+          {ok && <span className="tnum hidden text-fg-4 md:inline">{dateTime(data!.t[idx])}</span>}
         </span>
         {ovPanes.map((p) => (
           <span key={p.id} className="flex min-w-0 items-start gap-2">
-            <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 rounded-md bg-surface/70 px-1 backdrop-blur-[2px]">
-              <span className="inline-flex items-center gap-1.5 font-medium text-slate-300">
+            <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 rounded-md bg-surface/90 px-1">
+              <span className="inline-flex items-center gap-1.5 font-medium text-fg-2">
                 <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: paneColor(panes.findIndex((x) => x.id === p.id)) }} />
                 {/* phones: one short line, so the overlay legend covers less of the 300 px price chart */}
                 <span className={mobile ? 'max-w-[6.5rem] truncate' : undefined} title={defs[p.id]?.label ?? p.id}>{defs[p.id]?.label ?? p.id}</span>
@@ -356,17 +356,14 @@ function Workspace({ catalog }: { catalog: ScCatalog }) {
   return (
     <div className="flex flex-col gap-3">
       <Card className="overflow-visible">
-        <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2.5 sm:px-4">
+        <PageActions>
           <Segmented value={tf} onChange={(v) => { setTf(v); if (replay) setAnchorTo(Math.min(Math.floor(Date.now() / 1000), replay.cursorT + FWD_BARS * ({ '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 } as const)[v])) }} options={TFS.map((v) => ({ value: v, label: tfLabel(v) }))} />
           <IndicatorLibrary catalog={catalog.indicators} panes={panes} tf={tf} onToggle={toggleInd} defs={defs} />
           <Toggle on={log} onClick={() => setLog(!log)}>Log</Toggle>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="label hidden sm:inline">{t('Anomalie')} |z| ≥</span>
-            <span className="label sm:hidden">|z| ≥</span>
-            <Segmented value={z} onChange={setZ} options={Z_OPTS.map((v) => ({ value: v, label: String(v) }))} />
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            {copied && <span className="text-xs text-slate-400" role="status">{t('Link copiato')}</span>}
+          <SettingsPanel>
+            <SettingRow label={<>{t('Anomalie')} |z| ≥</>}><Segmented value={z} onChange={setZ} options={Z_OPTS.map((v) => ({ value: v, label: String(v) }))} /></SettingRow>
+          </SettingsPanel>
+            {copied && <span className="text-xs text-fg-3" role="status">{t('Link copiato')}</span>}
             {!replay && <button type="button" onClick={startReplay} disabled={!data} className="btn-ghost h-8 sm:h-7"><History size={14} />Replay</button>}
             <LayoutMenu current={{ ...sel, name: selName }} layouts={userLayouts} dirty={dirty} busy={muts.create.isPending || muts.update.isPending || muts.remove.isPending}
               onPick={(kind, id) => {
@@ -377,26 +374,25 @@ function Workspace({ catalog }: { catalog: ScCatalog }) {
               onUpdate={() => sel.kind === 'user' && sel.id && muts.update.mutate({ id: sel.id, state })}
               onDelete={() => sel.kind === 'user' && sel.id && muts.remove.mutate(sel.id, { onSuccess: () => setSel({ kind: 'custom' }) })}
               onShare={share} />
-          </div>
-        </div>
+        </PageActions>
         {replay && (
           <ReplayBar cursorT={replay.cursorT} playing={replay.playing} speed={replay.speed} atEnd={atEnd} minDate={data?.window.first ?? null}
             onPlay={() => { lastStep.current = 0; setReplay((r) => (r ? { ...r, playing: !r.playing } : r)) }} onStep={(d) => { setReplay((r) => (r ? { ...r, playing: false } : r)); stepBy(d) }}
             onSpeed={(s) => setReplay((r) => (r ? { ...r, speed: s } : r))} onDate={replayDate} onExit={exitReplay} />
         )}
-        <div className={clsx('px-1 pb-2 pt-2 sm:px-2', replay && 'ring-1 ring-inset ring-amber-400/15')}>
+        <div className={clsx('px-1 pb-2 pt-2 sm:px-2', replay && 'ring-1 ring-inset ring-warn/15')}>
           {data && candles && ts.length ? (
             <SuperChart t={data.t} candles={candles} end={end} panes={shownPanes} log={log} mainH={mainH}
               fitKey={`${tf}|${replay ? 'r' + Math.floor(replay.cursorT / 1e5) : 'live'}|${data.window.i1 - data.window.i0}`}
               onHover={setHover} onResize={mobile ? undefined : onResize} header={mainHeader} paneHeader={paneHeader} liveBar={liveMerged} />
           ) : q.isError ? (
-            <p className="py-20 text-center text-sm text-slate-400">{t('Dati del grafico non disponibili. Riprova tra poco.')}</p>
+            <p className="py-20 text-center text-sm text-fg-3">{t('Dati del grafico non disponibili. Riprova tra poco.')}</p>
           ) : (
             <Skeleton style={{ height: mainH + panes.filter((p) => !p.ov).reduce((s, p) => s + p.h, 0) }} />
           )}
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1.5 pt-2 text-2xs text-slate-500">
-            <span className="tnum">{windowInfo}{q.isFetching && <span className="ml-2 text-slate-600">{t('aggiornamento…')}</span>}</span>
-            <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer" className="hover:text-slate-400">{t('Grafico: TradingView Lightweight Charts™')}</a>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1.5 pt-2 text-2xs text-fg-4">
+            <span className="tnum">{windowInfo}{q.isFetching && <span className="ml-2 text-fg-off">{t('aggiornamento…')}</span>}</span>
+            <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer" className="hover:text-fg-3">{t('Grafico: TradingView Lightweight Charts™')}</a>
           </div>
         </div>
       </Card>

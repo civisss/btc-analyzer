@@ -101,7 +101,7 @@ function StateCard({ x }: { x: TfStructure }) {
               <span className="tnum text-sm font-medium text-white">{r.position.toFixed(0)}%</span>
             </div>
             <ProgressBar value={r.position} />
-            <div className="tnum mt-1 flex justify-between text-2xs text-slate-500"><span>{usd(r.low)}</span><span>{usd(r.mid)}</span><span>{usd(r.high)}</span></div>
+            <div className="tnum mt-1 flex justify-between text-2xs text-fg-4"><span>{usd(r.low)}</span><span>{usd(r.mid)}</span><span>{usd(r.high)}</span></div>
           </div>
         )}
         {r && (
@@ -128,7 +128,7 @@ function RangeCell({ k, v, sub }: { k: ReactNode; v: ReactNode; sub?: ReactNode 
     <div className="min-w-0 px-3 py-2">
       <div className="label truncate">{k}</div>
       <div className="tnum mt-0.5 truncate text-base font-semibold text-white">{v}</div>
-      {sub && <div className="tnum truncate text-xs text-slate-400">{sub}</div>}
+      {sub && <div className="tnum truncate text-xs text-fg-3">{sub}</div>}
     </div>
   )
 }
@@ -147,10 +147,10 @@ function StructureCard({ d }: { d: StructureRanges }) {
                 const s = d.timeframes[tf].structure
                 return (
                   <tr key={tf}>
-                    <td className="pl-4 text-slate-200 sm:pl-5">{tr(...TF_NAME[tf])} <span className="text-xs text-slate-500">{tfLabel(tf)}</span></td>
+                    <td className="pl-4 text-fg sm:pl-5">{tr(...TF_NAME[tf])} <span className="text-xs text-fg-4">{tfLabel(tf)}</span></td>
                     <td><ToneBadge tone={s.trend} label={cap(s.trend_label)} /></td>
-                    <td className="text-slate-300">{s.swings.filter((w) => w.label).slice(-4).map((w) => `${w.label} ${usd(w.price)}${w.confirmed ? '' : '*'}`).join(' · ')}</td>
-                    <td className="text-slate-300">{s.last_event ? `${s.last_event.label} · ${date(s.last_event.time)}` : '—'}</td>
+                    <td className="text-fg-2">{s.swings.filter((w) => w.label).slice(-4).map((w) => `${w.label} ${usd(w.price)}${w.confirmed ? '' : '*'}`).join(' · ')}</td>
+                    <td className="text-fg-2">{s.last_event ? `${s.last_event.label} · ${date(s.last_event.time)}` : '—'}</td>
                     <td className="pr-4 text-right sm:pr-5">{usd(s.last_event?.level)}</td>
                   </tr>
                 )
@@ -158,7 +158,7 @@ function StructureCard({ d }: { d: StructureRanges }) {
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-slate-400">{t('* Swing in formazione, non ancora confermato.')}</p>
+        <p className="mt-2 text-xs text-fg-3">{t('* Swing in formazione, non ancora confermato.')}</p>
       </CardBody>
     </Card>
   )
@@ -254,8 +254,8 @@ function FirstWeekCard({ p }: { p: StructurePivots }) {
           {rows.map((r) => (
             <div key={r.k}>
               <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
-                <span className="min-w-0 text-slate-400">{t(r.k)}</span>
-                <span className="tnum whitespace-nowrap font-medium text-white">{rt(r.v)}{r.n != null && <span className="ml-1.5 text-xs font-normal text-slate-500">n {r.n}</span>}</span>
+                <span className="min-w-0 text-fg-3">{t(r.k)}</span>
+                <span className="tnum whitespace-nowrap font-medium text-white">{rt(r.v)}{r.n != null && <span className="ml-1.5 text-xs font-normal text-fg-4">n {r.n}</span>}</span>
               </div>
               <ProgressBar value={fin(r.v) ? r.v : 0} />
             </div>
@@ -282,7 +282,7 @@ function PivotTab() {
             <div className="grid gap-3 xl:grid-cols-3 2xl:grid-cols-4">
               <Card className="flex flex-col xl:col-span-2 2xl:col-span-3">
                 <CardHeader icon={<CalendarClock />} updatedAt={q.dataUpdatedAt} title={t('Range del lunedì e aperture')} subtitle={t('{tf} · settimana precedente e corrente (UTC)', { tf: tfLabel('1h') })}
-                  info={t('Linee piene: massimo e minimo del lunedì corrente; tratteggio scuro: lunedì precedente; tratteggio blu: apertura settimanale. Le linee orizzontali grigie sono apertura mensile/annuale e massimi/minimi della settimana e del mese precedenti.')} />
+                  info={t('Linee piene: massimo e minimo del lunedì corrente; tratteggio scuro: lunedì precedente; tratteggio arancione: apertura settimanale. Le linee orizzontali grigie sono apertura mensile/annuale e massimi/minimi della settimana e del mese precedenti.')} />
                 <CardBody className="flex flex-col"><Fill min={440}><OpeningChart p={p} height="100%" /></Fill></CardBody>
               </Card>
               <Card className="flex flex-col">
@@ -295,7 +295,7 @@ function PivotTab() {
                       <Sub>{t('Settimana precedente')}</Sub>
                       <KV k={t('Range del lunedì')}>{usd(m.previous.low)}–{usd(m.previous.high)}</KV>
                       <KV k={tr('Chiusura', 'Close')}>{usd(m.previous.close)}</KV>
-                      <p className="mt-1 text-xs text-slate-400">{cap(m.previous.text)}</p>
+                      <p className="mt-1 text-xs text-fg-3">{cap(m.previous.text)}</p>
                     </div>
                   )}
                   <div>
@@ -308,7 +308,7 @@ function PivotTab() {
               </Card>
             </div>
             {/* the two statistics tables need ~700px each: side by side only from 1700px */}
-            <div className="grid items-start gap-3 min-[1700px]:grid-cols-2">
+            <div className="grid gap-3 min-[1700px]:grid-cols-2">
               <Card>
                 <CardHeader icon={<Crosshair />} title={t('Rottura del range del lunedì')} subtitle={t('Cosa succede dopo la rottura del massimo o del minimo')}
                   info={t('Il «movimento inverso» di KillaXBT: dopo che il massimo (minimo) del lunedì viene preso, quanto spesso il prezzo rientra nel range e si muove di almeno 2–3% dal livello rotto nella direzione opposta entro la domenica. Tra parentesi il 75° percentile.')} />
@@ -339,7 +339,7 @@ function PivotTab() {
               </Card>
             </div>
             {/* side by side only when the 9-column table fits without horizontal scrolling */}
-            <div className="grid items-start gap-3 min-[1700px]:grid-cols-3">
+            <div className="grid gap-3 min-[1700px]:grid-cols-3">
               <Card className="min-[1700px]:col-span-2">
                 <CardHeader icon={<BarChart3 />} title={t('Chiusure settimanali')} subtitle={t('Rendimenti mediani dopo la chiusura · {n} settimane dal 2012', { n: wc.weeks })}
                   info={t('Settimane lunedì–domenica (UTC). «Sweep del minimo precedente e chiusura sopra» = la settimana scende sotto il minimo (wick) della precedente ma chiude sopra: la lettura di KillaXBT delle chiusure sopra i minimi precedenti.')} />
@@ -374,21 +374,21 @@ function ScenarioCard({ s, history }: { s: Scenario; history: Candle[] }) {
       <CardBody className="flex flex-col gap-4">
         <div className={clsx(TILE, 'p-3')}>
           <Sub>{tr('Condizione', 'Condition')}</Sub>
-          <p className="text-sm text-slate-200">{cap(s.trigger.text)}</p>
-          {fin(s.trigger.level) && <p className="tnum mt-0.5 text-xs text-slate-400">{t(COND[s.trigger.condition])} {usd(s.trigger.level)} · {tfLabel(s.trigger.tf)}</p>}
+          <p className="text-sm text-fg">{cap(s.trigger.text)}</p>
+          {fin(s.trigger.level) && <p className="tnum mt-0.5 text-xs text-fg-3">{t(COND[s.trigger.condition])} {usd(s.trigger.level)} · {tfLabel(s.trigger.tf)}</p>}
         </div>
         <PathSketch s={s} history={history} />
         <div>
           <Sub>{tr('Percorso', 'Path')}</Sub>
           {s.targets.length ? s.targets.map((x) => (
-            <div key={x.price} className="border-t border-white/[0.05] py-1.5 first:border-t-0">
+            <div key={x.price} className="border-t border-line-subtle py-1.5 first:border-t-0">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="min-w-0 truncate text-slate-200">{cap(x.label)}</span>
+                <span className="min-w-0 truncate text-fg">{cap(x.label)}</span>
                 <span className="tnum whitespace-nowrap font-medium text-white">{usd(x.price)} <span className="ml-1 text-xs font-normal">{dist(x.distance)}</span></span>
               </div>
-              <p className="truncate text-xs text-slate-400" title={x.reasons.join(' · ')}>{cap(x.reasons.join(' · '))}</p>
+              <p className="truncate text-xs text-fg-3" title={x.reasons.join(' · ')}>{cap(x.reasons.join(' · '))}</p>
             </div>
-          )) : <p className="text-sm text-slate-400">{t('Nessun livello chiaro nel raggio considerato')}</p>}
+          )) : <p className="text-sm text-fg-3">{t('Nessun livello chiaro nel raggio considerato')}</p>}
         </div>
         <div className="dgrid -mx-1 grid-cols-1 sm:grid-cols-2">
           <div className="min-w-0 px-3 py-2.5">
@@ -396,14 +396,14 @@ function ScenarioCard({ s, history }: { s: Scenario; history: Candle[] }) {
             {s.probability ? (
               <>
                 <div className="tnum mt-1 text-xl font-semibold text-white">{rt(s.probability.value)}</div>
-                <div className="truncate text-xs text-slate-400">{s.probability.n != null ? `${t('{n} casi', { n: s.probability.n })} · ${tfLabel(s.probability.tf)}` : tfLabel(s.probability.tf)}</div>
+                <div className="truncate text-xs text-fg-3">{s.probability.n != null ? `${t('{n} casi', { n: s.probability.n })} · ${tfLabel(s.probability.tf)}` : tfLabel(s.probability.tf)}</div>
               </>
-            ) : <p className="mt-1 text-sm text-slate-400">{t('Non calcolabile per questa condizione')}</p>}
+            ) : <p className="mt-1 text-sm text-fg-3">{t('Non calcolabile per questa condizione')}</p>}
           </div>
           <div className="min-w-0 px-3 py-2.5">
             <div className="label">{tr('Invalidazione', 'Invalidation')}</div>
             <div className="tnum mt-1 text-xl font-semibold text-white">{fin(s.invalidation.price) ? usd(s.invalidation.price) : '—'}</div>
-            <div className="line-clamp-2 text-xs text-slate-400" title={cap(s.invalidation.text)}>{cap(s.invalidation.text)}</div>
+            <div className="line-clamp-2 text-xs text-fg-3" title={cap(s.invalidation.text)}>{cap(s.invalidation.text)}</div>
           </div>
         </div>
         {s.probability?.text && <MoreList items={sentences(s.probability.text)} max={2} />}
@@ -411,18 +411,18 @@ function ScenarioCard({ s, history }: { s: Scenario; history: Candle[] }) {
         <div>
           <Sub>{t('Finestre temporali')}</Sub>
           {s.timing.length ? s.timing.map((x) => (
-            <KV key={x.time} k={cap(x.title)}>{x.label} <span className="ml-1 text-xs font-normal text-slate-400">{fin(x.confluence) ? t('Confl. {n}', { n: x.confluence.toFixed(0) }) : ''}</span></KV>
-          )) : <p className="text-sm text-slate-400">{t('Nessuna finestra temporale rilevante per questo scenario')}</p>}
+            <KV key={x.time} k={cap(x.title)}>{x.label} <span className="ml-1 text-xs font-normal text-fg-3">{fin(x.confluence) ? t('Confl. {n}', { n: x.confluence.toFixed(0) }) : ''}</span></KV>
+          )) : <p className="text-sm text-fg-3">{t('Nessuna finestra temporale rilevante per questo scenario')}</p>}
         </div>
         {(s.supports.length > 0 || s.against.length > 0) && (
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Sub>{t('A favore')}</Sub>
-              <ul className="flex list-disc flex-col gap-0.5 pl-4 text-xs text-slate-300 marker:text-up">{s.supports.length ? s.supports.map((x) => <li key={x}>{cap(x)}</li>) : <li className="text-slate-400">—</li>}</ul>
+              <ul className="flex list-disc flex-col gap-0.5 pl-4 text-xs text-fg-2 marker:text-accent">{s.supports.length ? s.supports.map((x) => <li key={x}>{cap(x)}</li>) : <li className="text-fg-3">—</li>}</ul>
             </div>
             <div>
               <Sub>{tr('Contro', 'Against')}</Sub>
-              <ul className="flex list-disc flex-col gap-0.5 pl-4 text-xs text-slate-300 marker:text-down">{s.against.length ? s.against.map((x) => <li key={x}>{cap(x)}</li>) : <li className="text-slate-400">—</li>}</ul>
+              <ul className="flex list-disc flex-col gap-0.5 pl-4 text-xs text-fg-2 marker:text-fg-4">{s.against.length ? s.against.map((x) => <li key={x}>{cap(x)}</li>) : <li className="text-fg-3">—</li>}</ul>
             </div>
           </div>
         )}
@@ -457,7 +457,7 @@ function ScenariosBody({ d, updatedAt }: { d: StructureScenarios; updatedAt: num
         <CardBody><MoreList items={sentences(d.summary)} /></CardBody>
       </Card>
       {d.scenarios.length ? (
-        <div className={clsx('grid gap-3', d.scenarios.length >= 3 ? 'lg:grid-cols-2 2xl:grid-cols-3' : 'xl:grid-cols-2')}>
+        <div className={clsx('grid gap-3', d.scenarios.length >= 3 ? 'grid-odd-fill lg:grid-cols-2 xl:grid-cols-3' : 'xl:grid-cols-2')}>
           {d.scenarios.map((s) => <ScenarioCard key={s.id} s={s} history={hist} />)}
         </div>
       ) : <Card><CardBody className="pt-5"><EmptyState text={t('Nessuno scenario costruibile con i dati attuali')} /></CardBody></Card>}
@@ -473,9 +473,9 @@ function ScenariosBody({ d, updatedAt }: { d: StructureScenarios; updatedAt: num
                   <tr key={l.price}>
                     <td className="pl-4 text-right font-medium text-white sm:pl-5">{usd(l.price)}</td>
                     <td className="text-right">{dist(l.distance)}</td>
-                    <td className="text-slate-200">{tfIn(cap(l.label))}</td>
-                    <td><div className="flex w-36 items-center gap-2"><ProgressBar value={(l.weight / maxW) * 100} /><span className="tnum whitespace-nowrap text-xs text-slate-400">{l.reasons.length === 1 ? t('1 fonte') : t('{n} fonti', { n: l.reasons.length })}</span></div></td>
-                    <td className="max-w-[640px] truncate pr-4 text-slate-400 sm:pr-5" title={l.reasons.join(' · ')}>{cap(l.reasons.join(' · '))}</td>
+                    <td className="text-fg">{tfIn(cap(l.label))}</td>
+                    <td><div className="flex w-36 items-center gap-2"><ProgressBar value={(l.weight / maxW) * 100} /><span className="tnum whitespace-nowrap text-xs text-fg-3">{l.reasons.length === 1 ? t('1 fonte') : t('{n} fonti', { n: l.reasons.length })}</span></div></td>
+                    <td className="max-w-[540px] truncate pr-4 text-fg-3 sm:pr-5" title={l.reasons.join(' · ')}>{cap(l.reasons.join(' · '))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -483,7 +483,7 @@ function ScenariosBody({ d, updatedAt }: { d: StructureScenarios; updatedAt: num
           </div>
         </CardBody>
       </Card>
-      <p className="text-xs text-slate-500">{d.disclaimer}</p>
+      <p className="text-xs text-fg-4">{d.disclaimer}</p>
       <MethodNote><p>{d.method}</p></MethodNote>
     </div>
   )
@@ -499,7 +499,7 @@ export default function StructurePage() {
   const [tab, setTab] = useTab<TabId>(TAB_IDS, 'range')
   return (
     <div>
-      <PageTitle title={t('Struttura e livelli')} subtitle={t('Range, sweep, pivot di apertura e scenari condizionali.')} />
+      <PageTitle title={t('Struttura')} subtitle={t('Range, sweep, pivot di apertura e scenari condizionali.')} />
       <TabBar tabs={TABS.map((x) => ({ value: x.value, label: t(x.label) }))} value={tab} onChange={setTab} />
       {tab === 'range' && <RangeTab />}
       {tab === 'pivot' && <PivotTab />}

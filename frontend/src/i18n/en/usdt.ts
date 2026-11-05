@@ -4,9 +4,6 @@ const en: Record<string, string> = {
   Panoramica: 'Overview',
   'Analoghi USDT': 'USDT analogs',
   Stablecoin: 'Stablecoins',
-  'Dominance di Tether e prezzo di Bitcoin: correlazioni, anticipo, livelli.': 'Tether dominance and Bitcoin price: correlations, lead/lag, levels.',
-  'Periodi storici in cui la USDT dominance aveva la stessa forma di oggi.': 'Historical periods when USDT dominance had the same shape as today.',
-  'Liquidità delle stablecoin: supply, dominance, SSR ed effetto su BTC.': 'Stablecoin liquidity: supply, dominance, SSR and the effect on BTC.',
   'Mostra meno': 'Show less',
   'Mostra tutti ({n})': 'Show all ({n})',
   Live: 'Live',
@@ -32,8 +29,8 @@ const en: Record<string, string> = {
   '1 anno': '1 year',
   'Anticipo / ritardo': 'Lead / lag',
   'Lag positivo = USDT.D anticipa BTC · migliore {n}': 'Positive lag = USDT.D leads BTC · best {n}',
-  'Correlazione tra i rendimenti di BTC e quelli della USDT.D spostati di N giorni. La barra blu è il lag con la correlazione più forte.':
-    'Correlation between BTC returns and USDT.D returns shifted by N days. The blue bar is the lag with the strongest correlation.',
+  'Correlazione tra i rendimenti di BTC e quelli della USDT.D spostati di N giorni. La barra arancione è il lag con la correlazione più forte.':
+    'Correlation between BTC returns and USDT.D returns shifted by N days. The orange bar is the lag with the strongest correlation.',
   'Livelli USDT.D': 'USDT.D levels',
   'Zone di rifiuto storiche · distanza in pt': 'Historical rejection zones · distance in pt',
   Resistenza: 'Resistance',
@@ -46,8 +43,6 @@ const en: Record<string, string> = {
   'Esito BTC': 'BTC outcome',
   // analogs: params
   Parametri: 'Parameters',
-  'Frattali storici della USDT dominance': 'Historical fractals of USDT dominance',
-  'Calcolo in corso…': 'Computing…',
   Timeframe: 'Timeframe',
   'Finestra attuale (candele)': 'Current window (candles)',
   'Orizzonte (candele dopo)': 'Horizon (candles after)',
@@ -142,10 +137,7 @@ const en: Record<string, string> = {
   // mirror
   'Specchio BTC ↔ USDT.D': 'BTC ↔ USDT.D mirror',
   'Stato attuale: {s}': 'Current state: {s}',
-  Forte: 'Strong',
-  Moderato: 'Moderate',
   Rotto: 'Broken',
-  'N/d': 'N/a',
   'Intensità dello specchio': 'Mirror strength',
   '−correlazione a {n} giorni · ultimi 2 anni': '−{n}-day correlation · last 2 years',
   "Correlazione negativa dei rendimenti giornalieri di BTC e USDT.D: 1 = specchio perfetto (quando una sale l'altra scende).":
@@ -176,8 +168,6 @@ const en: Record<string, string> = {
   'EMA 50/200, RSI 14 e zone di rifiuto': 'EMA 50/200, RSI 14 and rejection zones',
   Trend: 'Trend',
   Laterale: 'Sideways',
-  Ipercomprato: 'Overbought',
-  Ipervenduto: 'Oversold',
   Neutra: 'Neutral',
   'Zone della USDT.D': 'USDT.D zones',
   'Reazione di BTC dopo i rifiuti della dominance': 'BTC reaction after dominance rejections',
@@ -206,8 +196,8 @@ const en: Record<string, string> = {
   'Variazione netta della supply · ultime 104 settimane': 'Net supply change · last 104 weeks',
   'Emissione vs rendimenti BTC': 'Issuance vs BTC returns',
   'Correlazione a 4 settimane · lag in settimane': '4-week correlation · lag in weeks',
-  "Lag positivo = l'emissione di stablecoin anticipa i rendimenti di BTC. La barra blu è il lag con la correlazione più forte.":
-    'Positive lag = stablecoin issuance leads BTC returns. The blue bar is the lag with the strongest correlation.',
+  "Lag positivo = l'emissione di stablecoin anticipa i rendimenti di BTC. La barra arancione è il lag con la correlazione più forte.":
+    'Positive lag = stablecoin issuance leads BTC returns. The orange bar is the lag with the strongest correlation.',
   'sett.': 'wk',
   'Regime (dal 2020)': 'Regime (since 2020)',
   Positivi: 'Positive',

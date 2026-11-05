@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiquidations } from '../api/client'
 import { live, useLive, type LiveLiq } from '../api/live'
 import type { LiqExchange, LiqRange, Liquidations } from '../api/types'
-import { Card, CardBody, CardHeader, EmptyState, Fill, KpiCell, KpiStrip, PageTitle, ProgressBar, Q, Segmented, Skeleton, clsx } from '../components/ui'
+import { Card, CardBody, CardHeader, EmptyState, Fill, KpiCell, KpiStrip, ProgressBar, Q, Segmented, Skeleton, clsx } from '../components/ui'
 import { LiqHeatmapChart } from '../widgets/charts'
+import { LeverageMapCard } from '../widgets/liqLeverage'
 import { EX_NAME, ExchangeBadge } from '../widgets/derivPro'
 import { date, dateTime, int, pct, time, usd, usdCompact as usdC } from '../lib/format'
 import { usePrice, useThrottledPrice } from '../widgets/hooks'
@@ -43,7 +44,7 @@ function Side({ side, className }: { side: 'long' | 'short'; className?: string 
 
 function ShowAll({ open, total, onClick }: { open: boolean; total: number; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="link mt-2 h-8 px-3">
+    <button type="button" onClick={onClick} className="link mt-2 h-8">
       {open ? t('Mostra meno') : t('Mostra tutti ({n})', { n: total })}
     </button>
   )
@@ -84,14 +85,13 @@ export default function LiquidationsPage() {
 
   return (
     <div>
-      <PageTitle title={t('Liquidazioni')} subtitle={t('Livelli di liquidazione stimati, cluster vicini al prezzo e flusso in tempo reale.')} />
 
       {/* toasts for large liquidations */}
       <div className="pointer-events-none fixed right-4 top-20 z-50 flex w-72 flex-col gap-2">
         {toasts.map((x) => (
           <div key={x.key} className="pointer-events-auto rounded-md border border-line bg-raised px-3 py-2 shadow-pop" style={{ animation: 'bubbleIn 6s ease forwards' }}>
             <div className="label flex items-center gap-2">{t('Grande liquidazione')} <ExchangeBadge ex={x.exchange} /></div>
-            <div className="tnum mt-1 text-sm text-slate-300">
+            <div className="tnum mt-1 text-sm text-fg-2">
               <Side side={x.side} /> <span className="font-semibold text-white">{usdCompact(x.usd)}</span> {tr('a', 'at')} <span className="text-white">{usd(x.price)}</span>
             </div>
           </div>
@@ -116,13 +116,14 @@ export default function LiquidationsPage() {
           const ref = price ?? null
           const distOf = (c: { price: number; distance: number }) => (ref ? (c.price / ref - 1) * 100 : c.distance)
           const near = d.clusters.filter((c) => Math.abs(distOf(c)) <= 5)
-          const nearL = near.filter((c) => c.side === 'long').reduce((a, c) => a + c.usd, 0)
-          const nearS = near.filter((c) => c.side === 'short').reduce((a, c) => a + c.usd, 0)
+          const nearL = d.near?.long ?? near.filter((c) => c.side === 'long').reduce((a, c) => a + c.usd, 0)
+          const nearS = d.near?.short ?? near.filter((c) => c.side === 'short').reduce((a, c) => a + c.usd, 0)
+          const hasNear = nearL + nearS > 0
           const nearest = [...d.clusters].sort((a, b) => Math.abs(distOf(a)) - Math.abs(distOf(b)))[0]
           return (
             <div className="flex flex-col gap-3">
-              <div className="flex items-start gap-2 rounded-2xl border border-line bg-surface px-4 py-2.5 text-xs leading-relaxed text-slate-300">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+              <div className="flex items-start gap-2 rounded-2xl border border-line bg-surface px-4 py-2.5 text-xs leading-relaxed text-fg-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />
                 <span>
                   {t('Liquidazioni reali da Binance, Bybit e OKX (perpetui BTC). In raccolta: {l}.', {
                     l: EXS.map((x) => `${EX_NAME[x]} ${tot.by_exchange?.[x]?.collecting_since ? t('dal {d}', { d: dateTime(tot.by_exchange[x]!.collecting_since) }) : t('in avvio')}`).join(' · '),
@@ -138,8 +139,8 @@ export default function LiquidationsPage() {
                 <KpiCell icon={<ArrowUpRight />} label={t('Short liquidati 24h')} value={usdCompact(s24, 1)} foot={full24 && longShare != null ? t('{p}% del totale 24h', { p: (100 - longShare).toFixed(0) }) : t('Solo periodo raccolto')} />
                 {has7d && <KpiCell icon={<CalendarDays />} label={t('Long liquidati 7g')} value={usdCompact(tot.long_7d, 1)} foot={t('Ultimi 7 giorni')} />}
                 {has7d && <KpiCell icon={<CalendarDays />} label={t('Short liquidati 7g')} value={usdCompact(tot.short_7d, 1)} foot={t('Ultimi 7 giorni')} />}
-                <KpiCell icon={<ShieldAlert />} label={t('A rischio entro ±5%')} value={near.length ? usdCompact(nearL + nearS, 1) : '—'}
-                  foot={near.length ? <span className="tnum">Long {usdCompact(nearL, 1)} · Short {usdCompact(nearS, 1)}</span> : t('Nessun cluster')} />
+                <KpiCell icon={<ShieldAlert />} label={t('A rischio entro ±5%')} value={hasNear ? usdCompact(nearL + nearS, 1) : '—'}
+                  foot={hasNear ? <span className="tnum">Long {usdCompact(nearL, 1)} · Short {usdCompact(nearS, 1)}</span> : t('Nessun cluster')} />
                 <KpiCell icon={<Crosshair />} label={t('Cluster più vicino')} value={nearest ? usd(nearest.price) : '—'}
                   foot={nearest ? <span className="tnum">{nearest.side === 'long' ? 'Long' : 'Short'} {usdCompact(nearest.usd)} · {pct(distOf(nearest), 2)}</span> : undefined} />
                 <KpiCell icon={<Timer />} label={t('Ultima ora (live)')} value={liveTotals.L + liveTotals.S > 0 ? usdCompact(liveTotals.L + liveTotals.S, 1) : '—'}
@@ -162,7 +163,7 @@ export default function LiquidationsPage() {
                       {d.magnet ? (
                         <div>
                           <div className="tnum text-3xl font-semibold text-white">{usd(d.magnet.price)}</div>
-                          <div className="tnum mt-1 text-xs text-slate-400">
+                          <div className="tnum mt-1 text-xs text-fg-3">
                             {usdCompact(d.magnet.usd, 0)} <Side side={d.magnet.side} className="lowercase" />
                             {price ? <> · {t('{p} dal prezzo', { p: pct((d.magnet.price / price - 1) * 100, 2) })}</> : null}
                           </div>
@@ -179,8 +180,8 @@ export default function LiquidationsPage() {
                             {(poolsAll ? pools : pools.slice(0, POOL_ROWS)).map((p, i) => (
                               <div key={i} className="grid min-h-8 grid-cols-[1fr_56px] items-center gap-x-3 border-t border-line py-1.5 first:border-t-0">
                                 <div className="min-w-0">
-                                  <div className="tnum text-sm"><span className="font-medium text-white">{usd(p.price)}</span> <span className="text-xs text-slate-400">{p.kind === 'buy_side' ? 'Buy-side' : 'Sell-side'}</span></div>
-                                  <div className="text-xs text-slate-400">{poolSource(p.source)}</div>
+                                  <div className="tnum text-sm"><span className="font-medium text-white">{usd(p.price)}</span> <span className="text-xs text-fg-3">{p.kind === 'buy_side' ? 'Buy-side' : 'Sell-side'}</span></div>
+                                  <div className="text-xs text-fg-3">{poolSource(p.source)}</div>
                                 </div>
                                 <ProgressBar value={p.strength} className="h-1" />
                               </div>
@@ -193,6 +194,8 @@ export default function LiquidationsPage() {
                   </Card>
                 </div>
               </div>
+
+              <LeverageMapCard />
 
               <div className="grid gap-3 xl:grid-cols-2">
                 <ExchangeTotalsCard d={d} />
@@ -216,7 +219,7 @@ export default function LiquidationsPage() {
                                     <td className="pl-4 font-medium text-white">{usd(c.price)}</td>
                                     <td><Side side={c.side} /></td>
                                     <td className="text-right">{usdCompact(c.usd)}</td>
-                                    <td className="text-right text-slate-300">{pct(dist, 2)}</td>
+                                    <td className="text-right text-fg-2">{pct(dist, 2)}</td>
                                     <td className="pr-4"><ProgressBar value={(c.usd / maxCluster) * 100} className="h-1" /></td>
                                   </tr>
                                 )
@@ -244,11 +247,11 @@ export default function LiquidationsPage() {
                             <tbody>
                               {shownEvents.map((e, i) => (
                                 <tr key={`${e.time}-${e.price}-${e.usd}-${i}`} className={clsx(e.live && i < 3 && 'flash-in')}>
-                                  <td className="pl-4 text-slate-400">{time(e.time)}</td>
+                                  <td className="pl-4 text-fg-3">{time(e.time)}</td>
                                   <td><ExchangeBadge ex={e.exchange} /></td>
                                   <td><Side side={e.side} /></td>
                                   <td className="text-right">{usd(e.price)}</td>
-                                  <td className={clsx('pr-4 text-right', e.usd >= BIG ? 'font-semibold text-white' : 'text-slate-300')}>{usdCompact(e.usd)}</td>
+                                  <td className={clsx('pr-4 text-right', e.usd >= BIG ? 'font-semibold text-white' : 'text-fg-2')}>{usdCompact(e.usd)}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -288,12 +291,12 @@ function ExchangeTotalsCard({ d }: { d: Liquidations }) {
                 const r = by[x]
                 return (
                   <tr key={x}>
-                    <td className="pl-4"><span className="inline-flex items-center gap-2"><ExchangeBadge ex={x} /><span className={clsx('h-1.5 w-1.5 rounded-full', r?.connected ? 'bg-up' : 'bg-amber-400')} title={r?.connected ? t('Stream connesso') : t('Stream non connesso')} /></span></td>
-                    <td className="text-right text-slate-200">{usdCompact(r?.long_24h ?? 0, 1)}</td>
-                    <td className="text-right text-slate-200">{usdCompact(r?.short_24h ?? 0, 1)}</td>
+                    <td className="pl-4"><span className="inline-flex items-center gap-2"><ExchangeBadge ex={x} /><span className={clsx('h-1.5 w-1.5 rounded-full', r?.connected ? 'bg-accent' : 'bg-fg-off')} title={r?.connected ? t('Stream connesso') : t('Stream non connesso')} /></span></td>
+                    <td className="text-right text-fg">{usdCompact(r?.long_24h ?? 0, 1)}</td>
+                    <td className="text-right text-fg">{usdCompact(r?.short_24h ?? 0, 1)}</td>
                     <td className="text-right font-medium text-white">{usdCompact((r?.long_24h ?? 0) + (r?.short_24h ?? 0), 1)}</td>
-                    <td className="text-right text-slate-300 max-[1699px]:hidden">{int(r?.count_24h ?? 0)}</td>
-                    <td className="pr-4 text-slate-400">{r?.collecting_since ? dateTime(r.collecting_since) : t('In avvio')}</td>
+                    <td className="text-right text-fg-2 max-[1699px]:hidden">{int(r?.count_24h ?? 0)}</td>
+                    <td className="pr-4 text-fg-3">{r?.collecting_since ? dateTime(r.collecting_since) : t('In avvio')}</td>
                   </tr>
                 )
               })}
@@ -302,15 +305,15 @@ function ExchangeTotalsCard({ d }: { d: Liquidations }) {
                 <td className="text-right font-semibold text-white">{usdCompact(L, 1)}</td>
                 <td className="text-right font-semibold text-white">{usdCompact(S, 1)}</td>
                 <td className="text-right font-semibold text-white">{usdCompact(L + S, 1)}</td>
-                <td className="text-right text-slate-300 max-[1699px]:hidden">{int(EXS.reduce((a, x) => a + (by[x]?.count_24h ?? 0), 0))}</td>
-                <td className="pr-4 text-slate-400">{d.totals.all_since ? t('Tutti dal {d}', { d: dateTime(d.totals.all_since) }) : '—'}</td>
+                <td className="text-right text-fg-2 max-[1699px]:hidden">{int(EXS.reduce((a, x) => a + (by[x]?.count_24h ?? 0), 0))}</td>
+                <td className="pr-4 text-fg-3">{d.totals.all_since ? t('Tutti dal {d}', { d: dateTime(d.totals.all_since) }) : '—'}</td>
               </tr>
             </tbody>
           </table>
         </div>
         {L + S > 0 && (
-          <div className="mx-4 mt-3 sm:mx-5">
-            <div className="mb-1.5 flex justify-between text-xs text-slate-400">
+          <div className="mt-3">
+            <div className="mb-1.5 flex justify-between text-xs text-fg-3">
               <span>Long <b className="tnum font-medium text-down">{((L / (L + S)) * 100).toFixed(0)}%</b></span>
               <span>Short <b className="tnum font-medium text-up">{((S / (L + S)) * 100).toFixed(0)}%</b></span>
             </div>
@@ -339,10 +342,10 @@ function ModelCard({ d }: { d: Liquidations }) {
               <div key={e.id} className="grid grid-cols-[72px_minmax(48px,1fr)_auto] items-center gap-3 text-sm">
                 <ExchangeBadge ex={e.id} />
                 <ProgressBar value={e.share_pct ?? 0} className="h-1" />
-                <span className="tnum whitespace-nowrap text-right text-xs text-slate-300">{pct(e.share_pct, 1, false)} · {usdCompact(e.oi_usd, 2)} · {e.resolution}</span>
+                <span className="tnum whitespace-nowrap text-right text-xs text-fg-2">{pct(e.share_pct, 1, false)} · {usdCompact(e.oi_usd, 2)} · {e.resolution}</span>
               </div>
             ))}
-            <p className="tnum mt-1 text-xs text-slate-400">
+            <p className="tnum mt-1 text-xs text-fg-3">
               {t('Prima: solo Binance BTCUSDT = {a} dell\'OI dei tre exchange. Ora: {b}. Quota dell\'OI perpetuo globale stimata {c} (CoinGecko).', {
                 a: pct(c.previous_binance_usdt_share_pct, 0, false), b: pct(c.share_of_three_pct, 0, false), c: pct(c.share_of_global_pct, 0, false),
               })}
@@ -352,17 +355,17 @@ function ModelCard({ d }: { d: Liquidations }) {
         {v && (
           <div className="dgrid grid-cols-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
             <div className="min-w-0 px-3 py-2.5"><div className="label truncate">{t('Stato')}</div><div className="mt-1 truncate text-lg font-semibold text-white">{status}</div>
-              <div className="tnum truncate text-xs text-slate-400">{t('{h} ore · {n} eventi', { h: v.hours, n: int(v.events) })}</div></div>
+              <div className="tnum truncate text-xs text-fg-3">{t('{h} ore · {n} eventi', { h: v.hours, n: int(v.events) })}</div></div>
             <div className="min-w-0 px-3 py-2.5"><div className="label truncate">{t('Correlazione oraria')}</div><div className="tnum mt-1 truncate text-lg font-semibold text-white">{v.spearman != null ? (v.spearman < 0 ? '−' : '') + Math.abs(v.spearman).toFixed(2) : '—'}</div>
-              <div className="truncate text-xs text-slate-400">{t('Spearman, modello vs reale')}</div></div>
+              <div className="truncate text-xs text-fg-3">{t('Spearman, modello vs reale')}</div></div>
             <div className="min-w-0 px-3 py-2.5"><div className="label truncate">{t('Ore di picco colte')}</div><div className="tnum mt-1 truncate text-lg font-semibold text-white">{pct(v.peak_hit_pct, 0, false)}</div>
-              <div className="tnum truncate text-xs text-slate-400">{t('{n} ore · per caso {b}', { n: v.peak_hours, b: pct(v.baseline_pct, 0, false) })}</div></div>
+              <div className="tnum truncate text-xs text-fg-3">{t('{n} ore · per caso {b}', { n: v.peak_hours, b: pct(v.baseline_pct, 0, false) })}</div></div>
             <div className="min-w-0 px-3 py-2.5"><div className="label truncate">{t('Nelle zone dense')}</div><div className="tnum mt-1 truncate text-lg font-semibold text-white">{pct(v.price_hit_pct, 0, false)}</div>
-              <div className="tnum truncate text-xs text-slate-400">{t('Per caso {e} · lift {l}', { e: pct(v.price_expected_pct, 0, false), l: v.price_lift != null ? v.price_lift.toFixed(2) + '×' : '—' })}</div></div>
+              <div className="tnum truncate text-xs text-fg-3">{t('Per caso {e} · lift {l}', { e: pct(v.price_expected_pct, 0, false), l: v.price_lift != null ? v.price_lift.toFixed(2) + '×' : '—' })}</div></div>
           </div>
         )}
         {v && (
-          <p className="mt-3 text-xs leading-relaxed text-slate-400">
+          <p className="mt-3 text-xs leading-relaxed text-fg-3">
             {v.status === 'ok' ? t('Campione: {f} → {to}, exchange {x}.', { f: dateTime(v.from), to: dateTime(v.to), x: v.exchanges.map((x) => EX_NAME[x]).join(', ') })
               : t('Campione ancora piccolo ({h} ore, exchange: {x}): i numeri sono indicativi e diventano significativi dopo alcuni giorni di raccolta e almeno un movimento ampio del prezzo.', { h: v.hours, x: v.exchanges.map((x) => EX_NAME[x]).join(', ') || '—' })}
             {' '}{c ? t('Ipotesi: leve {l}; margine di mantenimento {m}; quota long = {s}.', { l: c.assumptions.leverage.map((x) => `${x.lev}× ${x.weight.toFixed(0)}%`).join(', '), m: pct(c.assumptions.mmr_pct, 1, false), s: c.assumptions.long_share }) : ''}

@@ -8,11 +8,11 @@ import { months, t, tr, weekdays } from '../i18n'
 
 type Num = number | null | undefined
 const fin = (v: Num): v is number => typeof v === 'number' && Number.isFinite(v)
-const signCls = (v: Num) => (!fin(v) || v === 0 ? 'text-slate-400' : v > 0 ? 'text-up' : 'text-down')
+const signCls = (v: Num) => (!fin(v) || v === 0 ? 'text-fg-3' : v > 0 ? 'text-up' : 'text-down')
 const pctU = (v: Num, d = 0) => (fin(v) ? `${v.toFixed(d)}%` : '—')
 const ratio = (v: Num) => (fin(v) ? `×${v.toFixed(2)}` : '—')
 /** Inner tile surface used inside cards. */
-export const TILE = 'rounded-xl border border-white/[0.06] bg-white/[0.02]'
+export const TILE = 'tile'
 
 export function whenLabel(days: number): string {
   if (days <= 0) return tr('Oggi', 'Today')
@@ -23,7 +23,7 @@ export function whenLabel(days: number): string {
 
 export function QualityTag({ q, label }: { q: 'esatta' | 'regola' | 'stimata'; label?: string }) {
   if (q === 'esatta') return null
-  return <Badge className={q === 'stimata' ? '!text-amber-300 !ring-amber-400/25' : undefined}>{label ?? (q === 'stimata' ? t('Data stimata') : t('Da regola'))}</Badge>
+  return <Badge className={q === 'stimata' ? '!text-warn !ring-warn/25' : undefined}>{label ?? (q === 'stimata' ? t('Data stimata') : t('Da regola'))}</Badge>
 }
 
 // ------------------------------------------------------------------ prossimi eventi
@@ -41,8 +41,8 @@ export function UpcomingList({ items, max, wide }: { items: UpcomingEvent[]; max
           <li key={u.id} className={clsx('grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-x-3 border-t border-line py-2.5 first:border-t-0', wide ? 'xl:[&:nth-child(2)]:border-t-0' : 'min-[1700px]:[&:nth-child(2)]:border-t-0')} title={u.text}>
             <div className="flex flex-col items-center border-r border-line py-1 pr-2 leading-tight">
               <span className="tnum text-base font-semibold text-white">{d.getUTCDate()}</span>
-              <span className="text-2xs uppercase text-slate-400">{mon[d.getUTCMonth()]}</span>
-              <span className="text-2xs capitalize text-slate-500">{dow[d.getUTCDay()]}</span>
+              <span className="text-2xs uppercase text-fg-3">{mon[d.getUTCMonth()]}</span>
+              <span className="text-2xs capitalize text-fg-4">{dow[d.getUTCDay()]}</span>
             </div>
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -50,13 +50,13 @@ export function UpcomingList({ items, max, wide }: { items: UpcomingEvent[]; max
                 {u.importance === 'alta' && <Badge>{t('Impatto alto')}</Badge>}
                 <QualityTag q={u.quality} />
               </div>
-              <div className="mt-0.5 truncate text-xs text-slate-400">{whenLabel(u.days_away)} · {u.hour || u.type_label}</div>
+              <div className="mt-0.5 truncate text-xs text-fg-3">{whenLabel(u.days_away)} · {u.hour || u.type_label}</div>
             </div>
             <div className="w-28 text-right sm:w-40">
               <div className="tnum text-sm font-medium text-white">{fin(u.expected_abs_1d) ? `±${u.expected_abs_1d.toFixed(1)}%` : '—'}
-                {fin(u.expected_usd_1d) && <span className="ml-1 text-xs font-normal text-slate-400">±{usd(u.expected_usd_1d)}</span>}</div>
+                {fin(u.expected_usd_1d) && <span className="ml-1 text-xs font-normal text-fg-3">±{usd(u.expected_usd_1d)}</span>}</div>
               <ProgressBar className="mt-1 !h-1" value={((u.expected_abs_1d ?? 0) / top) * 100} />
-              <div className="mt-1 text-2xs text-slate-400">{fin(u.up_rate_1d) ? t('Rialzo nel {p}% · n={n}', { p: u.up_rate_1d.toFixed(0), n: u.n }) : t('Nessuno storico')}</div>
+              <div className="mt-1 text-2xs text-fg-3">{fin(u.up_rate_1d) ? t('Rialzo nel {p}% · n={n}', { p: u.up_rate_1d.toFixed(0), n: u.n }) : t('Nessuno storico')}</div>
             </div>
           </li>
         )
@@ -88,17 +88,17 @@ export function EventStatsTable({ types, selected, onSelect }: { types: EventTyp
           {types.map((ty) => (
             <tr key={ty.key} onClick={() => onSelect?.(ty.key)} className={clsx(onSelect && 'cursor-pointer', selected === ty.key && '[&>td]:bg-white/[0.035]')}>
               <td className="pl-4 sm:pl-5">
-                <span className={clsx('font-medium', selected === ty.key ? 'text-white' : 'text-slate-200')}>{ty.label}</span>
-                {ty.quality !== 'esatta' && <span className="ml-2 text-2xs text-slate-400">{ty.quality === 'regola' ? t('Date da regola') : t('Date stimate')}</span>}
+                <span className={clsx('font-medium', selected === ty.key ? 'text-white' : 'text-fg')}>{ty.label}</span>
+                {ty.quality !== 'esatta' && <span className="ml-2 text-2xs text-fg-3">{ty.quality === 'regola' ? t('Date da regola') : t('Date stimate')}</span>}
               </td>
-              <td className={clsx('text-right', ty.n < 8 ? 'text-amber-300' : 'text-slate-300')} title={ty.n < 8 ? t('Campione molto piccolo') : undefined}>{ty.n}</td>
+              <td className={clsx('text-right', ty.n < 8 ? 'text-warn' : 'text-fg-2')} title={ty.n < 8 ? t('Campione molto piccolo') : undefined}>{ty.n}</td>
               <td className={clsx('text-right', signCls(ty.d1.avg))}>{pct(ty.d1.avg, 2)}</td>
-              <td className="text-right text-slate-200">{pctU(ty.d1.abs_median, 2)}</td>
-              <td className={clsx('text-right font-medium', fin(ty.vol_ratio_1d) && ty.vol_ratio_1d >= 1.15 ? 'text-white' : 'text-slate-400')}>{ratio(ty.vol_ratio_1d)}</td>
-              <td className="text-right text-slate-300">{pctU(ty.d1.win_rate)}</td>
+              <td className="text-right text-fg">{pctU(ty.d1.abs_median, 2)}</td>
+              <td className={clsx('text-right font-medium', fin(ty.vol_ratio_1d) && ty.vol_ratio_1d >= 1.15 ? 'text-white' : 'text-fg-3')}>{ratio(ty.vol_ratio_1d)}</td>
+              <td className="text-right text-fg-2">{pctU(ty.d1.win_rate)}</td>
               <td className={clsx('text-right', signCls(ty.d7.median))}>{pct(ty.d7.median, 1)}</td>
-              <td className="text-right text-slate-300">{pctU(ty.d7.win_rate)}</td>
-              <td className="pr-4 text-right text-slate-300 sm:pr-5">{pctU(ty.range_7d, 1)} <span className="text-2xs text-slate-400" title={t('Escursione rispetto a 15 giorni qualsiasi')}>{t('Vol. {v}', { v: ratio(ty.range_ratio_7d) })}</span></td>
+              <td className="text-right text-fg-2">{pctU(ty.d7.win_rate)}</td>
+              <td className="pr-4 text-right text-fg-2 sm:pr-5">{pctU(ty.range_7d, 1)} <span className="text-2xs text-fg-3" title={t('Escursione rispetto a 15 giorni qualsiasi')}>{t('Vol. {v}', { v: ratio(ty.range_ratio_7d) })}</span></td>
             </tr>
           ))}
         </tbody>
@@ -132,8 +132,8 @@ export function EventPathChart({ stat, height = 220 }: { stat: EventTypeStat; he
         { name: sMedian, type: 'bar', data: stat.path.map((p) => p.median), barMaxWidth: 16,
           itemStyle: { borderRadius: 3, color: (p: { value: number }) => (p.value >= 0 ? hexA(C.up, 0.75) : hexA(C.down, 0.75)) },
           markLine: { symbol: 'none', silent: true, data: [{ xAxis: '0' }], lineStyle: { color: hexA(C.primary, 0.35), type: 'dashed' }, label: { show: false } } },
-        { name: sMean, type: 'line', data: stat.path.map((p) => p.mean), showSymbol: false, smooth: 0.2, lineStyle: { width: 1.75, color: C.blue }, itemStyle: { color: C.blue },
-          areaStyle: { color: areaGradient(C.blue, 0.16, 0) } },
+        { name: sMean, type: 'line', data: stat.path.map((p) => p.mean), showSymbol: false, smooth: 0.2, lineStyle: { width: 1.75, color: C.accent }, itemStyle: { color: C.accent },
+          areaStyle: { color: areaGradient(C.accent, 0.16, 0) } },
       ],
     }
   }, [stat])
@@ -149,10 +149,10 @@ export function RecentOccurrences({ stat }: { stat: EventTypeStat }) {
         <tbody>
           {stat.recent.map((r) => (
             <tr key={r.time}>
-              <td className="pl-4 text-slate-200 sm:pl-5">{r.label}</td>
+              <td className="pl-4 text-fg sm:pl-5">{r.label}</td>
               <td className={clsx('text-right', signCls(r.d1))}>{pct(r.d1, 1)}</td>
               <td className={clsx('text-right', signCls(r.d7))}>{pct(r.d7, 1)}</td>
-              <td className="pr-4 text-right text-slate-300 sm:pr-5">{pctU(r.range_1d, 1)}</td>
+              <td className="pr-4 text-right text-fg-2 sm:pr-5">{pctU(r.range_1d, 1)}</td>
             </tr>
           ))}
         </tbody>
@@ -162,7 +162,7 @@ export function RecentOccurrences({ stat }: { stat: EventTypeStat }) {
 }
 
 // ------------------------------------------------------------------ ciclo politico
-const YEAR_COLORS = [C.blue, C.purple, C.teal, C.grey]
+const YEAR_COLORS = [C.accent, C.steel, C.sand, C.grey]
 
 /** Percorso di BTC attorno al voto (asse x = giorni dall'elezione). */
 export function ElectionPathChart({ paths, mean, anchorDay, height = 340 }: {
@@ -172,11 +172,11 @@ export function ElectionPathChart({ paths, mean, anchorDay, height = 340 }: {
     let k = 0
     const g = dayUnit()
     const series: Record<string, unknown>[] = paths.map((p) => {
-      const color = p.current ? C.btc : YEAR_COLORS[k++ % YEAR_COLORS.length]
+      const color = p.current ? C.accent : YEAR_COLORS[k++ % YEAR_COLORS.length]
       return {
         name: p.current ? `${p.name} (${tr('in corso', 'ongoing')})` : p.name, type: 'line', data: p.points, showSymbol: false, smooth: false,
         lineStyle: { width: p.current ? 2.25 : 1.25, color, opacity: p.current ? 1 : 0.85 }, itemStyle: { color }, emphasis: { disabled: true }, z: p.current ? 5 : 2,
-        ...(p.current ? { areaStyle: { color: areaGradient(C.btc, 0.18, 0) } } : {}),
+        ...(p.current ? { areaStyle: { color: areaGradient(C.accent, 0.18, 0) } } : {}),
       }
     })
     if (mean?.length) series.push({ name: t('Media cicli passati'), type: 'line', data: mean, showSymbol: false, lineStyle: { width: 1.5, color: C.primary, type: 'dashed' }, itemStyle: { color: C.primary }, z: 4 })
@@ -184,7 +184,7 @@ export function ElectionPathChart({ paths, mean, anchorDay, height = 340 }: {
       name: '_mark', type: 'line', data: [], silent: true,
       markLine: { symbol: 'none', silent: true, data: [
         { xAxis: 0, lineStyle: { color: hexA(C.primary, 0.45), type: 'solid', width: 1 }, label: { formatter: tr('Voto', 'Vote'), color: C.muted, fontSize: 10, fontFamily: FONT, position: 'insideEndTop' } },
-        ...(anchorDay !== 0 ? [{ xAxis: anchorDay, lineStyle: { color: hexA(C.btc, 0.6), type: 'dashed', width: 1 }, label: { formatter: tr('Oggi', 'Today'), color: C.btc, fontSize: 10, fontFamily: FONT, position: 'insideEndTop' } }] : []),
+        ...(anchorDay !== 0 ? [{ xAxis: anchorDay, lineStyle: { color: hexA(C.accent, 0.6), type: 'dashed', width: 1 }, label: { formatter: tr('Oggi', 'Today'), color: C.accent, fontSize: 10, fontFamily: FONT, position: 'insideEndTop' } }] : []),
       ] },
     })
     return {
@@ -200,7 +200,7 @@ export function ElectionPathChart({ paths, mean, anchorDay, height = 340 }: {
         },
       },
       xAxis: { type: 'value', min: -180, max: 365, interval: 60, axisLine: { lineStyle: { color: C.axis } }, axisTick: { show: false },
-               axisLabel: { ...axisLabel, formatter: (v: number) => (v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)} ${g}`) } },
+               axisLabel: { ...axisLabel, hideOverlap: true, formatter: (v: number) => (v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)} ${g}`) } },
       yAxis: valueAxis({ axisLabel: { ...axisLabel, formatter: (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(0)}%` } }),
       series,
     }
@@ -216,11 +216,11 @@ export function YearTypeTable({ p }: { p: PoliticalCycle }) {
         <tbody>
           {p.year_types.map((ty) => (
             <tr key={ty.type}>
-              <td className="pl-4 text-slate-200 sm:pl-5">{ty.label}{ty.current && <Badge className="ml-2">{tr('Ora', 'Now')}</Badge>}</td>
-              <td className="text-right text-slate-300">{ty.n}</td>
+              <td className="pl-4 text-fg sm:pl-5">{ty.label}{ty.current && <Badge className="ml-2">{tr('Ora', 'Now')}</Badge>}</td>
+              <td className="text-right text-fg-2">{ty.n}</td>
               <td className={clsx('text-right font-medium', signCls(ty.median))}>{pct(ty.median, 0)}</td>
-              <td className="text-right text-slate-300">{pctU(ty.win_rate)}</td>
-              <td className="pr-4 text-xs text-slate-400 sm:pr-5">
+              <td className="text-right text-fg-2">{pctU(ty.win_rate)}</td>
+              <td className="pr-4 text-xs text-fg-3 sm:pr-5">
                 {ty.years.map((y) => {
                   const r = p.years.find((x) => x.year === y)?.return
                   return <span key={y} className="mr-2 whitespace-nowrap">{y} <span className={signCls(r)}>{pct(r, 0)}</span></span>
@@ -243,9 +243,9 @@ export function MidtermLowsTable({ lows }: { lows: PoliticalCycle['midterm']['lo
         <tbody>
           {lows.map((l) => (
             <tr key={l.year}>
-              <td className="pl-4 text-slate-200 sm:pl-5">{date(l.midterm)} <span className="text-xs text-slate-400">{usd(l.midterm_price)}</span></td>
-              <td className="text-slate-200">{l.low_label} <span className="text-xs text-slate-400">{usd(l.low_price)}</span></td>
-              <td className="text-right text-slate-300">{l.days_from_midterm > 0 ? '+' : l.days_from_midterm < 0 ? '−' : ''}{Math.abs(l.days_from_midterm)} {g}</td>
+              <td className="pl-4 text-fg sm:pl-5">{date(l.midterm)} <span className="text-xs text-fg-3">{usd(l.midterm_price)}</span></td>
+              <td className="text-fg">{l.low_label} <span className="text-xs text-fg-3">{usd(l.low_price)}</span></td>
+              <td className="text-right text-fg-2">{l.days_from_midterm > 0 ? '+' : l.days_from_midterm < 0 ? '−' : ''}{Math.abs(l.days_from_midterm)} {g}</td>
               <td className="text-right text-down">{pct(l.drawdown_from_ath, 0)}</td>
               <td className={clsx('text-right font-medium', signCls(l.fwd_365))}>{pct(l.fwd_365, 0)}</td>
               <td className={clsx('pr-4 text-right sm:pr-5', signCls(l.low_to_365))}>{pct(l.low_to_365, 0)}</td>
@@ -263,8 +263,8 @@ export function LaterList({ d, className }: { d: EventsResponse; className?: str
     <ul className={clsx('flex flex-col', className)}>
       {d.later.map((l) => (
         <li key={l.key} className="flex items-center justify-between gap-3 border-t border-line py-2 text-sm first:border-t-0">
-          <span className="flex min-w-0 items-center gap-2 text-slate-200"><span className="truncate">{l.title}</span> <QualityTag q={l.quality} /></span>
-          <span className="tnum shrink-0 text-xs text-slate-400">{l.date_label} · {whenLabel(l.days_away)}</span>
+          <span className="flex min-w-0 items-center gap-2 text-fg"><span className="truncate">{l.title}</span> <QualityTag q={l.quality} /></span>
+          <span className="tnum shrink-0 text-xs text-fg-3">{l.date_label} · {whenLabel(l.days_away)}</span>
         </li>
       ))}
     </ul>

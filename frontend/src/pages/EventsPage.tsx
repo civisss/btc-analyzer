@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Activity, BarChart3, CalendarClock, CalendarDays, CandlestickChart, CalendarRange, History, Landmark, LineChart, ListOrdered, ScrollText, ShieldCheck, TrendingDown, Vote } from 'lucide-react'
 import { useEvents, type EventsResponse } from '../api/events'
-import { Card, CardBody, CardHeader, Fill, KpiCell, KpiStrip, MethodNote, PageTitle, Q, Segmented, Skeleton, clsx } from '../components/ui'
+import { Card, CardBody, CardHeader, Fill, KpiCell, KpiStrip, MethodNote, Q, Segmented, Skeleton, clsx } from '../components/ui'
 import { SectionTitle } from '../widgets/macro'
 import {
   ElectionPathChart, EventPathChart, EventStatsTable, LaterList, MidtermLowsTable, QualityTag, RecentOccurrences, UpcomingList, YearTypeTable, whenLabel,
@@ -17,7 +17,7 @@ function Tile({ label, value, foot }: { label: ReactNode; value: ReactNode; foot
     <div className="min-w-0 px-3 py-2.5">
       <div className="label">{label}</div>
       <div className="tnum mt-1 text-xl font-semibold tracking-[-0.02em] text-white">{value}</div>
-      {foot && <div className="mt-0.5 text-xs text-slate-400">{foot}</div>}
+      {foot && <div className="mt-0.5 text-xs text-fg-3">{foot}</div>}
     </div>
   )
 }
@@ -38,7 +38,7 @@ function Kpis({ d }: { d: EventsResponse }) {
         foot={fomc ? <>{whenLabel(fomc.days_away)}{fin(fomc.expected_abs_1d) ? ` · ${t('±{v}% atteso', { v: fomc.expected_abs_1d.toFixed(1) })}` : ''}</> : t('Nessuna riunione nei prossimi 90 giorni')} title={fomc?.text} />
       <KpiCell className="col-span-2 md:col-span-1" icon={<Vote />} label={t('Midterm USA')} value={date(mt.next)} foot={mtWhen} />
       <KpiCell icon={<CalendarRange />} label={yt ? yt.label : t('Anno del ciclo USA')}
-        value={<>{pct(yt?.median, 0)}<span className="ml-1 text-sm font-normal text-slate-400">{tr('mediana', 'median')}</span></>}
+        value={<>{pct(yt?.median, 0)}<span className="ml-1 text-sm font-normal text-fg-3">{tr('mediana', 'median')}</span></>}
         foot={yt ? t('{y} · positivi {p}%', { y: yt.years.join(', '), p: fin(yt.win_rate) ? yt.win_rate.toFixed(0) : '—' }) : undefined} />
       <KpiCell icon={<Activity />} label={t('Volatilità normale (3 {g})', { g })} value={`±${d.baseline_now.abs_1d.toFixed(1)}%`}
         foot={t('Movimento mediano ultimi 90 {g} · ±{usd}', { g, usd: usd(d.price * d.baseline_now.abs_1d / 100) })} />
@@ -65,7 +65,7 @@ function StatsSection({ d }: { d: EventsResponse }) {
               right={<QualityTag q={st.quality} label={cap(st.quality_label)} />} />
             <CardBody className="flex flex-col gap-3">
               <Fill min={260}><EventPathChart stat={st} height="100%" /></Fill>
-              <p className="text-sm text-slate-300">{st.note}</p>
+              <p className="text-sm text-fg-2">{st.note}</p>
             </CardBody>
           </Card>
           <Card>
@@ -105,9 +105,9 @@ function PoliticalSection({ d }: { d: EventsResponse }) {
               <Tile label={t('180 {g} prima del voto', { g })} value={pct(mt.pre180.current, 1)} foot={t('Media passata {v}', { v: pct(mt.pre180.avg, 1) })} />
               <Tile label={t('12 mesi dopo il voto')} value={pct(mt.fwd_365.avg, 0)} foot={t('Positivi {a} su {b}', { a: mt.fwd_365.up, b: mt.fwd_365.n })} />
             </div>
-            <ul className="flex flex-col gap-2 text-sm leading-relaxed text-slate-300">
+            <ul className="flex flex-col gap-2 text-sm leading-relaxed text-fg-2">
               {p.text.map((x, i) => (
-                <li key={i} className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-slate-500" />{x}</li>
+                <li key={i} className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-fg-4" />{x}</li>
               ))}
             </ul>
           </CardBody>
@@ -132,7 +132,6 @@ export default function EventsPage() {
   const q = useEvents(90)
   return (
     <div>
-      <PageTitle title={t('Eventi e ciclo politico')} subtitle={t('Calendario macro, scadenze dei derivati ed elezioni USA, con la reazione storica di BTC e la volatilità attesa.')} />
       <Q q={q} loading={<div className="grid gap-3"><Skeleton className="h-24" /><Skeleton className="h-[420px]" /><Skeleton className="h-[320px]" /></div>} isEmpty={(d) => !d.types?.length}>
         {(d) => (
           <div className="flex flex-col gap-3">
@@ -159,7 +158,7 @@ export default function EventsPage() {
                 </Card>
                 <Card className="flex-1">
                   <CardHeader icon={<ShieldCheck />} title={t('Qualità delle date')} subtitle={t('Esatte, da regola o stimate')} />
-                  <CardBody className="grid gap-x-6 pt-0 text-xs leading-relaxed text-slate-400 md:grid-cols-2 xl:grid-cols-4 min-[1700px]:flex min-[1700px]:flex-col">
+                  <CardBody className="grid gap-x-6 pt-0 text-xs leading-relaxed text-fg-3 md:grid-cols-2 xl:grid-cols-4 min-[1700px]:flex min-[1700px]:flex-col">
                     {d.quality.notes.map((n, i) => <p key={i} className={clsx('py-2 first:pt-0 md:pt-0 min-[1700px]:pt-2 min-[1700px]:first:pt-0', i > 0 && 'border-t border-line md:border-t-0 min-[1700px]:border-t')}>{n}</p>)}
                   </CardBody>
                 </Card>

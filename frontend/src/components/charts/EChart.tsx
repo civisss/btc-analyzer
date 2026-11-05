@@ -1,13 +1,13 @@
 import ReactECharts from 'echarts-for-react'
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { C, FONT, itTimeLabel, legendBase } from './theme'
+import { C, FONT, SERIES_COLORS, itTimeLabel, legendBase } from './theme'
 
 type O = Record<string, unknown>
 const asArr = (v: unknown) => (Array.isArray(v) ? v : v ? [v] : [])
 
 /**
  * Enforces the shared chart style on every option, so individual charts can't drift:
- * legend top-left / inline / 8px squares / never paginated · no vertical gridlines · horizontal gridlines rgba(255,255,255,.04).
+ * legend top-left / inline / 8px squares / never paginated · no vertical gridlines · faint horizontal gridlines.
  */
 /** Rough legend height for the current width: the legend never paginates, so long legends wrap onto more rows. */
 function legendRows(l: O, series: unknown, width: number): number {
@@ -26,6 +26,8 @@ function legendRows(l: O, series: unknown, width: number): number {
 
 function normalize(option: O, width = 0): O {
   const out: O = { ...option }
+  // never ECharts' default palette: series coloured by a function would otherwise show its blue in the legend
+  if (!option.color) out.color = SERIES_COLORS
   // make room for wrapped top legends so they never overlap the plot or the axis labels
   const lg = option.legend as O | undefined
   const g = option.grid as O | undefined

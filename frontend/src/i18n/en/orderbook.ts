@@ -1,7 +1,6 @@
 // Order book page (heatmap + footprint) — pages/OrderBookPage.tsx, widgets/orderbookHeatmap.tsx, widgets/orderbookFootprint.tsx
 export default {
   'Order book': 'Order book',
-  'Liquidità resting nel tempo e trade aggressivi per livello di prezzo, dal book Binance raccolto in tempo reale.': 'Resting liquidity over time and aggressive trades per price level, from the Binance book collected in real time.',
   'Heatmap': 'Heatmap',
   'Footprint': 'Footprint',
   'Live': 'Live',

@@ -1,3 +1,4 @@
+/* Colours: only var(--c-*) / var(--line-*) here. They are emitted on :root from src/theme/tokens.ts (see tailwind.config.js). */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,39 +6,25 @@
 @layer base {
   html { color-scheme: dark; }
   body {
-    @apply bg-bg text-slate-200 antialiased;
+    @apply bg-bg text-fg antialiased;
     font-family: 'Geist Variable', Geist, 'Inter Variable', system-ui, sans-serif;
     font-feature-settings: 'ss01', 'cv11';
     font-size: 13px;
     line-height: 20px;
     overflow-x: clip; /* guard against sub-pixel overflow from off-canvas drawers */
     min-height: 100vh;
-    background-color: #060912;
-  }
-  /* v3 depth: two very soft colour washes far behind the content (fixed, non-interactive) */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background:
-      radial-gradient(900px 600px at 12% -8%, rgba(247, 147, 26, 0.07), transparent 65%),
-      radial-gradient(1100px 700px at 92% 4%, rgba(70, 110, 255, 0.075), transparent 62%),
-      radial-gradient(1400px 900px at 50% 120%, rgba(60, 90, 200, 0.05), transparent 60%),
-      linear-gradient(180deg, #070B16 0%, #060912 40%, #05080F 100%);
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
   }
   /* grid/flex children must be allowed to shrink so wide content (tabs, charts) never overflows the page */
   .grid > * { min-width: 0; }
-  ::selection { background: rgba(91, 141, 239, 0.35); }
+  ::selection { background: rgb(var(--c-accent) / 0.3); }
   :focus { outline: none; }
-  :focus-visible { outline: 2px solid #5B8DEF; outline-offset: 2px; border-radius: 4px; }
-  * { scrollbar-width: thin; scrollbar-color: #26304A transparent; }
+  :focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; border-radius: 4px; }
+  * { scrollbar-width: thin; scrollbar-color: rgb(var(--c-track)) transparent; }
   *::-webkit-scrollbar { width: 8px; height: 8px; }
-  *::-webkit-scrollbar-thumb { background: #26304A; border-radius: 8px; }
+  *::-webkit-scrollbar-thumb { background: rgb(var(--c-track)); border-radius: 8px; }
   *::-webkit-scrollbar-track { background: transparent; }
   /* horizontal scrollers (tab bars, segmented, chip rows): never show scrollbar chrome */
   .no-scrollbar, [class*='scrollbar-width:none'] { scrollbar-width: none; overflow-y: hidden; }
@@ -50,62 +37,63 @@
   /* numbers: tabular + slashed zero */
   .tnum { font-variant-numeric: tabular-nums slashed-zero; font-feature-settings: 'tnum', 'zero'; }
 
-  /* ---- v3 surfaces ------------------------------------------------------------------------------------------------ */
-  /* card: top-lit gradient fill + 1px gradient hairline (border-box trick) + soft layered shadow */
+  /* ---- surfaces ------------------------------------------------------------------------------------------------- */
+  /* card: solid surface, a barely lit top edge and one hairline. Depth comes from the step between levels, not from effects. */
   .card {
-    border: 1px solid transparent;
-    border-radius: 16px;
-    background:
-      linear-gradient(180deg, rgba(23, 31, 52, 0.92) 0%, rgba(14, 20, 36, 0.94) 38%, rgba(12, 17, 31, 0.96) 100%) padding-box,
-      linear-gradient(180deg, rgba(170, 185, 230, 0.16) 0%, rgba(150, 165, 210, 0.07) 30%, rgba(150, 165, 210, 0.05) 100%) border-box;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px rgba(0, 0, 0, 0.35), 0 22px 44px -26px rgba(0, 0, 0, 0.9);
+    border: 1px solid var(--line-base);
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgb(var(--c-surfaceHi)) 0, rgb(var(--c-surface)) 96px);
+    box-shadow: inset 0 1px 0 rgb(var(--c-fg) / 0.03), 0 1px 2px rgb(var(--c-black) / 0.5);
   }
-  .card-hover { transition: box-shadow 150ms, transform 150ms; }
-  .card-hover:hover {
-    background:
-      linear-gradient(180deg, rgba(25, 34, 57, 0.94) 0%, rgba(15, 21, 38, 0.95) 38%, rgba(12, 17, 31, 0.96) 100%) padding-box,
-      linear-gradient(180deg, rgba(190, 205, 250, 0.26) 0%, rgba(150, 165, 210, 0.10) 40%, rgba(150, 165, 210, 0.07) 100%) border-box;
-  }
-  /* KPI card: a faint wash in the top-right corner */
+  .card-hover { transition: border-color 150ms; }
+  .card-hover:hover { border-color: var(--line-strong); }
   .kpi { overflow: hidden; }
   /* segmented track + active pill */
-  .seg { background: rgba(255, 255, 255, 0.025); box-shadow: inset 0 0 0 1px rgba(148, 163, 210, 0.10); }
-  .seg-pill {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.05));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 2px 8px -2px rgba(0, 0, 0, 0.5);
-  }
+  .seg { background: rgb(var(--c-fg) / 0.025); box-shadow: inset 0 0 0 1px var(--line-subtle); }
+  .seg-pill { background: rgb(var(--c-accent) / 0.13); box-shadow: inset 0 0 0 1px rgb(var(--c-accent) / 0.32); }
   /* popovers / dropdowns / tooltips */
   .pop {
-    background: linear-gradient(180deg, rgba(30, 40, 66, 0.98), rgba(20, 27, 46, 0.98));
-    border: 1px solid rgba(160, 175, 225, 0.16);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 48px -12px rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(12px);
+    background: rgb(var(--c-overlay));
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 1px 2px rgb(var(--c-black) / 0.6), 0 16px 40px -12px rgb(var(--c-black) / 0.8);
   }
 
   /* ---- controls ------------------------------------------------------------------------------------------------- */
   .btn-ghost {
-    @apply inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-white/[0.03] px-2.5 sm:h-7 text-xs font-medium text-slate-300 transition-colors hover:border-white/15 hover:bg-white/[0.06] hover:text-white active:translate-y-px;
+    @apply inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-white/[0.03] px-2.5 sm:h-7 text-xs font-medium text-fg-2 transition-colors hover:border-line-strong hover:bg-white/[0.06] hover:text-white active:translate-y-px;
   }
   .btn-primary {
-    @apply inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-semibold text-[#1A0F02] transition-[filter] hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
-    background: linear-gradient(180deg, #FFA93B, #F7931A 55%, #E5820C);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 6px 18px -8px rgba(247, 147, 26, 0.6);
+    @apply inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg bg-accent px-3 text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hi active:translate-y-px active:bg-accent-lo disabled:cursor-not-allowed disabled:opacity-50;
   }
   /* tables: 34px rows, numbers right-aligned by the call site with text-right + tnum */
   .tbl { @apply w-full text-sm; }
-  .tbl th { @apply h-8 whitespace-nowrap px-2 align-middle sm:px-3 text-2xs font-medium uppercase tracking-[0.06em] text-slate-500; }
+  .tbl th { @apply h-8 px-2 py-1 align-bottom text-2xs leading-[14px] font-medium uppercase tracking-[0.06em] text-fg-4; }
   /* zero-specificity default so `text-right` on a header cell wins */
   :where(.tbl th) { text-align: left; }
-  .tbl td { @apply tnum h-[34px] whitespace-nowrap border-t border-white/[0.05] px-2 py-1 sm:px-3 align-middle text-slate-200; }
-  .tbl tbody tr:hover td { background: rgba(120, 150, 255, 0.035); }
+  .tbl td { @apply tnum h-[34px] whitespace-nowrap border-t border-line-subtle px-2 py-1 align-middle text-fg; }
+  /* the outer columns line up with the card title: card padding when the table is full-bleed, none inside a CardBody */
+  .tbl tr > :first-child { padding-left: 1rem; }
+  .tbl tr > :last-child { padding-right: 1rem; }
+  @media (min-width: 640px) { .tbl tr > :first-child { padding-left: 1.25rem; } .tbl tr > :last-child { padding-right: 1.25rem; } }
+  .card-body .tbl tr > :first-child { padding-left: 0; }
+  .card-body .tbl tr > :last-child { padding-right: 0; }
+  .card-body [class*='-mx-'] .tbl tr > :first-child { padding-left: 1rem; }
+  .card-body [class*='-mx-'] .tbl tr > :last-child { padding-right: 1rem; }
+  @media (min-width: 640px) { .card-body [class*='-mx-'] .tbl tr > :first-child { padding-left: 1.25rem; } .card-body [class*='-mx-'] .tbl tr > :last-child { padding-right: 1.25rem; } }
+  .tbl tbody tr:hover td { background: rgb(var(--c-fg) / 0.03); }
   .tbl tbody tr td { transition: background-color 120ms; }
-  .range { @apply h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-slate-300; }
-  .label { @apply text-2xs font-medium uppercase tracking-[0.07em] text-slate-400; }
-  .link { @apply inline-flex h-8 sm:h-7 items-center gap-1 whitespace-nowrap text-xs font-medium text-slate-300 hover:text-white; }
+  .range { @apply h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-accent; }
+  /* tight tables: a cell may wrap instead of pushing the last columns out of the card */
+  .tbl-wrap td { white-space: normal; }
+  .tbl-wrap th, .tbl-wrap td { padding-left: 0.375rem; padding-right: 0.375rem; }
+  /* inner tile: one level below a card, never a second card */
+  .tile { @apply rounded-lg border border-line-subtle bg-white/[0.02]; }
+  .label { @apply text-2xs font-medium uppercase tracking-[0.07em] text-fg-3; }
+  .link { @apply inline-flex h-8 sm:h-7 items-center gap-1 whitespace-nowrap text-xs font-medium text-fg-2 hover:text-accent-hi; }
   /* chips: filters / row state — pill, neutral */
   .chip { @apply inline-flex h-8 sm:h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-xs font-medium transition-colors; }
-  .chip-on { @apply border-accent-blue/40 bg-accent-blue/[0.12] text-white; }
-  .chip-off { @apply border-line bg-white/[0.02] text-slate-400 hover:text-white; }
+  .chip-on { @apply border-accent/40 bg-accent/[0.12] text-accent-hi; }
+  .chip-off { @apply border-line bg-white/[0.02] text-fg-3 hover:text-white; }
   .md p { @apply my-2 leading-relaxed; }
   .md ul { @apply my-2 list-disc pl-5; }
   .md ol { @apply my-2 list-decimal pl-5; }
@@ -115,9 +103,9 @@
   .md pre { @apply my-2 overflow-x-auto rounded-lg bg-black/30 p-3; }
   .md table { @apply my-2 w-full text-xs; }
   .md th, .md td { @apply border border-line px-2 py-1 text-left; }
-  .md blockquote { @apply my-2 border-l-2 border-line pl-3 text-slate-400; }
+  .md blockquote { @apply my-2 border-l-2 border-line pl-3 text-fg-3; }
   .md h1, .md h2, .md h3 { @apply mb-1 mt-3 font-semibold text-white; }
-  .md a { @apply text-accent-blue underline; }
+  .md a { @apply text-accent underline; }
 }
 
 @keyframes popIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
@@ -143,12 +131,8 @@
 /* an x-scroller must never grow a vertical scrollbar from 1px rounding */
 .overflow-x-auto { overflow-y: hidden; }
 
-/* sidebar active item glow */
-.nav-active {
-  background: linear-gradient(90deg, rgba(247, 147, 26, 0.14), rgba(247, 147, 26, 0.04) 60%, transparent);
-  box-shadow: inset 0 0 0 1px rgba(247, 147, 26, 0.16);
-}
-@keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(46, 189, 133, 0.55); } 70% { box-shadow: 0 0 0 6px rgba(46, 189, 133, 0); } 100% { box-shadow: 0 0 0 0 rgba(46, 189, 133, 0); } }
+/* the live indicator is the "active" state: accent, not green (green is reserved for direction) */
+@keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgb(var(--c-accent) / 0.45); } 70% { box-shadow: 0 0 0 5px rgb(var(--c-accent) / 0); } 100% { box-shadow: 0 0 0 0 rgb(var(--c-accent) / 0); } }
 .live-dot { animation: livePulse 2s infinite; }
 
 /* toasts: slide in from the right, fade out; timer bar shrinks over the auto-dismiss delay */
@@ -159,17 +143,37 @@
 .toast-out { animation: toastOut 200ms ease-in forwards; }
 .toast-timer { animation-name: toastTimer; animation-timing-function: linear; animation-fill-mode: forwards; }
 
+/* 5 peer cards with no hole in the last row: 3 + 2 on desktop. A lone last card of a 2-column row takes the full width. */
+@media (min-width: 1280px) and (max-width: 2199.98px) {
+  .grid-5 { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
+  .grid-5 > * { grid-column: span 2; }
+  .grid-5 > :nth-last-child(-n + 2):nth-child(n + 4) { grid-column: span 3; }
+}
+@media (min-width: 1024px) and (max-width: 1535.98px) {
+  .grid-5-md { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
+  .grid-5-md > * { grid-column: span 2; }
+  .grid-5-md > :nth-last-child(-n + 2):nth-child(n + 4) { grid-column: span 3; }
+}
+@media (min-width: 1024px) and (max-width: 1279.98px) { .grid-odd-fill > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
+
 /* divider grid: cells separated by 1px hairlines only (no nested filled/bordered boxes inside cards).
    Usage: <div className="dgrid grid-cols-2 sm:grid-cols-3"> <div className="px-3 py-2.5">…</div> … </div> */
 .dgrid { display: grid; overflow: hidden; }
-.dgrid > * { box-shadow: -1px 0 0 rgba(148, 163, 210, 0.10), 0 -1px 0 rgba(148, 163, 210, 0.10); }
+.dgrid > * { box-shadow: -1px 0 0 var(--line-base), 0 -1px 0 var(--line-base); }
 
 /* KPI tiles: in narrow tiles (2 columns on phones) the 28px value steps down so "−34.3K BTC" is not cut with an ellipsis */
 .kpi-row { container-type: inline-size; }
+.kpi-row:has(> .kpi-label) { align-items: flex-start; }
+.kpi-label { padding-top: 4px; }
 @container (max-width: 200px) {
   .kpi-value { font-size: 1.375rem; line-height: 2rem; }
-  .kpi-icon { display: none; }  /* the label gets the room instead of being truncated */
   /* two-line label and sub-line instead of an ellipsis; the slot is reserved so the values of a row stay aligned */
   .kpi-label { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1rem; min-height: 2rem; }
   .kpi-foot-text { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 }
+@container (max-width: 150px) {
+  .kpi-icon { display: none; }  /* phones: the label gets the room instead of being truncated */
+}
+
+/* a card inside a card steps down to an inner tile (method notes in a card body) */
+.card .card { background: rgb(var(--c-fg) / 0.02); border-color: var(--line-subtle); border-radius: 8px; box-shadow: none; }

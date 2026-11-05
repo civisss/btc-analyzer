@@ -5,12 +5,9 @@ import {
 } from 'lucide-react'
 import { useHolders, useOptions, useSentiment, type HoldersData, type OptionsData, type SentimentData } from '../api/positioning'
 import { C, hexA } from '../components/charts/theme'
-import {
-  Badge, Card, CardBody, CardHeader, Change, EmptyState, Fill, KpiCell, KpiStrip, Legend, MethodNote, PageTitle, Q, Segmented, Skeleton, TabBar, Toggle, clsx,
-} from '../components/ui'
+import { Badge, Card, CardBody, CardHeader, Change, EmptyState, Fill, KpiCell, KpiStrip, Legend, MethodNote, Q, Segmented, Skeleton, Toggle, clsx } from '../components/ui'
 import { cap, t, tr } from '../i18n'
 import { MoreList } from '../widgets/structure'
-import { useTab } from '../lib/useTab'
 import { MiniTrend } from '../components/MiniTrend'
 import { TimeLinesChart } from '../widgets/charts'
 import {
@@ -19,8 +16,8 @@ import {
 import { DASH, date, dayUnit, ordinal, pct, usd, usdCompact } from '../lib/format'
 
 const GRID0 = hexA(C.grey, 0.5)
-const toneDot = { bullish: 'bg-up', bearish: 'bg-down', neutral: 'bg-slate-400' } as const
-const unit = (s: string) => <span className="ml-1 text-sm font-normal text-slate-400">{s}</span>
+const toneDot = { bullish: 'bg-up', bearish: 'bg-down', neutral: 'bg-fg-3' } as const
+const unit = (s: string) => <span className="ml-1 text-sm font-normal text-fg-3">{s}</span>
 
 /** STH-MVRV zone labels arrive as lowercase Italian keys from the backend. */
 const holderZone = (z: string) => ({
@@ -31,7 +28,7 @@ const holderZone = (z: string) => ({
 function KV({ k, children }: { k: ReactNode; children: ReactNode }) {
   return (
     <div className="flex min-h-8 items-center justify-between gap-3 border-t border-line py-1 text-sm first:border-t-0">
-      <span className="min-w-0 text-slate-400">{k}</span>
+      <span className="min-w-0 text-fg-3">{k}</span>
       <span className="tnum whitespace-nowrap text-right font-medium text-white">{children}</span>
     </div>
   )
@@ -41,7 +38,7 @@ function Signals({ items }: { items: { text: string; tone: string }[] }) {
   return (
     <ul className="flex flex-col">
       {items.map((s, i) => (
-        <li key={i} className="flex gap-2.5 border-t border-line py-2 text-sm leading-relaxed text-slate-300 first:border-t-0 first:pt-0">
+        <li key={i} className="flex gap-2.5 border-t border-line py-2 text-sm leading-relaxed text-fg-2 first:border-t-0 first:pt-0">
           <span className={clsx('mt-2 h-1.5 w-1.5 shrink-0 rounded-full', toneDot[(s.tone in toneDot ? s.tone : 'neutral') as keyof typeof toneDot])} />
           <span>{s.text}</span>
         </li>
@@ -56,7 +53,7 @@ function Stat({ k, v, sub }: { k: ReactNode; v: ReactNode; sub?: ReactNode }) {
     <div className="min-w-0 px-3 py-2.5">
       <div className="label truncate">{k}</div>
       <div className="tnum mt-1 truncate text-lg font-semibold text-white">{v}</div>
-      {sub && <div className="truncate text-xs text-slate-400">{sub}</div>}
+      {sub && <div className="truncate text-xs text-fg-3">{sub}</div>}
     </div>
   )
 }
@@ -116,7 +113,7 @@ function WallsCard({ d }: { d: OptionsData }) {
   const px = d.index_price
   const maxOi = Math.max(1, ...d.gamma.oi_walls.map((w) => w.calls_usd + w.puts_usd))
   const maxG = Math.max(1, ...d.gamma.walls.map((w) => w.total))
-  const strikeK = (s: number) => <>{usd(s)} <span className="text-xs text-slate-400">{pct((s / px - 1) * 100, 1)}</span></>
+  const strikeK = (s: number) => <>{usd(s)} <span className="text-xs text-fg-3">{pct((s / px - 1) * 100, 1)}</span></>
   return (
     <Card className="h-full">
       <CardHeader icon={<BrickWall />} title={t('Muri di open interest e gamma')} subtitle={t('Strike con più contratti e più gamma vicino al prezzo')}
@@ -125,7 +122,7 @@ function WallsCard({ d }: { d: OptionsData }) {
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-2">
             <div className="label">Open interest · ±15%</div>
-            <Legend items={[{ label: 'Call', color: C.blue }, { label: 'Put', color: C.purple }]} />
+            <Legend items={[{ label: 'Call', color: C.accent }, { label: 'Put', color: C.steel }]} />
           </div>
           {d.gamma.oi_walls.map((w) => {
             const tot = w.calls_usd + w.puts_usd
@@ -133,12 +130,12 @@ function WallsCard({ d }: { d: OptionsData }) {
             return (
               <div key={w.strike} className="border-t border-line py-1.5 first:border-t-0">
                 <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="min-w-0 text-slate-300">{strikeK(w.strike)}</span>
+                  <span className="min-w-0 text-fg-2">{strikeK(w.strike)}</span>
                   <span className="tnum whitespace-nowrap font-medium text-white">{usdCompact(tot, 2)}
-                    <span className="ml-1.5 text-xs font-normal text-slate-400">{callSide ? 'Call' : 'Put'} {Math.round(Math.max(w.calls, w.puts) / (w.calls + w.puts) * 100)}%</span></span>
+                    <span className="ml-1.5 text-xs font-normal text-fg-3">{callSide ? 'Call' : 'Put'} {Math.round(Math.max(w.calls, w.puts) / (w.calls + w.puts) * 100)}%</span></span>
                 </div>
                 <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/[0.05]">
-                  <div className="h-full rounded-full" style={{ width: `${(tot / maxOi) * 100}%`, background: `linear-gradient(90deg, ${hexA(callSide ? C.blue : C.purple, 0.35)}, ${callSide ? C.blue : C.purple})` }} />
+                  <div className="h-full rounded-full" style={{ width: `${(tot / maxOi) * 100}%`, background: `linear-gradient(90deg, ${hexA(callSide ? C.accent : C.steel, 0.35)}, ${callSide ? C.accent : C.steel})` }} />
                 </div>
               </div>
             )
@@ -149,11 +146,11 @@ function WallsCard({ d }: { d: OptionsData }) {
           {d.gamma.walls.map((w) => (
             <div key={w.strike} className="border-t border-line py-1.5 first:border-t-0">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="min-w-0 text-slate-300">{strikeK(w.strike)}</span>
+                <span className="min-w-0 text-fg-2">{strikeK(w.strike)}</span>
                 <span className="tnum whitespace-nowrap font-medium text-white">{usdCompact(w.total, 1)}</span>
               </div>
               <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/[0.05]">
-                <div className="h-full rounded-full bg-gradient-to-r from-white/10 to-slate-300/70" style={{ width: `${(w.total / maxG) * 100}%` }} />
+                <div className="h-full rounded-full bg-gradient-to-r from-white/10 to-fg-2/70" style={{ width: `${(w.total / maxG) * 100}%` }} />
               </div>
             </div>
           ))}
@@ -167,7 +164,7 @@ function ExpiryHistoryCard({ h }: { h: OptionsData['expiry_history'] }) {
   return (
     <Card className="h-full">
       <CardHeader icon={<CalendarX />} title={t('Prezzo alla scadenza vs max pain')} subtitle={t('Scadenze passate: max pain ~7 giorni prima e prezzo di regolamento')}
-        right={h.n ? <span className="text-xs text-slate-400">{t('Convergenza {p}% su {n} scadenze', { p: fx(h.converged_pct, 0), n: h.n })}</span> : undefined} />
+        right={h.n ? <span className="text-xs text-fg-3">{t('Convergenza {p}% su {n} scadenze', { p: fx(h.converged_pct, 0), n: h.n })}</span> : undefined} />
       <CardBody>
         {h.rows.length === 0 ? (
           <EmptyState compact text={t("Lo storico si accumula dal {d}: Deribit non pubblica l'open interest passato, quindi gli snapshot giornalieri partono da oggi. Le prime scadenze compariranno dopo il loro regolamento.", { d: date(h.since) })} />
@@ -181,12 +178,12 @@ function ExpiryHistoryCard({ h }: { h: OptionsData['expiry_history'] }) {
               <tbody>
                 {[...h.rows].reverse().map((r) => (
                   <tr key={r.expiry}>
-                    <td className={clsx(TL, 'whitespace-nowrap text-slate-200')}>{date(r.expiry)} <span className="text-xs text-slate-400">({t('{n} prima', { n: `${Math.round(r.lead_days)}${dayUnit()}` })})</span></td>
+                    <td className={clsx(TL, 'whitespace-nowrap text-fg')}>{date(r.expiry)} <span className="text-xs text-fg-3">({t('{n} prima', { n: `${Math.round(r.lead_days)}${dayUnit()}` })})</span></td>
                     <td className="text-right">{usd(r.max_pain)}</td>
-                    <td className="text-right text-slate-300">{usd(r.spot_before)}</td>
+                    <td className="text-right text-fg-2">{usd(r.spot_before)}</td>
                     <td className="text-right">{usd(r.settlement)}</td>
-                    <td className="text-right text-slate-300">{pct(r.gap_settle, 1)}</td>
-                    <td className={clsx(TR, 'text-slate-300')}>{r.converged ? tr('Sì', 'Yes') : 'No'}</td>
+                    <td className="text-right text-fg-2">{pct(r.gap_settle, 1)}</td>
+                    <td className={clsx(TR, 'text-fg-2')}>{r.converged ? tr('Sì', 'Yes') : 'No'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -198,7 +195,7 @@ function ExpiryHistoryCard({ h }: { h: OptionsData['expiry_history'] }) {
   )
 }
 
-function OptionsTab() {
+export function OptionsTab() {
   const q = useOptions()
   return (
     <Q q={q} loading={<PageSkeleton />} isEmpty={(d) => !d.expiries?.length}>
@@ -235,7 +232,7 @@ function OptionsTab() {
             <Card className="xl:col-span-2">
               <CardHeader icon={<Activity />} title={t('DVOL — indice di volatilità implicita')} subtitle={t('Volatilità attesa a 30 giorni dalle opzioni Deribit (%, annualizzata)')} />
               <CardBody className="flex flex-col"><Fill min={240}>
-                <TimeLinesChart height="100%" zoom legend={false} yFmt={(v) => v.toFixed(0)} lines={[{ name: 'DVOL', data: d.dvol.series, color: C.blue, area: true }]} />
+                <TimeLinesChart height="100%" zoom legend={false} yFmt={(v) => v.toFixed(0)} lines={[{ name: 'DVOL', data: d.dvol.series, color: C.accent, area: true }]} />
               </Fill></CardBody>
             </Card>
             <Card>
@@ -246,11 +243,11 @@ function OptionsTab() {
                   <Stat k={t('Variazione 7 giorni')} v={fin(d.dvol.change_7d) ? `${sfx(d.dvol.change_7d)} pt` : DASH} />
                 </div>
                 <div>
-                  <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
+                  <div className="mb-1 flex items-center justify-between text-xs text-fg-3">
                     <span>{t('Percentile 1 anno')}</span><span className="tnum font-medium text-white">{ordinal(d.dvol.pct_1y)}</span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-                    <div className="h-full rounded-full" style={{ width: `${fin(d.dvol.pct_1y) ? d.dvol.pct_1y : 0}%`, background: `linear-gradient(90deg, ${hexA(C.blue, 0.35)}, ${C.blue})` }} />
+                    <div className="h-full rounded-full" style={{ width: `${fin(d.dvol.pct_1y) ? d.dvol.pct_1y : 0}%`, background: `linear-gradient(90deg, ${hexA(C.accent, 0.35)}, ${C.accent})` }} />
                   </div>
                 </div>
                 <div>
@@ -291,7 +288,7 @@ function HoldersKpis({ d }: { d: HoldersData }) {
   )
 }
 
-function HoldersTab() {
+export function HoldersTab() {
   const q = useHolders()
   const [log, setLog] = useState(false)
   const [mv, setMv] = useState<'sth' | 'lth'>('sth')
@@ -301,12 +298,12 @@ function HoldersTab() {
         const b = d.bands
         const mvLines = mv === 'sth'
           ? [{ y: 1, color: GRID0, label: '1.0' }, { y: 0.9, color: hexA(C.grey, 0.35), label: '0.9' }, { y: 1.2, color: hexA(C.grey, 0.35), label: '1.2' }, { y: 1.4, color: hexA(C.grey, 0.35), label: '1.4' },
-            { y: b.sd2_high, color: hexA(C.purple, 0.55), label: '+2σ' }, { y: b.sd2_low, color: hexA(C.purple, 0.55), label: '−2σ' }]
+            { y: b.sd2_high, color: hexA(C.steel, 0.55), label: '+2σ' }, { y: b.sd2_low, color: hexA(C.steel, 0.55), label: '−2σ' }]
           : [{ y: 1, color: GRID0, label: '1.0' }]
         return (
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-1.5 text-xs text-slate-300">
-              <Clock size={14} className="shrink-0 text-slate-400" />
+            <div className="flex items-center gap-2 tile px-3 py-1.5 text-xs text-fg-2">
+              <Clock size={14} className="shrink-0 text-fg-3" />
               <span className="min-w-0">{t('Dati on-chain con 7 giorni di ritardo (BGeometrics, piano gratuito) · ultimo dato {d} · MVRV e distanze calcolati sul prezzo attuale {p}', { d: date(d.as_of), p: usd(d.price) })}</span>
             </div>
             <HoldersKpis d={d} />
@@ -316,9 +313,9 @@ function HoldersTab() {
                   right={<Toggle on={log} onClick={() => setLog(!log)}>{t('Scala log')}</Toggle>} />
                 <CardBody className="flex flex-col"><Fill min={380}>
                   <TimeLinesChart height="100%" zoom log={log} lines={[
-                    { name: t('Prezzo BTC'), data: d.series.price, color: C.btc, area: true },
-                    { name: t('Costo medio STH'), data: d.series.sth_rp, color: C.blue },
-                    { name: t('Costo medio LTH'), data: d.series.lth_rp, color: C.purple },
+                    { name: t('Prezzo BTC'), data: d.series.price, color: C.price, area: true },
+                    { name: t('Costo medio STH'), data: d.series.sth_rp, color: C.accent },
+                    { name: t('Costo medio LTH'), data: d.series.lth_rp, color: C.steel },
                   ]} />
                 </Fill></CardBody>
               </Card>
@@ -332,7 +329,7 @@ function HoldersTab() {
                   <CardBody>
                     {[...d.regimes].reverse().map((r) => (
                       <KV key={r.start} k={<>{date(r.start)} – {date(r.end)}</>}>
-                        <span className="text-xs font-normal text-slate-400">{r.days}{dayUnit()}</span>
+                        <span className="text-xs font-normal text-fg-3">{r.days}{dayUnit()}</span>
                         <Badge color={r.above ? 'up' : 'down'} className="ml-2 w-14 justify-center">{r.above ? tr('Sopra', 'Above') : tr('Sotto', 'Below')}</Badge>
                       </KV>
                     ))}
@@ -347,7 +344,7 @@ function HoldersTab() {
                   right={<Segmented options={[{ value: 'sth' as const, label: 'STH' }, { value: 'lth' as const, label: 'LTH' }]} value={mv} onChange={setMv} />} />
                 <CardBody className="flex flex-col"><Fill min={320}>
                   <TimeLinesChart height="100%" zoom legend={false} yFmt={(v) => v.toFixed(2)} markLines={mvLines}
-                    lines={[{ name: mv === 'sth' ? 'STH-MVRV' : 'LTH-MVRV', data: mv === 'sth' ? d.series.sth_mvrv : d.series.lth_mvrv, color: C.blue, area: true }]} />
+                    lines={[{ name: mv === 'sth' ? 'STH-MVRV' : 'LTH-MVRV', data: mv === 'sth' ? d.series.sth_mvrv : d.series.lth_mvrv, color: C.accent, area: true }]} />
                 </Fill></CardBody>
               </Card>
               <Card>
@@ -355,7 +352,7 @@ function HoldersTab() {
                   info={t('Rendimento mediano di BTC a 30 e 90 giorni dai giorni in cui STH-MVRV era nella fascia indicata. Lo storico gratuito copre circa un ciclo: campione piccolo, da leggere come indicazione.')} />
                 <CardBody>
                   <div className={TW}>
-                    <table className="tbl min-w-[380px]">
+                    <table className="tbl-wrap tbl max-lg:min-w-[380px]">
                       <thead><tr>
                         <th className={TL}>{tr('Fascia', 'Band')}</th><th className="text-right">{tr('Giorni', 'Days')}</th>
                         <th className="text-right">{`30${dayUnit()}`}</th><th className={TR}>{t('{n} · positivi', { n: `90${dayUnit()}` })}</th>
@@ -365,11 +362,11 @@ function HoldersTab() {
                           const cur = r.label === d.kpi.zone
                           return (
                             <tr key={r.range}>
-                              <td className={clsx(TL, 'whitespace-nowrap', cur ? 'font-medium text-white' : 'text-slate-200')}>{r.range} <span className="text-xs text-slate-400">{holderZone(r.label)}</span>
+                              <td className={clsx(TL, 'whitespace-nowrap', cur ? 'font-medium text-white' : 'text-fg')}>{r.range} <span className="text-xs text-fg-3">{holderZone(r.label)}</span>
                                 {cur && <Badge color="blue" className="ml-2">{tr('Ora', 'Now')}</Badge>}</td>
-                              <td className="text-right text-slate-300">{r.days}</td>
+                              <td className="text-right text-fg-2">{r.days}</td>
                               <td className="text-right"><Change value={r.fwd30_median} digits={1} /></td>
-                              <td className={TR}><Change value={r.fwd90_median} digits={1} /> <span className="text-slate-400">· {fin(r.fwd90_hit) ? `${r.fwd90_hit.toFixed(0)}%` : DASH}</span></td>
+                              <td className={TR}><Change value={r.fwd90_median} digits={1} /> <span className="text-fg-3">· {fin(r.fwd90_hit) ? `${r.fwd90_hit.toFixed(0)}%` : DASH}</span></td>
                             </tr>
                           )
                         })}
@@ -387,7 +384,7 @@ function HoldersTab() {
                 <CardHeader icon={<Repeat />} title={t('SOPR degli holder recenti')} subtitle={t('Media 7 giorni · sotto 1 = monete vendute in perdita')} />
                 <CardBody>
                   {d.series.sth_sopr.length
-                    ? <TimeLinesChart height={260} zoom legend={false} yFmt={(v) => v.toFixed(3)} markLines={[{ y: 1, color: GRID0, label: '1.0' }]} lines={[{ name: t('SOPR STH (7 giorni)'), data: d.series.sth_sopr, color: C.purple }]} />
+                    ? <TimeLinesChart height={260} zoom legend={false} yFmt={(v) => v.toFixed(3)} markLines={[{ y: 1, color: GRID0, label: '1.0' }]} lines={[{ name: t('SOPR STH (7 giorni)'), data: d.series.sth_sopr, color: C.steel }]} />
                     : <EmptyState compact text={t('SOPR non disponibile dalla fonte gratuita.')} />}
                 </CardBody>
               </Card>
@@ -407,14 +404,14 @@ function SentimentHero({ d, updatedAt }: { d: SentimentData; updatedAt: number }
     <Card>
       <CardHeader icon={<Gauge />} updatedAt={updatedAt} title={t('Indice di sentiment contrarian')} subtitle={t('0 = paura massima · 100 = euforia')}
         info={t("Media dei punteggi delle componenti (percentile storico senza lookahead). In chiave contrarian la paura estrema è storicamente un'opportunità, l'euforia un rischio.")}
-        right={<span className="text-xs text-slate-400">{t('Al {d}', { d: date(c.as_of) })}</span>} />
+        right={<span className="text-xs text-fg-3">{t('Al {d}', { d: date(c.as_of) })}</span>} />
       <CardBody className="grid gap-x-8 gap-y-5 xl:grid-cols-5">
         <div className="flex flex-col gap-4 xl:col-span-2">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
-              <div className="tnum text-4xl font-semibold tracking-[-0.02em] text-white">{c.value.toFixed(0)}<span className="ml-1 text-sm font-normal text-slate-400">/ 100</span></div>
+              <div className="tnum text-4xl font-semibold tracking-[-0.02em] text-white">{c.value.toFixed(0)}<span className="ml-1 text-sm font-normal text-fg-3">/ 100</span></div>
               <Badge color="blue" className="mb-1.5">{t(c.zone)}</Badge>
-              <div className="tnum pb-1.5 text-xs text-slate-400">{`7${dayUnit()}`} {fin(c.change_7d) ? `${sfx(c.change_7d, 0)} pt` : DASH} · {t('{o} percentile storico', { o: ordinal(c.percentile) })}</div>
+              <div className="tnum pb-1.5 text-xs text-fg-3">{`7${dayUnit()}`} {fin(c.change_7d) ? `${sfx(c.change_7d, 0)} pt` : DASH} · {t('{o} percentile storico', { o: ordinal(c.percentile) })}</div>
             </div>
             <SentimentTrack value={c.value} />
           </div>
@@ -431,18 +428,18 @@ function SentimentHero({ d, updatedAt }: { d: SentimentData; updatedAt: number }
               </div>
             </div>
           )}
-          <MiniTrend data={d.history.composite.slice(-90)} label={t('Indice · ultimi 90 giorni')} color={C.blue} min={64} />
+          <MiniTrend data={d.history.composite.slice(-90)} label={t('Indice · ultimi 90 giorni')} color={C.accent} min={64} />
         </div>
         <div className="flex flex-col xl:col-span-3">
           <div className="label mb-1">{t('Componenti · punteggio 0–100')}</div>
           {d.components.map((k, i) => (
             <div key={k.key} className={clsx('flex flex-col gap-1.5 py-2.5', i > 0 && 'border-t border-line')} title={k.text}>
               <div className="flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate text-sm text-slate-200">{k.label} <span className="text-xs text-slate-400">{k.method !== 'percentile' ? `· ${k.method}` : ''}</span></span>
-                <span className="tnum shrink-0 text-xs text-slate-400">{k.raw_display}<span className="ml-3">{t('Punteggio')} <b className="font-medium text-white">{fin(k.score) ? k.score.toFixed(0) : DASH}</b></span></span>
+                <span className="min-w-0 truncate text-sm text-fg">{k.label} <span className="text-xs text-fg-3">{k.method !== 'percentile' ? `· ${k.method}` : ''}</span></span>
+                <span className="tnum shrink-0 text-xs text-fg-3">{k.raw_display}<span className="ml-3">{t('Punteggio')} <b className="font-medium text-white">{fin(k.score) ? k.score.toFixed(0) : DASH}</b></span></span>
               </div>
               <ScoreTrack score={k.score} />
-              <span className="line-clamp-1 text-xs text-slate-400">{k.text}</span>
+              <span className="line-clamp-1 text-xs text-fg-3">{k.text}</span>
             </div>
           ))}
         </div>
@@ -468,14 +465,14 @@ function PremiumCard({ d }: { d: SentimentData }) {
           <Stat k="Coinbase / Binance" v={usd(p.coinbase)} sub={`Binance ${usd(p.binance)}`} />
         </div>
         <TimeLinesChart height={260} zoom={v === 'daily'} legend={false} compactTip={v === 'hourly'} yFmt={(x) => `${x.toFixed(2)}%`} markLines={[{ y: 0, color: GRID0 }]}
-          lines={[{ name: t('Premio Coinbase'), data: v === 'daily' ? p.daily : p.hourly, color: C.blue, type: 'bar' }]} />
-        {p.text && <p className="text-sm text-slate-300">{p.text}</p>}
+          lines={[{ name: t('Premio Coinbase'), data: v === 'daily' ? p.daily : p.hourly, color: C.accent, type: 'bar' }]} />
+        {p.text && <p className="text-sm text-fg-2">{p.text}</p>}
       </CardBody>
     </Card>
   )
 }
 
-function SentimentTab() {
+export function SentimentTab() {
   const q = useSentiment()
   return (
     <Q q={q} loading={<PageSkeleton />} isEmpty={(d) => !d.history?.composite?.length}>
@@ -487,7 +484,7 @@ function SentimentTab() {
             <CardBody className="flex flex-col"><Fill min={340}>
               <TimeLinesChart height="100%" zoom yMin={0} yMax={100} yFmt={(v) => v.toFixed(0)} y2Fmt={(v) => `$${Math.round(v / 1000)}K`}
                 markLines={[{ y: 25, color: hexA(C.grey, 0.5), label: t('Paura estrema') }, { y: 75, color: hexA(C.grey, 0.5), label: t('Euforia') }]}
-                lines={[{ name: t('Indice sentiment'), data: d.history.composite, color: C.blue, area: true }, { name: t('Prezzo BTC'), data: d.history.price, color: C.btc, axis: 1, width: 1.25 }]} />
+                lines={[{ name: t('Indice sentiment'), data: d.history.composite, color: C.accent, area: true }, { name: t('Prezzo BTC'), data: d.history.price, color: C.price, axis: 1, width: 1.25 }]} />
             </Fill></CardBody>
           </Card>
           <div className="grid gap-3 min-[2200px]:grid-cols-2">
@@ -507,28 +504,5 @@ function SentimentTab() {
         </div>
       )}
     </Q>
-  )
-}
-
-// ===================================================================== pagina
-/** Labels stay Italian (module level); translated at render with t(). */
-const TABS = [
-  { value: 'opzioni', label: 'Opzioni', sub: 'Open interest, max pain, put/call, skew e volatilità implicita delle opzioni BTC su Deribit.' },
-  { value: 'holder', label: 'Holder', sub: 'Costo medio e profitto degli holder recenti (STH) e di lungo periodo (LTH).' },
-  { value: 'sentiment', label: 'Sentiment', sub: 'Indice contrarian di paura ed euforia con backtest dei rendimenti successivi.' },
-] as const
-type Tab = (typeof TABS)[number]['value']
-
-export default function PositioningPage() {
-  const [tab, changeTab] = useTab<Tab>(TABS.map((x) => x.value), 'opzioni')
-  const cur = TABS.find((x) => x.value === tab) ?? TABS[0]
-  return (
-    <div>
-      <PageTitle title={t('Posizionamento')} subtitle={t(cur.sub)} />
-      <TabBar tabs={TABS.map((x) => ({ value: x.value, label: x.value === 'opzioni' ? tr('Opzioni', 'Options') : t(x.label) }))} value={tab} onChange={changeTab} />
-      {tab === 'opzioni' && <OptionsTab />}
-      {tab === 'holder' && <HoldersTab />}
-      {tab === 'sentiment' && <SentimentTab />}
-    </div>
   )
 }

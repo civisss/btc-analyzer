@@ -6,7 +6,7 @@ import {
   fetchSnapshot, useObHeatmap, useTermEst, useTermLayoutMutations, useTermLayouts, useTermSeries, useTermStatus,
   type PaneId, type TermLayoutState, type TermTf, type TileId, type TileState,
 } from '../api/terminal'
-import { ErrorState, MethodNote, PageTitle, Segmented, Skeleton, Toggle, clsx } from '../components/ui'
+import { ErrorState, MethodNote, Segmented, Skeleton, Toggle, clsx, PageActions, SettingsPanel, SettingRow } from '../components/ui'
 import { Popover } from '../widgets/superchart'
 import { buildStore, type HmStore } from '../widgets/orderbookHeatmap'
 import TerminalChart, { SyncBus } from '../widgets/terminalChart'
@@ -86,21 +86,21 @@ function Tile({ tile, title, info, right, maximized, onMax, onClose, drag, child
   const total = maximized ? vh - 24 : mode === 'mob' ? MOBILE_H[tile.id] : px(tile.h)
   return (
     <section data-tile={tile.id} style={maximized ? undefined : mode === 'mob' && tile.id !== 'panes' ? { height: total } : style} onDragOver={drag?.onDragOver} onDrop={drag?.onDrop}
-      className={clsx('card flex min-w-0 flex-col overflow-hidden', maximized ? 'fixed inset-3 z-[60] shadow-pop' : 'relative', drag?.over && 'ring-1 ring-accent-blue/50')}>
+      className={clsx('card flex min-w-0 flex-col overflow-hidden', maximized ? 'fixed inset-3 z-[60] shadow-pop' : 'relative', drag?.over && 'ring-1 ring-accent/50')}>
       <header className="flex h-10 shrink-0 items-center gap-2 px-3">
         {drag && !maximized && (
-          <span draggable onDragStart={drag.onDragStart} onDragEnd={drag.onDragEnd} className="-ml-1 grid h-7 w-5 cursor-grab place-items-center text-slate-600 hover:text-slate-300 active:cursor-grabbing" title={t('Trascina per riordinare')}>
+          <span draggable onDragStart={drag.onDragStart} onDragEnd={drag.onDragEnd} className="-ml-1 grid h-7 w-5 cursor-grab place-items-center text-fg-off hover:text-fg-2 active:cursor-grabbing" title={t('Trascina per riordinare')}>
             <GripVertical size={14} />
           </span>
         )}
         <h2 className="min-w-0 truncate text-sm font-semibold tracking-[-0.01em] text-white" title={info}>{title}</h2>
         <div className="ml-auto flex min-w-0 items-center gap-1.5">
           {right}
-          <button type="button" onClick={onMax} className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-white/[0.05] hover:text-white" aria-label={maximized ? t('Riduci') : t('Ingrandisci')} title={maximized ? t('Riduci') : t('Ingrandisci')}>
+          <button type="button" onClick={onMax} className="grid h-7 w-7 place-items-center rounded-md text-fg-4 hover:bg-white/[0.05] hover:text-white" aria-label={maximized ? t('Riduci') : t('Ingrandisci')} title={maximized ? t('Riduci') : t('Ingrandisci')}>
             {maximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
           {!maximized && (
-            <button type="button" onClick={onClose} className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-white/[0.05] hover:text-white" aria-label={t('Chiudi riquadro')} title={t('Chiudi riquadro')}>
+            <button type="button" onClick={onClose} className="grid h-7 w-7 place-items-center rounded-md text-fg-4 hover:bg-white/[0.05] hover:text-white" aria-label={t('Chiudi riquadro')} title={t('Chiudi riquadro')}>
               <X size={14} />
             </button>
           )}
@@ -204,7 +204,7 @@ export default function TerminalPage() {
         )
       case 'panes':
         return !sd ? <div className="h-full px-3"><Skeleton className="h-full w-full" /></div> : layout.panes.length === 0
-          ? <p className="py-8 text-center text-sm text-slate-400">{t('Nessun pannello attivo: aggiungili dal menu Pannelli.')}</p>
+          ? <p className="py-8 text-center text-sm text-fg-3">{t('Nessun pannello attivo: aggiungili dal menu Pannelli.')}</p>
           : <div className="px-1" style={{ height: panesH(h) }}><TerminalPanes data={sd} tf={tf} panes={layout.panes} live={live} sync={sync} height={panesH(h)} /></div>
       case 'dom': return <DomTile live={live} height={h} compactUi={mode === 'mob'} />
       case 'feed': return <FeedTile live={live} />
@@ -216,7 +216,7 @@ export default function TerminalPage() {
   const tileRight = (id: TileId): ReactNode => {
     if (id === 'chart') return (
       <div className="flex items-center gap-1.5">
-        <button type="button" className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-white/[0.05] hover:text-white" title={t('Adatta')} aria-label={t('Adatta')} onClick={() => chartApi.current?.reset()}><ScanLine size={14} /></button>
+        <button type="button" className="grid h-7 w-7 place-items-center rounded-md text-fg-4 hover:bg-white/[0.05] hover:text-white" title={t('Adatta')} aria-label={t('Adatta')} onClick={() => chartApi.current?.reset()}><ScanLine size={14} /></button>
       </div>
     )
     if (id === 'panes') return (
@@ -236,37 +236,36 @@ export default function TerminalPage() {
   const st = status.data
   return (
     <div>
-      <PageTitle title={t('Terminale')} subtitle={t('Prezzo, order flow, CVD, open interest, funding e liquidazioni in tempo reale da Binance, Bybit, OKX e Coinbase.')} />
       <div className="flex flex-col gap-3">
-        <div className="card flex flex-wrap items-center gap-x-4 gap-y-2.5 px-4 py-2.5 sm:px-5">
-          <div className="flex items-center gap-2"><span className="label">{t('Timeframe')}</span>
-            <Segmented value={tf} onChange={(v) => setLayout((L) => ({ ...L, tf: v }))} options={TFS.map((x) => ({ value: x, label: x }))} /></div>
-          <div className="flex flex-wrap items-center gap-2"><span className="label hidden sm:inline">{t('Grafico')}</span>
-            <Toggle on={layout.opts.heat} onClick={() => setOpt('heat')}>{t('Heatmap')}</Toggle>
-            <Toggle on={layout.opts.bubbles} onClick={() => setOpt('bubbles')}>{t('Liquidazioni')}</Toggle>
-            <Toggle on={layout.opts.est} onClick={() => setOpt('est')}>{t('Livelli stimati')}</Toggle>
-            <span className="hidden md:inline-flex"><Toggle on={layout.opts.vol} onClick={() => setOpt('vol')}>{t('Volume')}</Toggle></span>
-          </div>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+        <PageActions>
+          <Segmented value={tf} onChange={(v) => setLayout((L) => ({ ...L, tf: v }))} options={TFS.map((x) => ({ value: x, label: x }))} />
+          <SettingsPanel>
+            <SettingRow label={t('Grafico')}>
+              <Toggle on={layout.opts.heat} onClick={() => setOpt('heat')}>{t('Heatmap')}</Toggle>
+              <Toggle on={layout.opts.bubbles} onClick={() => setOpt('bubbles')}>{t('Liquidazioni')}</Toggle>
+              <Toggle on={layout.opts.est} onClick={() => setOpt('est')}>{t('Livelli stimati')}</Toggle>
+              <Toggle on={layout.opts.vol} onClick={() => setOpt('vol')}>{t('Volume')}</Toggle>
+            </SettingRow>
+          </SettingsPanel>
             <Popover label={t('Riquadri')} icon={<LayoutGrid size={14} />} count={hidden.length || undefined} align="right" wide>
               {() => (
                 <div className="flex flex-col">
                   {layout.tiles.map((x, i) => (
                     <div key={x.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-white/[0.03]">
                       <button type="button" onClick={() => patchTile(x.id, { hidden: !x.hidden })} role="menuitemcheckbox" aria-checked={!x.hidden}
-                        className="flex min-w-0 flex-1 items-center gap-2 text-left text-slate-300 hover:text-white">
-                        <span className={clsx('grid h-4 w-4 shrink-0 place-items-center rounded-sm border', !x.hidden ? 'border-accent-blue bg-accent-blue text-bg' : 'border-slate-600')}>{!x.hidden && <Check size={12} strokeWidth={3} />}</span>
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left text-fg-2 hover:text-white">
+                        <span className={clsx('grid h-4 w-4 shrink-0 place-items-center rounded-sm border', !x.hidden ? 'border-accent bg-accent text-bg' : 'border-fg-off')}>{!x.hidden && <Check size={12} strokeWidth={3} />}</span>
                         <span className="truncate">{t(TILE_TITLE[x.id])}</span>
                       </button>
                       <select aria-label={t('Larghezza')} value={x.w} onChange={(e) => patchTile(x.id, { w: Number(e.target.value) })}
-                        className="h-7 rounded-md border border-line bg-white/[0.03] px-1 text-xs text-slate-300">{WIDTHS.map((w) => <option key={w} value={w}>{w}/12</option>)}</select>
+                        className="h-7 rounded-md border border-line bg-white/[0.03] px-1 text-xs text-fg-2">{WIDTHS.map((w) => <option key={w} value={w}>{w}/12</option>)}</select>
                       <select aria-label={t('Altezza')} value={x.h} onChange={(e) => patchTile(x.id, { h: Number(e.target.value) })}
-                        className="h-7 rounded-md border border-line bg-white/[0.03] px-1 text-xs text-slate-300">{Array.from({ length: 11 }, (_, k) => k + 2).map((h) => <option key={h} value={h}>{px(h)} px</option>)}</select>
-                      <button type="button" disabled={i === 0} onClick={() => move(x.id, -1)} className="grid h-7 w-6 place-items-center text-slate-500 hover:text-white disabled:opacity-30" aria-label={t('Sposta prima')}><ArrowUp size={13} /></button>
-                      <button type="button" disabled={i === layout.tiles.length - 1} onClick={() => move(x.id, 1)} className="grid h-7 w-6 place-items-center text-slate-500 hover:text-white disabled:opacity-30" aria-label={t('Sposta dopo')}><ArrowDown size={13} /></button>
+                        className="h-7 rounded-md border border-line bg-white/[0.03] px-1 text-xs text-fg-2">{Array.from({ length: 11 }, (_, k) => k + 2).map((h) => <option key={h} value={h}>{px(h)} px</option>)}</select>
+                      <button type="button" disabled={i === 0} onClick={() => move(x.id, -1)} className="grid h-7 w-6 place-items-center text-fg-4 hover:text-white disabled:opacity-30" aria-label={t('Sposta prima')}><ArrowUp size={13} /></button>
+                      <button type="button" disabled={i === layout.tiles.length - 1} onClick={() => move(x.id, 1)} className="grid h-7 w-6 place-items-center text-fg-4 hover:text-white disabled:opacity-30" aria-label={t('Sposta dopo')}><ArrowDown size={13} /></button>
                     </div>
                   ))}
-                  <p className="px-2 pt-1.5 text-2xs text-slate-500">{t('Trascina l\'impugnatura di un riquadro per riordinarlo; larghezza su 12 colonne (schermi ≥ 1280 px).')}</p>
+                  <p className="px-2 pt-1.5 text-2xs text-fg-4">{t('Trascina l\'impugnatura di un riquadro per riordinarlo; larghezza su 12 colonne (schermi ≥ 1280 px).')}</p>
                 </div>
               )}
             </Popover>
@@ -276,8 +275,7 @@ export default function TerminalPage() {
               onUpdate={() => selId && muts.update.mutate({ id: selId, state: layout })}
               onDelete={() => selId && muts.remove.mutate(selId, { onSuccess: () => setSelId(null) })} />
             <button type="button" className="btn-ghost h-8 sm:h-7" onClick={() => { setLayout(defaultFor(window.innerWidth)); setSelId(null); setMaxId(null) }}><RotateCcw size={14} />{t('Predefinito')}</button>
-          </div>
-        </div>
+        </PageActions>
 
         <TickerBar live={live} right={<ConnPill live={live} />} />
 
@@ -291,7 +289,7 @@ export default function TerminalPage() {
               drag={mode === 'mob' ? null : {
                 over: overId === x.id && dragId !== x.id,
                 onDragStart: (e) => { setDragId(x.id); e.dataTransfer.setDragImage((e.currentTarget as HTMLElement).closest('section') ?? (e.currentTarget as HTMLElement), 20, 20); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', x.id) },
-                // drop outside any tile / Esc: clear the drag state (otherwise the blue ring stayed on the last tile)
+                // drop outside any tile / Esc: clear the drag state (otherwise the accent ring stayed on the last tile)
                 onDragEnd: () => { setDragId(null); setOverId(null) },
                 onDragOver: (e) => { if (dragRef.current) { e.preventDefault(); if (overId !== x.id) setOverId(x.id) } },
                 onDrop: (e) => { e.preventDefault(); dropOn(x.id); setDragId(null); setOverId(null) },
@@ -301,19 +299,19 @@ export default function TerminalPage() {
           ))}
         </div>
         {hidden.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-fg-3">
             <span>{t('Riquadri chiusi')}:</span>
             {hidden.map((x) => <button key={x.id} type="button" className="btn-ghost h-7" onClick={() => patchTile(x.id, { hidden: false })}>+ {t(TILE_TITLE[x.id])}</button>)}
           </div>
         )}
 
         <MethodNote title={t('Metodo, fonti e limiti')}>
-          <p><b className="text-slate-300">{t('Fonti')}.</b> {t('WebSocket pubblici dei trade: Binance USDⓈ-M e spot (aggTrade), Bybit linear e spot (publicTrade), OKX swap e spot (trades-all), Coinbase BTC-USD (matches). Lato aggressore: campo del taker per Binance, Bybit e OKX; su Coinbase il campo side indica il maker e viene invertito. I contratti OKX BTC-USDT-SWAP sono convertiti in BTC con il valore ufficiale del contratto (0.01 BTC, riletto all\'avvio).')}</p>
-          <p><b className="text-slate-300">{t('Cosa è reale')}.</b> {t('Prezzo, trade, order flow, CVD, book, liquidazioni (eventi inviati dagli exchange), open interest e funding (API ufficiali ogni 30 s), premio Coinbase (ultimi prezzi di Coinbase BTC-USD e Binance BTCUSDT, media al secondo). Il CVD è in BTC, cumulato dall\'inizio della finestra visibile; le candele mostrano apertura, massimo, minimo e chiusura del cumulato in ogni barra.')}</p>
-          <p><b className="text-slate-300">{t('Cosa è stimato')}.</b> {t('I livelli di liquidazione sono una STIMA del modello della pagina Liquidazioni (open interest aggregato e distribuzione ipotetica della leva), non ordini reali. Lo storico dell\'open interest prima della raccolta usa fotografie a 5 minuti e, prima ancora, una stima a 15 minuti (contratti USDT × fattore di scala); il funding storico è quello liquidato ogni 8 ore.')}</p>
-          <p><b className="text-slate-300">{t('Verifiche')}.</b> {t('Ogni 5 minuti il volume raccolto per minuto di ciascuno stream è confrontato con le kline 1m ufficiali dello stesso exchange (scarto atteso < 1%); per Binance anche il volume degli acquisti aggressivi. Dopo una disconnessione i trade mancanti vengono recuperati via REST (per id continui) e ogni trade già contato viene scartato: nessun doppio conteggio. Il premio live è confrontato con la serie oraria esistente.')}</p>
-          <p><b className="text-slate-300">{t('Limiti')}.</b> {t('Lo storico multi-exchange esiste solo da quando l\'app è accesa (linea ambra «Raccolta multi-exchange»): prima il CVD usa solo Binance spot e perp dalle kline ufficiali (7 giorni). La heatmap riguarda il solo book Binance perpetual. Binance invia al massimo una liquidazione al secondo per simbolo. Nessun indicatore è un segnale operativo.')}</p>
-          {st && <p className="text-slate-500">{t('Raccolta dal')} {(() => { const v = Object.values(st.collection_start) as number[]; return v.length ? dateTime(Math.min(...v)) : '—' })()} · {sd ? `${t('Serie calcolate in')} ${sd.ms} ms` : ''}</p>}
+          <p><b className="text-fg-2">{t('Fonti')}.</b> {t('WebSocket pubblici dei trade: Binance USDⓈ-M e spot (aggTrade), Bybit linear e spot (publicTrade), OKX swap e spot (trades-all), Coinbase BTC-USD (matches). Lato aggressore: campo del taker per Binance, Bybit e OKX; su Coinbase il campo side indica il maker e viene invertito. I contratti OKX BTC-USDT-SWAP sono convertiti in BTC con il valore ufficiale del contratto (0.01 BTC, riletto all\'avvio).')}</p>
+          <p><b className="text-fg-2">{t('Cosa è reale')}.</b> {t('Prezzo, trade, order flow, CVD, book, liquidazioni (eventi inviati dagli exchange), open interest e funding (API ufficiali ogni 30 s), premio Coinbase (ultimi prezzi di Coinbase BTC-USD e Binance BTCUSDT, media al secondo). Il CVD è in BTC, cumulato dall\'inizio della finestra visibile; le candele mostrano apertura, massimo, minimo e chiusura del cumulato in ogni barra.')}</p>
+          <p><b className="text-fg-2">{t('Cosa è stimato')}.</b> {t('I livelli di liquidazione sono una STIMA del modello della pagina Liquidazioni (open interest aggregato e distribuzione ipotetica della leva), non ordini reali. Lo storico dell\'open interest prima della raccolta usa fotografie a 5 minuti e, prima ancora, una stima a 15 minuti (contratti USDT × fattore di scala); il funding storico è quello liquidato ogni 8 ore.')}</p>
+          <p><b className="text-fg-2">{t('Verifiche')}.</b> {t('Ogni 5 minuti il volume raccolto per minuto di ciascuno stream è confrontato con le kline 1m ufficiali dello stesso exchange (scarto atteso < 1%); per Binance anche il volume degli acquisti aggressivi. Dopo una disconnessione i trade mancanti vengono recuperati via REST (per id continui) e ogni trade già contato viene scartato: nessun doppio conteggio. Il premio live è confrontato con la serie oraria esistente.')}</p>
+          <p><b className="text-fg-2">{t('Limiti')}.</b> {t('Lo storico multi-exchange esiste solo da quando l\'app è accesa (linea ambra «Raccolta multi-exchange»): prima il CVD usa solo Binance spot e perp dalle kline ufficiali (7 giorni). La heatmap riguarda il solo book Binance perpetual. Binance invia al massimo una liquidazione al secondo per simbolo. Nessun indicatore è un segnale operativo.')}</p>
+          {st && <p className="text-fg-4">{t('Raccolta dal')} {(() => { const v = Object.values(st.collection_start) as number[]; return v.length ? dateTime(Math.min(...v)) : '—' })()} · {sd ? `${t('Serie calcolate in')} ${sd.ms} ms` : ''}</p>}
         </MethodNote>
       </div>
     </div>
@@ -323,9 +321,9 @@ export default function TerminalPage() {
 function MenuCheck({ on, onClick, children, sub }: { on: boolean; onClick: () => void; children: ReactNode; sub?: ReactNode }) {
   return (
     <button type="button" onClick={onClick} role="menuitemcheckbox" aria-checked={on}
-      className="flex w-full items-start gap-2.5 rounded px-2 py-1.5 text-left text-sm text-slate-300 hover:bg-white/[0.04] hover:text-white">
-      <span className={clsx('mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-sm border', on ? 'border-accent-blue bg-accent-blue text-bg' : 'border-slate-600')}>{on && <Check size={12} strokeWidth={3} />}</span>
-      <span className="min-w-0 flex-1"><span className="block truncate">{children}</span>{sub && <span className="block text-2xs leading-snug text-slate-500">{sub}</span>}</span>
+      className="flex w-full items-start gap-2.5 rounded px-2 py-1.5 text-left text-sm text-fg-2 hover:bg-white/[0.04] hover:text-white">
+      <span className={clsx('mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-sm border', on ? 'border-accent bg-accent text-bg' : 'border-fg-off')}>{on && <Check size={12} strokeWidth={3} />}</span>
+      <span className="min-w-0 flex-1"><span className="block truncate">{children}</span>{sub && <span className="block text-2xs leading-snug text-fg-4">{sub}</span>}</span>
     </button>
   )
 }
@@ -341,26 +339,26 @@ function LayoutMenu({ name, dirty, layouts, selId, busy, onPick, onSaveNew, onUp
       {(close) => (
         <div>
           <div className="label px-2 pb-0.5 pt-1.5">{t('I miei layout')}</div>
-          {layouts.length === 0 && <p className="px-2 py-1 text-xs text-slate-500">{t('Nessun layout salvato.')}</p>}
+          {layouts.length === 0 && <p className="px-2 py-1 text-xs text-fg-4">{t('Nessun layout salvato.')}</p>}
           {layouts.map((l) => <MenuCheck key={l.id} on={l.id === selId} onClick={() => { onPick(l.id); close() }} sub={dateTime(l.updated_at)}>{l.name}</MenuCheck>)}
           <div className="my-1.5 border-t border-line" />
           {naming ? (
             <form className="flex items-center gap-1.5 px-1 py-1" onSubmit={(e) => { e.preventDefault(); if (nm.trim()) { onSaveNew(nm.trim()); setNaming(false); setNm(''); close() } }}>
               <input autoFocus value={nm} maxLength={60} onChange={(e) => setNm(e.target.value)} placeholder={t('Nome del layout')} aria-label={t('Nome del layout')}
-                className="h-8 min-w-0 flex-1 rounded-md border border-line bg-white/[0.03] px-2 text-sm text-white placeholder:text-slate-500 focus:border-accent-blue/40 focus:outline-none" />
+                className="h-8 min-w-0 flex-1 rounded-md border border-line bg-white/[0.03] px-2 text-sm text-white placeholder:text-fg-4 focus:border-accent/40 focus:outline-none" />
               <button type="submit" disabled={!nm.trim() || busy} className="btn-ghost h-8 disabled:opacity-40">{t('Salva')}</button>
             </form>
           ) : (
-            <button type="button" onClick={() => setNaming(true)} className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm text-slate-300 hover:bg-white/[0.04] hover:text-white">
+            <button type="button" onClick={() => setNaming(true)} className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm text-fg-2 hover:bg-white/[0.04] hover:text-white">
               <Save size={14} />{t('Salva come nuovo layout…')}
             </button>
           )}
           {selId && (
             <>
-              <button type="button" disabled={!dirty || busy} onClick={() => { onUpdate(); close() }} className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm text-slate-300 hover:bg-white/[0.04] hover:text-white disabled:opacity-40">
+              <button type="button" disabled={!dirty || busy} onClick={() => { onUpdate(); close() }} className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm text-fg-2 hover:bg-white/[0.04] hover:text-white disabled:opacity-40">
                 <Check size={14} />{t('Aggiorna «{n}»', { n: name })}
               </button>
-              <button type="button" disabled={busy} onClick={() => { onDelete(); close() }} className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm text-slate-300 hover:bg-white/[0.04] hover:text-down">
+              <button type="button" disabled={busy} onClick={() => { onDelete(); close() }} className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm text-fg-2 hover:bg-white/[0.04] hover:text-warn">
                 <Trash2 size={14} />{t('Elimina «{n}»', { n: name })}
               </button>
             </>

@@ -9,6 +9,7 @@ import { C, axisLabel, hexA, legendBase, lineSeries, tooltipBase, valueAxis } fr
 import { clsx } from '../components/ui'
 import { date, dateTime, pct, usd } from '../lib/format'
 import { cap, months, t, tfIn, tr } from '../i18n'
+import { T, alpha } from '../theme/tokens'
 
 /** Backend period label ("ago–ott 2026 (1G)") → sentence case with the locale timeframe token. */
 export const plabel = (s: string | null | undefined) => (s ? cap(tfIn(s)) : '')
@@ -19,7 +20,7 @@ export function DCell({ label, value, foot, title, className }: { label: ReactNo
     <div className={clsx('min-w-0 px-3 py-2.5', className)} title={title}>
       <div className="label truncate">{label}</div>
       <div className="tnum mt-1 truncate text-xl font-semibold text-white">{value}</div>
-      <div className="tnum mt-0.5 truncate text-xs text-slate-400">{foot ?? <span className="text-slate-600">—</span>}</div>
+      <div className="tnum mt-0.5 truncate text-xs text-fg-3">{foot ?? <span className="text-fg-off">—</span>}</div>
     </div>
   )
 }
@@ -28,7 +29,7 @@ export function DCell({ label, value, foot, title, className }: { label: ReactNo
 export const whenYear = (when: string) => when.replace(/^(nel|in)\s+/i, '')
 
 /** Numbered mapping markers: neutral (the number carries the identity, not the colour). */
-export const POINT_COLORS = ['#B3BCD0']
+export const POINT_COLORS = [T.fg2]
 export const pointColor = (n: number) => POINT_COLORS[(n - 1) % POINT_COLORS.length]
 
 export function tickLabel(ts: number, tf: AnalogTf) {
@@ -61,13 +62,13 @@ export function pctRange(sets: AnalogCandle[][]): [number, number] {
 
 // ------------------------------------------------------------------ candele normalizzate + gambe, figure e punti numerati
 export const LINE_STYLE: Record<string, { color: string; type: 'solid' | 'dashed' | 'dotted'; width: number }> = {
-  resistance: { color: '#94A3B8', type: 'dashed', width: 1.25 },
-  support: { color: '#64748B', type: 'dashed', width: 1.25 },
-  neckline: { color: '#B3BCD0', type: 'dashed', width: 1.25 },
-  pole: { color: '#B3BCD0', type: 'solid', width: 1.25 },
-  leg: { color: '#5B8DEF', type: 'dotted', width: 1.5 },
+  resistance: { color: T.fg3, type: 'dashed', width: 1.25 },
+  support: { color: T.fg4, type: 'dashed', width: 1.25 },
+  neckline: { color: T.fg2, type: 'dashed', width: 1.25 },
+  pole: { color: T.fg2, type: 'solid', width: 1.25 },
+  leg: { color: T.accent, type: 'dotted', width: 1.5 },
 }
-export const LEG_COLOR = '#5B8DEF'
+export const LEG_COLOR = T.accent
 
 export type ChartLayers = { points: boolean; legs: boolean; patterns: boolean }
 
@@ -215,8 +216,8 @@ export function AnalogCandles({
         symbol: 'circle',
         symbolSize: big ? 26 : 19,
         symbolOffset: [0, isHigh ? -17 : isLow ? 17 : 0],
-        itemStyle: { color: big ? '#5B8DEF' : pointColor(m.n), borderColor: '#10151F', borderWidth: 2 },
-        label: { show: true, formatter: String(m.n), color: '#0A0E17', fontWeight: 600, fontSize: 11 },
+        itemStyle: { color: big ? T.accent : pointColor(m.n), borderColor: T.surface, borderWidth: 2 },
+        label: { show: true, formatter: String(m.n), color: T.bg, fontWeight: 600, fontSize: 11 },
       }
     }) : []
     // ZigZag delle gambe come linea con valori solo sugli estremi
@@ -234,8 +235,8 @@ export function AnalogCandles({
         legLabels.push({
           coord: [mid, (p(g.from_price) + p(g.to_price)) / 2], value: g.label, symbol: 'roundRect', symbolSize: [1, 1],
           label: {
-            show: true, formatter: compact ? g.label : `${g.label} ${up ? '+' : '−'}${Math.abs(g.pct).toFixed(1)}%`, color: '#E6E9EF', fontSize: 11, fontWeight: 500,
-            backgroundColor: 'rgba(22,28,40,0.92)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, padding: [2, 4], borderRadius: 4,
+            show: true, formatter: compact ? g.label : `${g.label} ${up ? '+' : '−'}${Math.abs(g.pct).toFixed(1)}%`, color: T.fg, fontSize: 11, fontWeight: 500,
+            backgroundColor: alpha(T.overlay, 0.92), borderColor: alpha(T.fg, 0.08), borderWidth: 1, padding: [2, 4], borderRadius: 4,
             offset: [0, up ? -2 : 2],
           },
         })
@@ -251,7 +252,7 @@ export function AnalogCandles({
             { coord: [Math.min(a.idx, n - 1), p(a.price)], lineStyle: { color: st.color, type: st.type, width: st.width, opacity: pi === 0 ? 0.95 : 0.55 } },
             {
               coord: [Math.min(b.idx, n - 1), p(b.price)],
-              label: li === 0 ? { show: true, formatter: pt.name, color: '#B3BCD0', fontSize: 11, fontWeight: 500, position: 'insideEndTop', backgroundColor: 'rgba(16,21,31,0.85)', padding: [2, 4], borderRadius: 4 } : { show: false },
+              label: li === 0 ? { show: true, formatter: pt.name, color: T.fg2, fontSize: 11, fontWeight: 500, position: 'insideEndTop', backgroundColor: alpha(T.surface, 0.85), padding: [2, 4], borderRadius: 4 } : { show: false },
             },
           ])
         })
@@ -260,25 +261,25 @@ export function AnalogCandles({
     const series: unknown[] = []
     const contArea: unknown[] = []
     if (extraLen > 0) {
-      contArea.push([{ xAxis: xs[lastIdx], itemStyle: { color: 'rgba(148,163,184,0.05)' },
-        label: { show: true, position: 'insideTopRight', color: '#8B94A7', fontSize: 11, formatter: after ? t('Dopo · {n} candele', { n: extraLen }) : t('Proiezione · {n} candele', { n: extraLen }) } }, { xAxis: xs[n - 1] }])
+      contArea.push([{ xAxis: xs[lastIdx], itemStyle: { color: alpha(T.fg3, 0.05) },
+        label: { show: true, position: 'insideTopRight', color: T.fg3, fontSize: 11, formatter: after ? t('Dopo · {n} candele', { n: extraLen }) : t('Proiezione · {n} candele', { n: extraLen }) } }, { xAxis: xs[n - 1] }])
     }
     if (ghost) {
       series.push({
         type: 'candlestick', name: ghostLabel ?? t('Analogo'), data: ghostData, barMaxWidth: 12, z: 1, silent: true,
-        itemStyle: { color: 'rgba(148,163,184,0.22)', color0: 'rgba(148,163,184,0.08)', borderColor: 'rgba(148,163,184,0.5)', borderColor0: 'rgba(148,163,184,0.35)' },
+        itemStyle: { color: alpha(T.fg3, 0.22), color0: alpha(T.fg3, 0.08), borderColor: alpha(T.fg3, 0.5), borderColor0: alpha(T.fg3, 0.35) },
       })
     }
     series.push({
       type: 'candlestick', name: side === 'current' ? t('Oggi') : t('Analogo'), data, barMaxWidth: 10, z: 3,
       itemStyle: ghost
-        ? { color: hexA(C.btc, 0.9), color0: '#10151F', borderColor: C.btc, borderColor0: C.btc }
+        ? { color: hexA(C.accent, 0.9), color0: T.surface, borderColor: C.accent, borderColor0: C.accent }
         : { color: C.up, color0: C.down, borderColor: C.up, borderColor0: C.down },
       markLine: {
         symbol: 'none', silent: true, animation: false,
         data: [
-          { yAxis: 0, lineStyle: { color: 'rgba(148,163,184,0.3)', type: 'dashed' }, label: { show: false } },
-          ...(extraLen > 0 ? [{ xAxis: xs[lastIdx], lineStyle: { color: 'rgba(148,163,184,0.55)', type: 'dashed' }, label: { show: true, position: 'end', color: '#B3BCD0', fontSize: 11, formatter: after ? t('Fine finestra') : t('Oggi') } }] : []),
+          { yAxis: 0, lineStyle: { color: alpha(T.fg3, 0.3), type: 'dashed' }, label: { show: false } },
+          ...(extraLen > 0 ? [{ xAxis: xs[lastIdx], lineStyle: { color: alpha(T.fg3, 0.55), type: 'dashed' }, label: { show: true, position: 'end', color: T.fg2, fontSize: 11, formatter: after ? t('Fine finestra') : t('Oggi') } }] : []),
           ...patLines,
         ],
       },
@@ -300,12 +301,12 @@ export function AnalogCandles({
       if (future.p10 && future.p90) {
         const lo = f(future.p10), hi = f(future.p90)
         series.push({ type: 'line', name: '_p10', data: lo, stack: 'b90', symbol: 'none', lineStyle: { width: 0 }, silent: true, z: 1 })
-        series.push({ type: 'line', name: 'P10–P90', data: hi.map((v, i) => (v == null || lo[i] == null ? null : +(v - (lo[i] as number)).toFixed(3))), stack: 'b90', symbol: 'none', lineStyle: { width: 0 }, areaStyle: { color: 'rgba(91,141,239,0.08)' }, silent: true, z: 1 })
+        series.push({ type: 'line', name: 'P10–P90', data: hi.map((v, i) => (v == null || lo[i] == null ? null : +(v - (lo[i] as number)).toFixed(3))), stack: 'b90', symbol: 'none', lineStyle: { width: 0 }, areaStyle: { color: alpha(T.accent, 0.08) }, silent: true, z: 1 })
       }
       if (future.p25 && future.p75) {
         const lo = f(future.p25), hi = f(future.p75)
         series.push({ type: 'line', name: '_p25', data: lo, stack: 'b50', symbol: 'none', lineStyle: { width: 0 }, silent: true, z: 1 })
-        series.push({ type: 'line', name: 'P25–P75', data: hi.map((v, i) => (v == null || lo[i] == null ? null : +(v - (lo[i] as number)).toFixed(3))), stack: 'b50', symbol: 'none', lineStyle: { width: 0 }, areaStyle: { color: 'rgba(91,141,239,0.14)' }, silent: true, z: 1 })
+        series.push({ type: 'line', name: 'P25–P75', data: hi.map((v, i) => (v == null || lo[i] == null ? null : +(v - (lo[i] as number)).toFixed(3))), stack: 'b50', symbol: 'none', lineStyle: { width: 0 }, areaStyle: { color: alpha(T.accent, 0.14) }, silent: true, z: 1 })
       }
       if (future.sel && future.sel.length) {
         const sp = f(future.sel)
@@ -317,7 +318,7 @@ export function AnalogCandles({
       const dEnd = (future.path[future.path.length - 1] / lastC - 1) * 100
       series.push({ type: 'line', name: t('Mediana analoghi'), data: path, symbol: 'none', z: 5, lineStyle: { color: C.primary, width: 2 },
         markPoint: { symbol: 'circle', symbolSize: 6, itemStyle: { color: C.primary }, data: [{ coord: [xs[n - 1], endV],
-          label: { show: true, position: 'left', color: '#E6E9EF', fontSize: 11, backgroundColor: 'rgba(16,21,31,0.85)', padding: [2, 4], borderRadius: 4,
+          label: { show: true, position: 'left', color: T.fg, fontSize: 11, backgroundColor: alpha(T.surface, 0.85), padding: [2, 4], borderRadius: 4,
             formatter: compact ? `${dEnd >= 0 ? '+' : '−'}${Math.abs(dEnd).toFixed(1)}%` : `${t('Mediana')} ${dEnd >= 0 ? '+' : '−'}${Math.abs(dEnd).toFixed(1)}% · ${usd(future.path[future.path.length - 1])}` } }] } })
     }
     if (ghostAfter && ghostAfter.length && ghost) {
@@ -328,7 +329,7 @@ export function AnalogCandles({
     if (after && after.length && outcome != null) {
       const endV = p(after[after.length - 1].close)
       series.push({ type: 'scatter', name: '_esito', data: [[xs[n - 1], endV]], symbolSize: 1, silent: true, z: 6,
-        label: { show: true, position: 'left', color: '#E6E9EF', fontSize: 11, formatter: `${outcome >= 0 ? '+' : '−'}${Math.abs(outcome).toFixed(1)}%` } })
+        label: { show: true, position: 'left', color: T.fg, fontSize: 11, formatter: `${outcome >= 0 ? '+' : '−'}${Math.abs(outcome).toFixed(1)}%` } })
     }
     if (layers.legs && legs.length) {
       series.push({ type: 'line', name: t('Gambe'), data: zz, connectNulls: true, showSymbol: true, symbol: 'circle', symbolSize: 4, z: 4, silent: true,
@@ -337,19 +338,19 @@ export function AnalogCandles({
     return {
       grid: { left: 6, right: 6, top: 28, bottom: 6, containLabel: true },
       tooltip: {
-        ...tooltipBase, trigger: 'axis', axisPointer: { type: 'line', lineStyle: { color: 'rgba(148,163,184,0.35)' } },
+        ...tooltipBase, trigger: 'axis', axisPointer: { type: 'line', lineStyle: { color: alpha(T.fg3, 0.35) } },
         formatter: (ps: TipP[]) => {
           const i = ps[0]?.dataIndex ?? 0
           const c = candles[i]
           if (!c && i >= w) {
             const k = i - w
-            if (after?.[k]) return `<div style="color:#8B94A7;margin-bottom:4px">${t('Dopo · candela {n}', { n: k + 1 })} · ${fullTime(after[k].time, tf)}</div>` + tipRow('#8B94A7', t('Chiusura'), `${usd(after[k].close)} (${pct(p(after[k].close), 1)})`)
+            if (after?.[k]) return `<div style="color:${T.fg3};margin-bottom:4px">${t('Dopo · candela {n}', { n: k + 1 })} · ${fullTime(after[k].time, tf)}</div>` + tipRow(T.fg3, t('Chiusura'), `${usd(after[k].close)} (${pct(p(after[k].close), 1)})`)
             if (future?.path[k] != null) {
               const lc = candles[candles.length - 1]?.close || 1
               const fromNow = (v: number) => pct((v / lc - 1) * 100, 1)
-              return `<div style="color:#8B94A7;margin-bottom:4px">${t('Proiezione · +{n} candele', { n: k + 1 })}${future.times[k] ? ` · ${fullTime(future.times[k], tf)}` : ''}</div>` +
+              return `<div style="color:${T.fg3};margin-bottom:4px">${t('Proiezione · +{n} candele', { n: k + 1 })}${future.times[k] ? ` · ${fullTime(future.times[k], tf)}` : ''}</div>` +
                 tipRow(C.primary, t('Mediana analoghi ({n})', { n: future.n }), `${usd(future.path[k])} (${fromNow(future.path[k])})`) +
-                (future.p25 && future.p75 ? tipRow('#5B8DEF', 'P25–P75', `${usd(future.p25[k])} – ${usd(future.p75[k])}`) : '') +
+                (future.p25 && future.p75 ? tipRow(T.accent, 'P25–P75', `${usd(future.p25[k])} – ${usd(future.p75[k])}`) : '') +
                 (future.sel?.[k] != null ? tipRow(C.grey, `${t('Analogo selezionato')} · ${future.selLabel ?? ''}`, `${usd(future.sel[k])} (${fromNow(future.sel[k])})`) : '')
             }
             return ''
@@ -358,11 +359,11 @@ export function AnalogCandles({
           const hit = points.filter((m) => m[side].idx === i)
           const g = ghost?.[i]
           const leg = layers.legs ? legs.find((x) => i >= x.from_idx && i <= x.to_idx) : undefined
-          return `<div style="color:#94a3b8;margin-bottom:4px">${t('Candela {n}', { n: i + 1 })} · ${fullTime(c.time, tf)}</div>` +
+          return `<div style="color:${T.fg3};margin-bottom:4px">${t('Candela {n}', { n: i + 1 })} · ${fullTime(c.time, tf)}</div>` +
             tipRow(c.close >= c.open ? C.up : C.down, t('Chiusura'), `${usd(c.close)} (${pct(p(c.close), 1)})`) +
-            tipRow('#8B94A7', tr('Massimo', 'High'), `${usd(c.high)} (${pct(p(c.high), 1)})`) +
-            tipRow('#8B94A7', t('Minimo'), `${usd(c.low)} (${pct(p(c.low), 1)})`) +
-            (g ? tipRow('#8B94A7', `${ghostLabel ?? t('Analogo')} · ${fullTime(g.time, tf)}`, pct(gp(g.close), 1)) : '') +
+            tipRow(T.fg3, tr('Massimo', 'High'), `${usd(c.high)} (${pct(p(c.high), 1)})`) +
+            tipRow(T.fg3, t('Minimo'), `${usd(c.low)} (${pct(p(c.low), 1)})`) +
+            (g ? tipRow(T.fg3, `${ghostLabel ?? t('Analogo')} · ${fullTime(g.time, tf)}`, pct(gp(g.close), 1)) : '') +
             (leg ? tipRow(LEG_COLOR, t('Gamba {l} · {n} candele', { l: leg.label, n: leg.candles }), pct(leg.pct, 1)) : '') +
             hit.map((m) => tipRow(pointColor(m.n), `${m.n}. ${side === 'current' ? m.label : m.analog_label}`, '')).join('')
         },
@@ -381,14 +382,14 @@ export function AnalogCandles({
 
 // ------------------------------------------------------------------ badge delle figure
 export function PatternBadges({ patterns, empty }: { patterns: ChartPattern[]; empty?: string }) {
-  if (!patterns.length) return <div className="flex min-h-6 items-center text-xs text-slate-500">{empty ?? t('Nessuna figura classica')}</div>
+  if (!patterns.length) return <div className="flex min-h-6 items-center text-xs text-fg-4">{empty ?? t('Nessuna figura classica')}</div>
   return (
     <div className="flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1">
       {patterns.map((p) => (
         <span key={p.key} title={t('Confidenza {n}%', { n: p.confidence.toFixed(0) })}
-          className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-slate-300">
+          className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-fg-2">
           {p.name}
-          <span className="tnum text-slate-400">{p.confidence.toFixed(0)}%</span>
+          <span className="tnum text-fg-3">{p.confidence.toFixed(0)}%</span>
         </span>
       ))}
     </div>
@@ -402,13 +403,13 @@ export function VisualBreakdown({ components }: { components: VisualComponent[] 
       {components.map((c) => (
         <div key={c.key}>
           <div className="mb-1 flex items-baseline justify-between gap-3">
-            <span className="text-sm font-medium text-slate-200">{c.label} <span className="ml-1 text-2xs font-normal text-slate-500">{t('Peso {n}%', { n: +(c.weight * 100).toFixed(1) })}</span></span>
+            <span className="text-sm font-medium text-fg">{c.label} <span className="ml-1 text-2xs font-normal text-fg-4">{t('Peso {n}%', { n: +(c.weight * 100).toFixed(1) })}</span></span>
             <span className="tnum text-sm text-white">{c.score == null ? t('n/d') : `${Math.round(c.score)}%`}</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
             <div className="h-full rounded-full" style={{ width: `${c.score ?? 0}%`, background: simColor(c.score) }} />
           </div>
-          <p className="mt-1 text-xs leading-relaxed text-slate-400">{c.explanation}</p>
+          <p className="mt-1 text-xs leading-relaxed text-fg-3">{c.explanation}</p>
         </div>
       ))}
     </div>
@@ -428,9 +429,9 @@ export function LegTable({ pairs, cur, ana, when, curLabel }: { pairs: AnalogLeg
             if (!a || !b) return null
             return (
               <tr key={i}>
-                <td className="text-white">G{p.current}{b.n !== p.current ? <span className="ml-1 text-xs font-normal text-slate-500">↔ {t('{n}ª', { n: b.n })}</span> : null}</td>
-                <td className="text-right"><span className={clsx('font-medium', a.pct >= 0 ? 'text-up' : 'text-down')}>{pct(a.pct, 1)}</span> <span className="text-xs text-slate-400">{t('In {n} cand.', { n: a.candles })}</span></td>
-                <td className="text-right"><span className={clsx('font-medium', b.pct >= 0 ? 'text-up' : 'text-down')}>{pct(b.pct, 1)}</span> <span className="text-xs text-slate-400">{t('In {n} cand.', { n: b.candles })}</span></td>
+                <td className="text-white">G{p.current}{b.n !== p.current ? <span className="ml-1 text-xs font-normal text-fg-4">↔ {t('{n}ª', { n: b.n })}</span> : null}</td>
+                <td className="text-right"><span className={clsx('font-medium', a.pct >= 0 ? 'text-up' : 'text-down')}>{pct(a.pct, 1)}</span> <span className="text-xs text-fg-3">{t('In {n} cand.', { n: a.candles })}</span></td>
+                <td className="text-right"><span className={clsx('font-medium', b.pct >= 0 ? 'text-up' : 'text-down')}>{pct(b.pct, 1)}</span> <span className="text-xs text-fg-3">{t('In {n} cand.', { n: b.candles })}</span></td>
                 <td>
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full" style={{ width: `${p.similarity}%`, background: simColor(p.similarity) }} /></div>
@@ -470,9 +471,9 @@ export function LegBars({ pairs, cur, ana, when, curLabel, className }: { pairs:
     <div className={clsx('flex flex-col', className)}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <span className="label">{t('Ampiezza delle gambe')}</span>
-        <span className="flex items-center gap-3 text-xs text-slate-400">
-          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: C.btc }} />{curLabel ?? t('Oggi')}</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: C.blue }} />{whenYear(when)}</span>
+        <span className="flex items-center gap-3 text-xs text-fg-3">
+          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: C.accent }} />{curLabel ?? t('Oggi')}</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: C.accent }} />{whenYear(when)}</span>
         </span>
       </div>
       <div className="relative min-h-[64px] flex-1">
@@ -480,15 +481,15 @@ export function LegBars({ pairs, cur, ana, when, curLabel, className }: { pairs:
         <div className="absolute inset-0 flex gap-1.5">
           {rows.map((r, i) => (
             <div key={i} className="flex min-w-0 flex-1 justify-center gap-[3px]" title={`G${r.n} · ${pct(r.a.pct, 1)} / ${pct(r.b.pct, 1)}`}>
-              {bar(r.a.pct, C.btc)}{bar(r.b.pct, hexA(C.blue, 0.85))}
+              {bar(r.a.pct, C.accent)}{bar(r.b.pct, hexA(C.steel, 0.85))}
             </div>
           ))}
         </div>
       </div>
       <div className="mt-1 flex gap-1.5">
-        {rows.map((r, i) => <span key={i} className="tnum min-w-0 flex-1 truncate text-center text-2xs text-slate-500">G{r.n}</span>)}
+        {rows.map((r, i) => <span key={i} className="tnum min-w-0 flex-1 truncate text-center text-2xs text-fg-4">G{r.n}</span>)}
       </div>
-      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-line pt-3 text-xs text-slate-400">
+      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-line pt-3 text-xs text-fg-3">
         <span>{t('Gambe allineate')} <b className="tnum font-semibold text-white">{rows.length}</b></span>
         <span>{t('Stessa direzione')} <b className="tnum font-semibold text-white">{same}/{rows.length}</b></span>
         <span>{t('Somiglianza media')} <b className="tnum font-semibold text-white">{Math.round(avg)}%</b></span>
@@ -535,7 +536,7 @@ export function AnalogOverlay({ current, match, window: w, tf, height = 340, med
         ...tooltipBase, trigger: 'axis',
         formatter: (ps: TipP[]) => {
           const x = Number(xs[ps[0]?.dataIndex ?? 0])
-          const head = `<div style="color:#94a3b8;margin-bottom:4px">${x === 0 ? now : t('{n} candele', { n: x > 0 ? `+${x}` : x })}</div>`
+          const head = `<div style="color:${T.fg3};margin-bottom:4px">${x === 0 ? now : t('{n} candele', { n: x > 0 ? `+${x}` : x })}</div>`
           return head + ps.filter((p) => p.value != null && !['_low', N.range].includes(p.seriesName)).map((p) =>
             tipRow(p.color, p.seriesName, p.seriesName === N.proj || p.seriesName === N.med ? `${(p.value as number).toFixed(1)} · ${toUsd(p.value as number)}` : (p.value as number).toFixed(1))).join('')
         },
@@ -544,13 +545,13 @@ export function AnalogOverlay({ current, match, window: w, tf, height = 340, med
       yAxis: valueAxis({ position: 'right', axisLabel: { ...axisLabel, formatter: (v: number) => v.toFixed(0) } }),
       series: [
         lineSeries('_low', pLow, 'transparent', { stack: 'band', lineStyle: { width: 0 }, tooltip: { show: false } }),
-        lineSeries(N.range, diff, 'transparent', { stack: 'band', lineStyle: { width: 0 }, areaStyle: { color: 'rgba(148,163,184,0.10)' } }),
+        lineSeries(N.range, diff, 'transparent', { stack: 'band', lineStyle: { width: 0 }, areaStyle: { color: alpha(T.fg3, 0.10) } }),
         lineSeries(plabel(match.period.label), ana, C.grey, { lineStyle: { width: 1.5, color: C.grey } }),
         lineSeries(N.cont, cont, C.grey2, { lineStyle: { width: 1.5, color: C.grey2, type: 'dashed' } }),
-        lineSeries(N.cur, cur, C.btc, { lineStyle: { width: 2, color: C.btc }, z: 10 }),
-        lineSeries(N.proj, pClose, C.blue, {
-          lineStyle: { width: 1.5, type: 'dashed', color: C.blue }, z: 9,
-          markLine: { symbol: 'none', silent: true, lineStyle: { color: 'rgba(226,232,240,0.45)', type: 'dashed' }, label: { color: C.text, formatter: now, fontSize: 11 }, data: [{ xAxis: '0' }] },
+        lineSeries(N.cur, cur, C.accent, { lineStyle: { width: 2, color: C.accent }, z: 10 }),
+        lineSeries(N.proj, pClose, C.accent, {
+          lineStyle: { width: 1.5, type: 'dashed', color: C.accent }, z: 9,
+          markLine: { symbol: 'none', silent: true, lineStyle: { color: alpha(T.fg, 0.45), type: 'dashed' }, label: { color: C.text, formatter: now, fontSize: 11 }, data: [{ xAxis: '0' }] },
         }),
         ...(med ? [lineSeries(N.med, med, C.primary, { lineStyle: { width: 2, color: C.primary }, z: 11 })] : []),
       ],
@@ -563,7 +564,7 @@ export function AnalogOverlay({ current, match, window: w, tf, height = 340, med
 // ------------------------------------------------------------------ feature
 /** Similarity / quality is not a direction: single neutral blue (dimmed when unavailable). */
 export function simColor(s: number | null) {
-  return s == null ? '#5B6475' : '#5B8DEF'
+  return s == null ? T.fgOff : T.accent
 }
 
 export function FeatureCard({ f, when }: { f: AnalogFeature; when: string }) {
@@ -583,13 +584,13 @@ export function FeatureCard({ f, when }: { f: AnalogFeature; when: string }) {
           <div className="label">{t('Oggi')}</div>
           <div className="tnum break-words font-semibold leading-snug text-white">{f.display_current}</div>
         </div>
-        {f.similarity != null && f.similarity >= 85 ? <Equal size={14} className="text-slate-500" /> : <ArrowRight size={14} className="text-slate-600" />}
+        {f.similarity != null && f.similarity >= 85 ? <Equal size={14} className="text-fg-4" /> : <ArrowRight size={14} className="text-fg-off" />}
         <div className="min-w-0">
           <div className="label">{whenYear(when)}</div>
           <div className="tnum break-words font-semibold leading-snug text-white">{f.display_analog}</div>
         </div>
       </div>
-      <p className="text-xs leading-relaxed text-slate-400">{f.explanation}</p>
+      <p className="text-xs leading-relaxed text-fg-3">{f.explanation}</p>
     </div>
   )
 }
@@ -612,24 +613,24 @@ export function MappingList({ mapping, tf, when, active, onHover, curLabel, twoF
           className={clsx('grid grid-cols-[auto_1fr] content-center gap-3 border-t border-line px-1 py-2.5 transition-colors first:border-t-0 first:pt-0 sm:grid-cols-[auto_1.1fr_1fr_1fr]',
             active === m.n && 'bg-white/[0.03]')}
         >
-          <span className={clsx('grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs', active === m.n ? 'border-accent-blue text-white' : 'border-slate-500 text-slate-300')}>{m.n}</span>
+          <span className={clsx('grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs', active === m.n ? 'border-accent text-white' : 'border-fg-4 text-fg-2')}>{m.n}</span>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 text-sm font-semibold text-white">
               {m.label}
-              {m.same_role && <Check size={14} className="text-up" aria-label={t('Stesso ruolo')} />}
+              {m.same_role && <Check size={14} className="text-accent" aria-label={t('Stesso ruolo')} />}
             </div>
-            {!m.same_role && <div className="text-xs text-slate-400">{cap(when)}: {m.analog_label.toLowerCase()}</div>}
+            {!m.same_role && <div className="text-xs text-fg-3">{cap(when)}: {m.analog_label.toLowerCase()}</div>}
           </div>
           <div className="col-span-2 grid grid-cols-2 gap-3 sm:col-span-2">
             <div className="min-w-0 text-xs">
-              <div className="text-slate-400">{curLabel ? `${curLabel} · ${t('candela {n}', { n: m.current.idx + 1 })}` : t('Oggi · candela {n}', { n: m.current.idx + 1 })}</div>
-              <div className="tnum font-semibold text-slate-100">{usd(m.current.price)} <span className={m.current.pct >= 0 ? 'text-up' : 'text-down'}>{pct(m.current.pct, 1)}</span></div>
-              <div className="truncate text-slate-500">{curLabel ? ' ' : fullTime(m.current.time, tf)}</div>
+              <div className="text-fg-3">{curLabel ? `${curLabel} · ${t('candela {n}', { n: m.current.idx + 1 })}` : t('Oggi · candela {n}', { n: m.current.idx + 1 })}</div>
+              <div className="tnum font-semibold text-fg">{usd(m.current.price)} <span className={m.current.pct >= 0 ? 'text-up' : 'text-down'}>{pct(m.current.pct, 1)}</span></div>
+              <div className="truncate text-fg-4">{curLabel ? ' ' : fullTime(m.current.time, tf)}</div>
             </div>
             <div className="min-w-0 text-xs">
-              <div className="text-slate-400">{t('Analogo · candela {n}', { n: m.analog.idx + 1 })}</div>
-              <div className="tnum font-semibold text-slate-100">{usd(m.analog.price)} <span className={m.analog.pct >= 0 ? 'text-up' : 'text-down'}>{pct(m.analog.pct, 1)}</span></div>
-              <div className="truncate text-slate-500">{fullTime(m.analog.time, tf)}</div>
+              <div className="text-fg-3">{t('Analogo · candela {n}', { n: m.analog.idx + 1 })}</div>
+              <div className="tnum font-semibold text-fg">{usd(m.analog.price)} <span className={m.analog.pct >= 0 ? 'text-up' : 'text-down'}>{pct(m.analog.pct, 1)}</span></div>
+              <div className="truncate text-fg-4">{fullTime(m.analog.time, tf)}</div>
             </div>
           </div>
         </div>

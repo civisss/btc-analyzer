@@ -1,6 +1,5 @@
 /* Realistic mock fixtures following CONTRACT.md.
  * Only loaded when VITE_USE_MOCKS === 'true' (npm run dev:mock). */
-import { agentMessagesMock, agentsMock, runAgentMock, startMockAgents } from './mocksAgents'
 import type {
   Candle, ChatMessage, Cycles, Derivatives, Forecast, Fractals, Indicators, Insights, Levels,
   Liquidations, OnChain, Overview, Pt, Status, T, UsdtAnalysis,
@@ -794,8 +793,6 @@ export function mockGet(path: string, p: Record<string, string | number | boolea
     case '/forecast': return forecast(num('horizon', 90))
     case '/insights': return { ...insights(), generated_at: p.refresh ? NOW : NOW - 240 }
     case '/status': return status()
-    case '/agents': return agentsMock()
-    case '/agents/messages': return agentMessagesMock(num('limit', 100), p.agent as string | undefined)
     default: throw new Error(`Mock non disponibile per ${path}`)
   }
 }
@@ -860,11 +857,4 @@ export function startMockLive(emit: (m: unknown) => void) {
   }
   tick()
   setInterval(tick, 1000)
-  startMockAgents(emit)
-}
-
-export function mockPost(path: string): unknown {
-  const m = path.match(/^\/agents\/([^/]+)\/run$/)
-  if (m) return runAgentMock(decodeURIComponent(m[1]))
-  throw new Error(`Mock POST non disponibile per ${path}`)
 }
